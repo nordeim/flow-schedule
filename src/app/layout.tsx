@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "FlowSchedule",
     template: "%s | FlowSchedule",

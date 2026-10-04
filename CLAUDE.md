@@ -111,7 +111,7 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (36 tests) |
+| `bun run test` | Vitest unit (44 tests) |
 | `bun run test:e2e` | Playwright e2e (29 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
@@ -122,7 +122,7 @@ Single e2e: `bun run test:e2e -- -g "mobile account menu"`.
 
 | Level | Tool | Location | Notes |
 |-------|------|----------|-------|
-| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants, db-path |
+| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants, db-path, .env.example contract, site URL helper |
 | E2E | Playwright | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity, auth, dashboard, planning |
 
 - E2E runs against the **production standalone** on `:3100` with its own

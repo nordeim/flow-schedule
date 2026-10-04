@@ -11,7 +11,7 @@
 
 #### Revision Block — v1.0 (Tracked Changes)
 
-- `[AUTH]` Initial as-built PAD for the FlowSchedule clone, generated after the full verification gate ran green (lint, tsc, 36/36 unit, build, 29/29 e2e).
+- `[AUTH]` Initial as-built PAD for the FlowSchedule clone, generated after the full verification gate ran green (lint, tsc, 44/44 unit, build, 29/29 e2e). Session-1 remediation additions: site metadata layer (`src/lib/site.ts`, `/sitemap.xml`, `/robots.txt`, `metadataBase`), `.env.example` contract tests, e2e determinism hardening — see `docs/session_1-review.md` (build narrative: `docs/session_1.md`).
 - `[SYN]` Reference-app facts (routes, enums, geometry, gradients, prompts) were extracted from the deployed reference's compiled bundle and live DOM — measured, not guessed.
 - `[CA]` The five Tailwind v4 traps in §5.4 are applied as code-level mitigations, each traced to `docs/Tailwind-V4-Validation-Report.md`.
 
@@ -617,7 +617,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 36/36 unit · build ✓ · 29/29 e2e
+# lint clean · tsc clean · 44/44 unit · build ✓ · 29/29 e2e
 ```
 
 ### 10.2 Common tasks
@@ -674,8 +674,8 @@ Claims made in this PAD, with evidence (all executed 2026-10-04):
 |---|---|---|
 | lint clean | Verified | `bun run lint` → zero errors |
 | typecheck clean | Verified | `bun run tsc --noEmit` → clean |
-| Unit tests pass | Verified | `bun run test` → 36/36 |
-| Production build succeeds | Verified | `bun run build` → 17 routes (6 static pages + 11 API) |
+| Unit tests pass | Verified | `bun run test` → 44/44 |
+| Production build succeeds | Verified | `bun run build` → 19 routes (8 static incl. `/sitemap.xml` + `/robots.txt`, 11 API) |
 | E2E passes | Verified | `bun run test:e2e` → 29/29 (through live SDK 429s) |
 | Mobile menu geometry parity | Verified | Direct DOM measurement: menu right 374 = trigger right 374, y=54, w=192 (identical to the live reference) |
 | Reference app facts (routes, enums, geometry, gradients, prompts) | Verified | Extracted from the reference's deployed bundle + live authenticated DOM/API probing (session recorded in the build worklog) |

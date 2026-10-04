@@ -60,6 +60,17 @@ test.describe("dashboard", () => {
     await expect(page.getByLabel("Task Title")).toBeHidden();
     await page.goto("/Planning");
     await expect(page.getByText("E2E quick action task").first()).toBeVisible();
+
+    // Cleanup: delete the task(s) via the API so repeated runs don't drift the
+    // seeded state (global-setup deliberately does NOT reset the db file —
+    // see its header comment). GET /api/tasks → { ok, data: { tasks } }.
+    // Delete EVERY match — a crashed earlier run can leave residue that a
+    // single `.find()`-then-delete would never converge on.
+    const list = await (await page.request.get("/api/tasks")).json();
+    const residue = (list?.data?.tasks ?? []).filter(
+      (t: { title: string }) => t.title === "E2E quick action task",
+    );
+    for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
   });
 
   test("Focus Timer panel counts down", async ({ page }) => {

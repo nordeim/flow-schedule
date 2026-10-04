@@ -40,7 +40,7 @@ brainstorm pad.
 | ✅ **Task lifecycle** | 4 priorities (low/medium/high/urgent), 7 categories, 3 statuses (todo/in_progress/completed); create/edit/delete through a shadcn Dialog with datetime-local start + 15-minute-step duration |
 | 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in |
 | 📱 **Mobile navigation** | The reference's exact pattern: a ghost user-icon button opening a Radix DropdownMenu aligned `end` — menu right edge anchored to the trigger's right edge (measured parity: right 374 = trigger 374 @ 390px viewport); no bottom tab bar (the reference ships an empty nav-items array) |
-| 🧪 **Test pyramid** | 36 Vitest unit tests (auth crypto, domain constants, db-path resolution) + 29 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning) + curl smoke checks |
+| 🧪 **Test pyramid** | 44 Vitest unit tests (auth crypto, domain constants, db-path resolution, .env.example contract, site URL helper) + 29 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning) + curl smoke checks |
 
 ## Screenshots
 
@@ -83,6 +83,7 @@ flowchart LR
     A -->|Prisma Client| D[("SQLite<br/>db/custom.db")]
     A -->|server-side| Z[z-ai-web-dev-sdk<br/>quote + AI summary]
     P["Next.js pages<br/>/Dashboard /Planning /Profile /Settings /login"] --> B
+    S["/sitemap.xml + /robots.txt<br/>src/lib/site.ts"] --> P
 ```
 
 All data flows through the Zustand store, which fetches typed JSON from the
@@ -100,6 +101,9 @@ menu). `/login` is a standalone route with the auth card.
 │   ├── 📂 screenshots/            # Dev-server captures (login → mobile planning)
 │   ├── Tailwind-V4-Validation-Report.md  # The 5 engine traps this codebase pins
 │   ├── DEPLOYMENT.md              # Production deployment guide
+│   ├── session_1.md               # The build session's narrative transcript (operator-authored)
+│   ├── session_1-review.md        # Session-1 review & remediation record
+│   ├── remediation-plan-session1.md      # The session-1 review plan + execution log
 │   └── how-to-git-push-using-ssh-wrapper_SKILL.md
 ├── 📂 prisma/
 │   ├── schema.prisma              # User / Task / Note models
@@ -109,24 +113,28 @@ menu). `/login` is a standalone route with the auth card.
 │   │   ├── 📂 api/                # 11 route handlers (auth, tasks, notes, ai, health)
 │   │   ├── 📂 (app)/              # Authenticated group: Dashboard, Planning, Profile, Settings
 │   │   ├── 📂 login/              # Auth card (Suspense-wrapped useSearchParams)
-│   │   ├── layout.tsx             # Root layout + metadata
+│   │   ├── layout.tsx             # Root layout + metadataBase
 │   │   ├── page.tsx               # / → /Dashboard redirect
+│   │   ├── sitemap.ts / robots.ts # /sitemap.xml + /robots.txt (src/lib/site.ts)
 │   │   └── globals.css            # Tailwind v4 @theme + the 5 trap mitigations
 │   ├── 📂 components/
 │   │   ├── 📂 ui/                 # shadcn primitives (button, dialog, select, …)
 │   │   ├── 📂 layout/             # AppShell, Header (the mobile menu), BackgroundBlobs
 │   │   ├── 📂 dashboard/          # WeeklySchedule, QuickActions, SkillsMap, StatusCard, DailyFocus, AISummary
 │   │   └── 📂 planning/           # TaskDialog
-│   ├── 📂 lib/                    # auth, api envelope, domain constants, ai, db, db-path
+│   ├── 📂 lib/                    # auth, api envelope, domain constants, ai, db, db-path, site
 │   └── 📂 store/                  # useFlowStore (Zustand)
 ├── 📂 tests/
 │   ├── 📂 e2e/                    # Playwright: mobile-navigation, auth, dashboard, planning
 │   ├── auth.test.ts               # scrypt + HMAC seams
 │   ├── domain.test.ts             # Reference constants contract
-│   └── db-path.test.ts            # SQLite URL resolution seam
+│   ├── db-path.test.ts            # SQLite URL resolution seam
+│   ├── env-example.test.ts        # .env.example contract
+│   └── site.test.ts               # Site URL helper
 ├── 📄 AGENTS.md                   # Agent operating instructions
 ├── 📄 CLAUDE.md                   # Claude Code project conventions
-└── 📄 Project_Architecture_Document.md  # Full engineering reference (ADRs, layers, traps)
+├── 📄 Project_Architecture_Document.md  # Full engineering reference (ADRs, layers, traps)
+└── 📄 flow-schedule_SKILL.md      # Distilled engineering skill (20 sections + appendices)
 ```
 
 ## Quick Start
@@ -156,7 +164,7 @@ curl http://localhost:3000/api/health
 # {"status":"ok","app":"flow-schedule","database":"up","ts":"…"}
 
 bun run lint && bun run typecheck && bun run test
-# ESLint clean · tsc clean · 36/36 unit tests
+# ESLint clean · tsc clean · 44/44 unit tests
 
 bun run build && bun run test:e2e
 # Build succeeds · 29/29 e2e tests (production standalone on :3100)
@@ -178,7 +186,7 @@ environment hardening notes.
 |---|---|---|
 | `DATABASE_URL` | yes | SQLite `file:` URL or PostgreSQL connection string. A relative `file:../db/custom.db` resolves against `prisma/schema.prisma` for the CLI **and** the runtime (see `src/lib/db-path.ts`). Production: use an absolute path. |
 | `AUTH_SECRET` | prod | HMAC signing secret for session tokens. Generate with `openssl rand -hex 32`. Falls back to a dev-only constant (loud comment, not silent). |
-| `NEXT_PUBLIC_SITE_URL` | no | Canonical origin for metadata. |
+| `NEXT_PUBLIC_SITE_URL` | no | Canonical public origin — feeds `metadataBase`, `/sitemap.xml` and `/robots.txt` via `src/lib/site.ts`; falls back to `http://localhost:3000`. |
 
 ## API Reference
 
@@ -216,7 +224,7 @@ Tailwind CSS **v4 CSS-first** — no `tailwind.config.*`; all tokens live in
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients), db-path resolution |
+| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients), db-path resolution, .env.example contract, site URL helper |
 | E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels, planning week cards + dialog flow |
 
 The e2e suite boots the **production standalone build** on `:3100` with its

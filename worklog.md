@@ -108,3 +108,28 @@ Stage Summary:
 - FULLY DELIVERED: complete FlowSchedule clone pushed to git@github.com:nordeim/flow-schedule.git @ 96d2dda
 - Final gate: lint clean, tsc clean, 36/36 unit, build green, 29/29 e2e, 25/25 smoke
 - Mobile navigation menu: reference-parity geometry (align=end, right-anchored, measured identical), pinned by e2e specs
+
+---
+Task ID: 11-13
+Agent: main agent
+Task: Session 1 — review + remediation, screenshots, skill distillation, commit + push
+
+Work Log:
+- git pull (fast-forward: docs/prompt-to-review.md, root worklog.md); reviewed AGENTS/CLAUDE/README/PAD against the codebase
+- Full gate at base 96d2dda: lint clean, tsc clean, 36/36 unit, build green, 29/29 e2e
+- Re-measured the live reference (agent-browser, saved auth): mobile menu right 374 / top 54 / w 192, trigger right 374 / bottom 50 — byte-identical to the clone's pinned geometry; no drift
+- Diagnosed the 0-byte db/custom.db: stale shell-exported DATABASE_URL (env precedence: shell export > parent .env > repo .env); unset it, db:push + db:seed → db/custom.db 40KiB seeded, health + login verified
+- Wrote docs/remediation-plan-session1.md (audit findings R-1..R-9 + TDD order), validated against the codebase, executed:
+  * T-1 tests/env-example.test.ts (red→green): .env.example de-ORBITAL'd, contract pinned
+  * T-2 tests/site.test.ts (red→green): src/lib/site.ts + metadataBase + /sitemap.xml + /robots.ts — NEXT_PUBLIC_SITE_URL now actually read
+  * vitest.config.ts comment names the real seams
+  * e2e determinism: FS-7 chip-interception fix (header-block click + hydration gate), FS-8 lesson (NEVER rmSync the db in globalSetup — webServer boots first; SQLITE_READONLY_RECOVERY), FS-9 converging spec cleanup via page.request
+- Final gate: lint clean, tsc clean, 44/44 unit, build green (+/robots.txt +/sitemap.xml), 29/29 e2e × 3 consecutive runs, post-run db = exactly 9 seed tasks
+- Re-captured all 9 screenshots (1440×900 desktop, 390×844 mobile; clone menu geometry re-measured 374/54/192 = reference)
+- Wrote docs/session_1-review.md (the operator-authored build narrative lives in docs/session_1.md); distilled flow-schedule_SKILL.md (20 sections + 4 appendices, per to-distill-project-into-skill)
+- Updated README/AGENTS/CLAUDE/PAD for alignment (44 unit tests, new docs, honest NEXT_PUBLIC_SITE_URL wording, 19 build routes)
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 1 delivered: remediated codebase, deterministic test suite, session docs, distilled skill, fresh screenshots, all gates green
+- Key new knowledge: env-precedence trap, Playwright webServer-before-globalSetup + SQLite file-handle rule, converging spec cleanup, day-card header clicks

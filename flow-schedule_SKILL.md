@@ -1,0 +1,808 @@
+---
+name: flow-schedule-skill
+description: >
+  Comprehensive engineering skill for the FlowSchedule codebase — a
+  self-hosted clone of the FlowSchedule reference app (weekly time-grid
+  calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
+  SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
+  or replicating the FlowSchedule architecture. Every claim is
+  codebase-verified (session 1, 2026-10-04).
+version: 1.0.0
+last_updated: 2026-10-04
+project_state: 44/44 unit tests, 29/29 e2e tests, all gates green
+---
+
+# FlowSchedule — Engineering SKILL
+
+> **How to use this document:** sections are self-contained. Start with §1
+> for identity, §2 for the locked stack, §3 to bootstrap. When debugging,
+> jump to §10. Before shipping, run §11. Every file path exists; every
+> version matches `bun pm ls`; every test count matches the runner output.
+
+## Table of Contents
+
+1. [Project Identity & Design Philosophy](#1-project-identity--design-philosophy)
+2. [Tech Stack & Environment](#2-tech-stack--environment)
+3. [Bootstrapping & Configuration](#3-bootstrapping--configuration)
+4. [The Design System (Code-First)](#4-the-design-system-code-first)
+5. [Component Architecture & Patterns](#5-component-architecture--patterns)
+6. [State Management Deep Dive (Zustand)](#6-state-management-deep-dive-zustand)
+7. [Data & Domain Model](#7-data--domain-model)
+8. [Accessibility Implementation](#8-accessibility-implementation)
+9. [Anti-Patterns & Common Bugs](#9-anti-patterns--common-bugs)
+10. [Debugging Guide](#10-debugging-guide)
+11. [Pre-Ship Checklist](#11-pre-ship-checklist)
+12. [Lessons Learnt & How to Avoid Them](#12-lessons-learnt--how-to-avoid-them)
+13. [Pitfalls to Avoid](#13-pitfalls-to-avoid)
+14. [Best Practices](#14-best-practices)
+15. [Coding Patterns](#15-coding-patterns)
+16. [Coding Anti-Patterns](#16-coding-anti-patterns)
+17. [Responsive Breakpoint Reference](#17-responsive-breakpoint-reference)
+18. [Z-Index Layer Map](#18-z-index-layer-map)
+19. [Color Reference (Complete)](#19-color-reference-complete)
+20. [TypeScript Interface Reference](#20-typescript-interface-reference)
+- [Appendix A: ADRs](#appendix-a-adrs)
+- [Appendix B: Verification Ledger](#appendix-b-verification-ledger)
+- [Appendix C: Session History](#appendix-c-session-history)
+- [Appendix D: Post-Deploy Live-Site Validation](#appendix-d-post-deploy-live-site-validation)
+
+---
+
+## 1. Project Identity & Design Philosophy
+
+**One sentence:** FlowSchedule is a self-hosted, pixel-faithful clone of
+the base44-hosted FlowSchedule reference app — a weekly schedule planner
+with a 16-hour time-grid calendar, AI-generated daily focus and schedule
+summaries, quick-capture actions, and notes — rebuilt on Next.js 16 with
+cookie-session auth and Prisma/SQLite replacing the base44 platform.
+
+**Design thesis:** *fidelity to the reference is the product*. The
+reference's routes (`/Dashboard`, `/Planning` — capitalized), enum
+values, gradient hex stops, calendar geometry (16 × 60px slots, 80px
+label column), and mobile-menu anchoring are **measured facts, not
+preferences**. Anything that "improves" the reference's visuals is a
+regression.
+
+**Non-negotiable rules:**
+
+- Route paths keep the reference's exact casing — never lowercase them,
+  never merge pages into an SPA.
+- The mobile navigation is ONLY the header's account menu (Radix
+  DropdownMenu `align="end"`); the reference ships **no bottom tab bar**
+  (its mobile nav-items array is empty `[]`).
+- The LLM never hard-fails: every AI feature renders a deterministic
+  fallback on any SDK error (the reference's own pattern — its catch
+  blocks ship canned content).
+- The API envelope is `{ ok, data } | { ok, error }` — never throw across
+  the boundary, never leak Prisma errors to the client.
+
+**The anti-generic mandate:** no component library kits, no dashboard
+templates, no "modern SaaS" styling. Glass cards (`bg-white/60
+backdrop-blur-xl rounded-3xl`), the slate→sky→indigo canvas gradient,
+and the three drifting framer-motion blobs ARE the design.
+
+## 2. Tech Stack & Environment
+
+Locked versions (from `bun pm ls`, verified 2026-10-04):
+
+| Layer | Technology | Version | Critical Note |
+|---|---|---|---|
+| Framework | next (App Router, Turbopack) | 16.3.8 | `proxy.ts` era; `allowedDevOrigins` is load-bearing; `params`/`cookies()` async |
+| UI runtime | react / react-dom | 19.3.0 | |
+| Language | typescript | 5.x (strict) | `tsc --noEmit` is the gate — `next.config.ts` has `ignoreBuildErrors: true` (scaffold legacy) |
+| Styling | tailwindcss + @tailwindcss/postcss | 4.3.3 | CSS-first `@theme inline`; NO `tailwind.config.*`; v3 token values pinned (§4) |
+| Primitives | radix-ui (dialog, dropdown-menu, select, accordion, …) | per-package | Focus trap + Escape come free — never hand-roll |
+| Charts | recharts | 3.10.1 | Skills Map pie only |
+| Motion | framer-motion | 14.0.0 | Background blobs only |
+| State | zustand | 5.0.15 | THE single fetcher of `/api/*` (§6) |
+| Icons | lucide-react | 0.525.0 | |
+| ORM | prisma + @prisma/client | 6.19.3 | SQLite; relative `file:` URLs anchored by `src/lib/db-path.ts` |
+| AI | z-ai-web-dev-sdk | 0.0.18 | Server-side ONLY; deterministic fallbacks |
+| Unit tests | vitest | 5.0.3 | `*.test.ts` only (e2e specs never picked up) |
+| E2E | @playwright/test | 1.63.0 | Production standalone on :3100, isolated `db/e2e.db` |
+| Runtime | bun | 1.3.x | `db:seed` is `bun prisma/seed.ts`; Node ≥ 20 works for the rest |
+
+**Environment variables** (all three read via `process.env` at call time):
+
+| Variable | Read by | Behavior when unset |
+|---|---|---|
+| `DATABASE_URL` | `src/lib/db-path.ts` (runtime), Prisma CLI | Relative `file:../db/custom.db` resolved against the schema-owning repo → `<repo>/db/custom.db` |
+| `AUTH_SECRET` | `src/lib/auth.ts` | Dev-only constant (loud, documented); REQUIRED in production |
+| `NEXT_PUBLIC_SITE_URL` | `src/lib/site.ts` | Falls back to `http://localhost:3000`; feeds `metadataBase`, `/sitemap.xml`, `/robots.txt` |
+
+`.env` is git-ignored; `.env.example` is the committed contract and is
+**pinned by a unit test** (`tests/env-example.test.ts` — branding, exact
+default DB path, all three vars present, no predecessor leftovers).
+
+## 3. Bootstrapping & Configuration
+
+```bash
+git clone git@github.com:nordeim/flow-schedule.git
+cd flow-schedule
+bun install
+cp .env.example .env
+# generate a session secret:
+#   echo "AUTH_SECRET=$(openssl rand -hex 32)" >> .env
+bun run db:push && bun run db:seed
+bun run dev            # :3000 — health check: curl localhost:3000/api/health
+```
+
+Demo credentials (seed): `demo@flowschedule.app` / `demo1234`.
+
+**Commands** (Bun canonical; run from repo root):
+
+| Command | Purpose |
+|---|---|
+| `bun run dev` | Dev server :3000 (Turbopack), logs tee'd to `dev.log` |
+| `bun run build` | Production build + assembles `.next/standalone` |
+| `bun run start` | Standalone prod server :3000 |
+| `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
+| `bun run test` | Vitest unit — 44 tests |
+| `bun run test:e2e` | Playwright — 29 specs; **requires prior `bun run build`** |
+| `bun run db:push` / `bun run db:seed` | Schema sync / idempotent seed |
+| `scripts/smoke-test.sh` | 25-check curl suite over the standalone server |
+
+**Configuration files:**
+
+- `next.config.ts` — `allowedDevOrigins: ["127.0.0.1", "localhost"]`
+  (load-bearing: Next 16's dev-origin protection silently blocks dev
+  chunks for `127.0.0.1` otherwise — symptom: unhydrated pages),
+  `output: "standalone"`, `typescript.ignoreBuildErrors: true` (the
+  typecheck gate replaces it).
+- `vitest.config.ts` — `include: ["src/**/*.test.ts", "tests/**/*.test.ts"]`,
+  node environment, `@` alias → `src/`.
+- `playwright.config.ts` — production standalone webServer on :3100 with
+  `DATABASE_URL=file:../db/e2e.db`, one setup project (single login,
+  shared storageState — login is rate-limited), `workers: 1` (specs share
+  one SQLite file).
+- `postcss.config.mjs` — `@tailwindcss/postcss` only.
+- `eslint.config.mjs` — flat config; `react-hooks/set-state-in-effect`
+  is an ERROR and has caught two real bugs.
+
+**Environment traps** (both hit in practice):
+
+1. Bun auto-loads `.env` from PARENT directories — a workspace parent
+   `.env` with an absolute `DATABASE_URL` wins over this repo's relative
+   one.
+2. A shell-EXPORTED `DATABASE_URL` beats every `.env` file. Symptom:
+   `db:seed` says "Sample tasks already present — skipped" while
+   `<repo>/db/custom.db` stays 0 bytes. Fix: `unset DATABASE_URL`.
+
+## 4. The Design System (Code-First)
+
+All tokens live in `src/app/globals.css` — there is **no
+`tailwind.config.*`**. Two blocks matter:
+
+1. `:root { … }` — shadcn semantic tokens as **full `hsl()` values**
+   (Trap 1: a bare `0 0% 100%` triplet under `@theme inline` silently
+   resolves to *transparent*).
+2. `@theme inline { --color-*: var(--*); … }` — maps the semantic vars
+   into Tailwind's color namespace, **pins the v3-era slate/sky/indigo
+   palette hexes** (Trap 2: v4's oklch defaults drift 1–3 sRGB units per
+   channel), and **pins `--shadow-sm` to the v3 value**
+   `0 1px 2px 0 rgb(0 0 0 / 0.05)` (Trap 5: v4's default is one notch
+   heavier; 21+ `shadow-sm` usages would drift).
+
+Full trap taxonomy and fixes: `docs/Tailwind-V4-Validation-Report.md`
+(5 engine-level traps — read before touching `globals.css`).
+
+**Signature styles:**
+
+- Canvas: `min-h-screen bg-gradient-to-br from-slate-50 via-sky-100
+  to-indigo-100` + 3 animated framer-motion blobs (sky/blue, indigo/
+  purple, cyan/teal; 30/35/40s mirrored loops) — `src/components/layout/
+  BackgroundBlobs.tsx`.
+- Header: `sticky top-0 z-50 bg-white/60 backdrop-blur-lg shadow-sm`.
+- Glass cards: `bg-white/60 backdrop-blur-xl rounded-3xl shadow-xl border
+  border-white/20`.
+- Buttons: `rounded-2xl` pills; primary = `bg-gradient-to-r from-sky-500
+  to-blue-600`.
+- Quick Action tiles: **inline-style hex gradients** (NOT
+  `bg-gradient-to-r` utilities) with the reference's exact stops — this
+  also sidesteps v4's in-oklab interpolation drift (Trap 3):
+  - Add New Task: `#0ea5e9 → #2563eb`
+  - Start Focus Timer: `#10b981 → #14b8a6`
+  - Log Activity: `#8b5cf6 → #6366f1`
+  - Quick Brainstorm: `#f59e0b → #f97316`
+
+**Typography:** system stack (`font-sans`), `text-3xl font-bold
+text-slate-900` page titles, `text-slate-600` subtitles — matches the
+reference exactly; do not introduce webfonts.
+
+## 5. Component Architecture & Patterns
+
+**Layer model** (single Next.js app, 28 `.tsx` files, 20 of them
+`"use client"`):
+
+```
+L1  src/app/**                 — routes: (app) group + /login + 11 API handlers
+L2  src/components/**          — client islands (dashboard, planning, layout, ui)
+L3  src/store/useFlowStore.ts  — THE only fetcher of /api/*; envelope unwrap
+L4  src/lib/**                 — pure seams: auth, api, domain, ai, db, db-path, site
+L5  prisma/**                  — schema + idempotent seed
+```
+
+Golden rule: data flows **L1 → (render) → L2 → (action) → L3 → (fetch)
+→ L1 API → L4 → L5**. A component NEVER fetches directly; a server
+component NEVER fetches entity data (pages are client islands over the
+store — matching the reference's SPA behavior).
+
+**Directory inventory:**
+
+| Folder | Files | Purpose |
+|---|---|---|
+| `src/components/ui/` | 12 | shadcn-style primitives: button, input, textarea, label, badge, card, dialog, select, dropdown-menu, accordion |
+| `src/components/layout/` | 3 | AppShell, Header (the mobile menu lives HERE), BackgroundBlobs |
+| `src/components/dashboard/` | 6 | WeeklySchedule, QuickActions, SkillsMap, StatusCard, DailyFocusCard, AISummaryCard |
+| `src/components/planning/` | 1 | TaskDialog (create/edit form) |
+| `src/app/api/` | 11 route handlers | auth login/register/me, logout, tasks ×2, notes ×2, ai ×2, health |
+
+**Client/Server decision tree:** a file needs `"use client"` iff it
+calls hooks (`useState`, `useFlowStore`), browser APIs, or framer/
+recharts. Everything else (layouts, the root page redirect) stays a
+server component. `z-ai-web-dev-sdk` is imported ONLY by
+`src/lib/ai.ts` (server) — a client import would crash the build.
+
+**The mobile menu** (highest-regression-risk surface, see §9/§10):
+`src/components/layout/Header.tsx` — desktop: avatar Button with
+initial → DropdownMenu (My Account label + Profile/Settings/Logout);
+mobile (`md:hidden`): ghost user-icon Button (`aria-label="Open account
+menu"`) → DropdownMenu `align="end"`. Measured parity at 390px viewport
+(re-measured against the live reference 2026-10-04): **menu right 374 =
+trigger right 374, menu top 54, width 192**. Pinned by
+`tests/e2e/mobile-navigation.spec.ts`.
+
+## 6. State Management Deep Dive (Zustand)
+
+`src/store/useFlowStore.ts` is the single client store and the ONLY
+fetcher of `/api/*`. Every fetch unwraps the `{ ok, data } | { ok,
+error }` envelope and surfaces `error.message` through the store's
+`error` field — components render it inline.
+
+Key contract details:
+
+- **snake_case wire format**: the API speaks the reference's entity
+  shape (`start_time`, `duration_minutes`, `created_at`,
+  `status: "in_progress"`). `mapTask`/`mapNote` in the store are the
+  ONLY snake↔camel conversion seams — never sprinkle conversions into
+  components.
+- Slab pattern: `tasks`, `notes`, `user`, `error`, and async actions
+  (`fetchTasks`, `createTask`, `updateTask`, `deleteTask`, `login`,
+  …) — each action returns/throws nothing; failures land in `error`.
+- Components subscribe with selectors (`useFlowStore((s) => s.tasks)`),
+  never whole-store, to avoid re-render storms.
+
+## 7. Data & Domain Model
+
+**Prisma schema** (`prisma/schema.prisma`, SQLite): `User`
+(`email` unique, `passwordHash`, `fullName`) · `Task` (title ≤300,
+description?, priority, category, status, `startTime`?, `durationMinutes`?,
+`endTime`?, `userId`) · `Note` (title, content, tags JSON, `userId`).
+
+**Domain enums and constants** live in `src/lib/domain.ts` — the single
+source of truth (pinned by `tests/domain.test.ts`, 13 tests):
+
+- Priorities: `low | medium | high | urgent` (text colors: green/
+  yellow/orange/red)
+- Categories: `work | personal | health | learning | creative | social |
+  planning` (gradients: blue/green/red/purple/pink/yellow/indigo)
+- Statuses: `todo | in_progress | completed`
+- Calendar: 16 hour slots 07:00–22:00; grid geometry
+  `gridTemplateColumns: 80px repeat(16, 60px)`; day rows `EEE` + `MMM d`;
+  task blocks absolutely positioned at 1px/minute.
+- `SKILL_COLORS` (7 category dot colors), `CATEGORY_BADGES`,
+  `PRIORITY_TEXT` maps.
+
+**Server-side validation:** API routes validate writes against
+`isPriority/isCategory/isTaskStatus` guards; **enum-invalid values
+coerce to the reference's defaults** (priority→medium, category→work,
+status→todo) rather than rejecting — mirroring the reference's lenient
+behavior. Stored enums are always valid.
+
+**Seed** (`prisma/seed.ts`): idempotent — user upsert + `is_sample:
+true` guards; re-running never duplicates. Demo user + 9 tasks + 2
+notes. Sample data belongs to the seed, NEVER to the runtime.
+
+**Auth** (`src/lib/auth.ts`): scrypt password hashing + HMAC-signed
+session tokens (`userId.expiry.mac`) in an HttpOnly `fs_session`
+cookie; login/register rate-limited 10/IP/60s (429 + `Retry-After`,
+in-memory fixed window in `src/lib/api.ts`).
+
+**AI** (`src/lib/ai.ts`): z-ai-web-dev-sdk, server-side only.
+`dailyFocus()` → quote/author/affirmation JSON (fallback: the Paul J.
+Meyer quote); `dailySummary(date)` → mood/focus_areas/activities/
+insights JSON. Both wrap every call in try/catch with deterministic
+fallbacks and log `[ai] … using default` server-side — a 429 from the
+SDK rendering the default is CORRECT behavior, not an incident.
+
+## 8. Accessibility Implementation
+
+- **Radix primitives everywhere** (dialog, dropdown-menu, select,
+  accordion) — focus trap, Escape handling, `aria-expanded`, roving
+  focus come free; never hand-roll these.
+- Icon-only buttons carry `aria-label`s (`Open account menu`,
+  `Close Timer`, `Back to Quick Actions`) — including the mobile menu
+  trigger (the reference ships it unnamed; the clone's label is a
+  deliberate a11y improvement that does NOT change geometry).
+- Two `role="status"` live regions (Daily Focus / AI Summary) carry
+  **distinct aria-labels** — required when multiple status roles exist.
+- `prefers-reduced-motion` is respected globally (blob animation and
+  panel transitions degrade).
+- Day-card task chips are `div[role=button] tabIndex={0}` with Enter
+  handlers — keyboard parity with the reference's clickable chips.
+- Focus states are visible (Radix defaults + `focus-visible:ring` on
+  inputs/buttons).
+
+## 9. Anti-Patterns & Common Bugs
+
+Numbered from project history (sessions + remediation); each maps to a
+test or a pinned convention that prevents recurrence.
+
+### FS-1: Bare-HSL theme triplets (Critical — build-time silent)
+
+**Symptom:** elements styled with semantic tokens render invisible
+(transparent). **Root cause:** under `@theme inline`, a bare `0 0% 100%`
+triplet resolves to `transparent` in Tailwind v4. **Fix:** all `:root`
+semantic tokens are full `hsl()` values in `src/app/globals.css`
+(Trap 1). **Lesson:** never "simplify" `hsl(0 0% 100%)` to `0 0% 100%`.
+
+### FS-2: Token value drift (High — visual)
+
+**Symptom:** colors/shadows one notch off vs the reference.
+**Root cause:** v4's oklch palette defaults and heavier `shadow-sm`.
+**Fix:** v3-era hexes + `--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05)`
+pinned in `@theme inline` (Traps 2 & 5). Pinned visually by e2e
+gradient assertions.
+
+### FS-3: space-y selector rewrite (High — layout)
+
+**Symptom:** spacing collapses or child margins win unexpectedly.
+**Root cause:** v4 emits `:where(.space-y-* > :not(:last-child))` with
+ZERO specificity — a child's own `mt-*/mb-*` overrides it (Trap 4).
+**Fix/convention:** NO `space-y-*` container in this codebase carries
+children with explicit mt/mb utilities (the dropdown menu uses `p-1` +
+item margins). Keep it that way — the mobile-menu geometry spec fails
+if the pattern sneaks back.
+
+### FS-4: set-state-in-effect cascades (High — React)
+
+**Symptom:** ESLint error `react-hooks/set-state-in-effect`; infinite
+re-render risk. **Root cause:** resetting state inside effect bodies.
+**Fix patterns in-tree:** derive loading states (AISummaryCard's
+keyed-result) and reset form state via REMOUNT (TaskDialog's
+`key={editingTask?.id ?? "new-task"}` + DialogContent-mounted body).
+This rule caught two real bugs — never downgrade it to a warning.
+
+### FS-5: useSearchParams without Suspense (High — build)
+
+**Symptom:** `Error occurred prerendering page "/login"` fails the
+build. **Fix:** the login page shell wraps `LoginCard` in
+`React.Suspense` (static prerender + client hook contract).
+
+### FS-6: Dev-origin chunk blocking (High — dev only)
+
+**Symptom:** pages render unhydrated; native form GET fallbacks.
+**Root cause:** Next 16 dev-origin protection blocks `127.0.0.1` dev
+chunks. **Fix:** `allowedDevOrigins: ["127.0.0.1", "localhost"]` in
+`next.config.ts` — load-bearing, do not remove.
+
+### FS-7: Day-card center-click interception (Medium — e2e)
+
+**Symptom:** e2e "day statistics" test intermittently opens the Edit
+dialog instead of selecting a day. **Root cause:** task chips are
+`div[role=button]` with `stopPropagation` INSIDE the day-card `button`;
+Playwright clicks the element's center point, which a chip can cover.
+**Fix:** click the day-card HEADER block (`div.text-center`) and gate
+on hydration first (seeded chip visible). See §10.
+
+### FS-8: Deleting the SQLite file under a live server (Critical — e2e infra)
+
+**Symptom:** every write fails with `SQLITE_READONLY_RECOVERY`
+("attempt to write a readonly database"); reads still work.
+**Root cause:** the Playwright webServer boots BEFORE globalSetup;
+`rmSync` of the db file in globalSetup leaves the running server's
+open handle pointing at a dead inode. **Fix:** global-setup NEVER
+resets the file (documented in its header); specs clean up what they
+create via the API instead. See FS-9.
+
+### FS-9: e2e data residue drift (Medium — e2e infra)
+
+**Symptom:** day-total assertions ("3.5h") break after N runs.
+**Root cause:** specs create tasks and never delete them; a single
+`.find()`-then-delete also never converges residue from crashed runs.
+**Fix:** cleanup blocks in `planning.spec.ts`/`dashboard.spec.ts`
+delete EVERY matching title via `page.request` (shares the session
+cookie); verified convergence — after a full run the db holds exactly
+the 9 seed tasks.
+
+### FS-10: Radix menu hide-others in tests (Medium — e2e)
+
+**Symptom:** role queries for elements OUTSIDE an open DropdownMenu
+time out. **Root cause:** Radix marks the app root `aria-hidden` while
+the menu is open. **Fix:** measure/click the trigger BEFORE opening
+(see `tests/e2e/mobile-navigation.spec.ts`). Synthetic `el.click()`
+via `page.evaluate` also does NOT open Radix menus — use
+`locator.click()` (trusted pointer events).
+
+## 10. Debugging Guide
+
+| Symptom | Cause | Fix / where to look |
+|---|---|---|
+| Styles flat/unstyled in prod | `@theme` var() chains dropped or Trap 1/2/5 regressions | Read `docs/Tailwind-V4-Validation-Report.md` FIRST; check `globals.css` against §4 |
+| Dev page unhydrated, native form GETs | FS-6 dev-origin block | `next.config.ts` `allowedDevOrigins` |
+| Build fails prerendering `/login` | FS-5 | Suspense wrapper in `src/app/login/page.tsx` |
+| "attempt to write a readonly database" | FS-8 — someone deleted the db file under the server | Restart the server; keep globalSetup header comment intact |
+| e2e "day statistics" flaky | FS-7 chip interception / pre-hydration click | Header-block click + hydration gate (already in spec) |
+| Login rejected in tests | Rate limiter (10/IP/60s) after repeated runs | The setup project signs in ONCE and shares storageState; per-test logins are forbidden |
+| `db:seed` says "skipped" but `db/custom.db` is 0 bytes | Stale shell-exported or parent `.env` `DATABASE_URL` | `unset DATABASE_URL`; see §3 traps |
+| Tasks created in e2e pollute totals | FS-9 | Spec cleanup blocks (already in place) |
+| AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
+| Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
+
+Debugging order: reproduce with the exact command → read `dev.log` /
+`server.log` → isolate with a minimal repro → fix the root cause → add
+a pinning test if the class of bug can recur.
+
+## 11. Pre-Ship Checklist
+
+```bash
+bun run lint          # ESLint 9 — must be silent
+bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
+bun run test          # 44/44
+bun run build         # green; .next/standalone assembled
+bun run test:e2e      # 29/29 on the production standalone :3100
+scripts/smoke-test.sh # 25/25 curl checks (auth, CRUD, AI envelopes, pages)
+```
+
+Verification categories:
+
+- **Hygiene:** `git ls-files | grep -E '\.env$|\.db$'` → empty (only
+  `.env.example` is tracked).
+- **Parity spot-checks:** mobile menu geometry (e2e pins it), category
+  gradient hexes (§19), route casing.
+- **DB state after e2e:** exactly the 9 seed tasks, 0 `E2E*` residue.
+- **Docs alignment:** every env var in `.env.example` appears in §2's
+  table; test counts in AGENTS.md/README match runner output.
+
+## 12. Lessons Learnt & How to Avoid Them
+
+1. **Measure, don't remember** (session 1). The mobile-menu geometry
+   was re-measured against the live reference before declaring parity —
+   identical, but only because it was CHECKED. Any "looks the same"
+   claim without a bounding-box measurement or a pinned spec is
+   worthless.
+2. **The test is the pin** (session 0). Byte-level geometry facts
+   (right 374 / top 54 / w 192) live in `mobile-navigation.spec.ts`.
+   Update them DELIBERATELY, only with a fresh reference measurement.
+3. **Resetting state by deleting files breaks live holders** (FS-8).
+   SQLite file handles, log tails, watch processes — always ask "who
+   holds this resource right now?" before `rm`.
+4. **Cleanup must converge** (FS-9). `.find()`-then-delete on a
+   possibly-dirty set leaves residue forever; `filter()` + delete-all
+   converges to zero.
+5. **Env precedence: shell export > parent .env > repo .env** (§3
+   traps). "The seed skipped" + "0-byte db" is ALWAYS an env-precedence
+   symptom, not a seed bug.
+6. **A green gate once proves nothing about determinism** (session 1).
+   The e2e flake passed 3 times before failing; three consecutive full
+   runs + db-state convergence is the standard of evidence.
+7. **The LLM quota is a fact of life** (session 0/1). The reference
+   itself 429s; deterministic fallbacks are the product feature, not a
+   workaround — never "fix" them into error states.
+
+## 13. Pitfalls to Avoid
+
+- **Don't rename routes** (`/Dashboard` stays capitalized) or collapse
+  pages into an SPA — the reference paths are the contract.
+- **Don't import `z-ai-web-dev-sdk` in client components** — it is
+  server-only (crashes builds / leaks keys).
+- **Don't add a bottom tab bar** for mobile "improvement" — the
+  reference's mobile nav is the header dropdown, full stop.
+- **Don't write Tailwind tokens as bare HSL triplets, var() chains in
+  `@theme`, or unpinned palette/shadow values** (Traps 1/2/5).
+- **Don't combine `space-y-*` with child `mt-*/mb-*`** (Trap 4).
+- **Don't use `bg-gradient-to-r` utilities for Quick Action tiles** —
+  inline-style hex stops are the reference form (Trap 3).
+- **Don't duplicate enum constants outside `src/lib/domain.ts`**.
+- **Don't convert snake_case in components** — `mapTask`/`mapNote` only.
+- **Don't reset state in effect bodies** (FS-4) — derive or remount.
+- **Don't do per-test real logins in e2e** — the rate limiter WILL trip
+  mid-suite; the setup project + storageState is the only sanctioned
+  pattern.
+- **Don't weaken lint/type gates to pass a build** — `tsc --noEmit` is
+  the gate (the build's `ignoreBuildErrors` is scaffold legacy).
+- **Don't hand-roll dialogs/menus** — Radix gives focus trap + Escape +
+  aria for free.
+
+## 14. Best Practices
+
+- **Server-side validation on every write** — the `isPriority/
+  isCategory/isTaskStatus` guards in the API routes are the boundary;
+  client enums are convenience only.
+- **Envelope discipline** — `ok()/fail()` from `src/lib/api.ts`; never
+  throw across the route boundary; never return raw Prisma errors.
+- **Idempotent seed** — upserts + `is_sample` guards; safe to re-run.
+- **Selector-based store subscription** — `useFlowStore((s) => s.tasks)`
+  scopes re-renders.
+- **Explicit empty states everywhere** — "All caught up!", "No tasks",
+  "Nothing waiting to be scheduled."; every async region renders
+  loading/empty/error.
+- **Console context at the boundary** — errors caught in components get
+  `console.error` with context; silent `catch(() => null)` is a defect.
+- **Comments that pin contracts** — the header comments in
+  `db-path.ts`, `global-setup.ts`, and `playwright.config.ts` exist to
+  stop EXACT regressions; update them when the contract changes.
+- **Tests as documentation** — each new seam got a test FIRST
+  (env-example, site helper): the red run is the spec, the green run is
+  the proof.
+
+## 15. Coding Patterns
+
+### Pattern: API route handler (the envelope contract)
+
+Location: `src/app/api/**/route.ts` (11 handlers).
+Purpose: every endpoint returns `{ ok, data } | { ok, error }`, guards
+auth + enums server-side, and never throws.
+
+```typescript
+// src/app/api/tasks/route.ts (shape)
+export async function POST(req: Request) {
+  const auth = await requireUser();                    // 1. auth guard
+  if ("response" in auth) return auth.response;        //    401 envelope
+  const body = await readJson(req);                    // 2. safe parse
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) return fail("VALIDATION", "Task title is required.");
+  const priority = isPriority(body.priority) ? body.priority : "medium";
+  // ^ enum guard with reference-default coercion (never rejects)
+  const task = await db.task.create({ data: { /* … */ } });
+  return ok({ task });                                 // 3. envelope out
+}
+```
+
+### Pattern: SQLite URL resolution (CWD-independence)
+
+Location: `src/lib/db-path.ts` (pure, 15 unit tests).
+Purpose: a relative `file:` URL resolves against the repo that owns
+`prisma/schema.prisma` — for the Prisma CLI, `next dev`, `next build`,
+AND the standalone server. Anchor order: standalone detector → module's
+own repo root → `process.cwd()` fallback. Absolute URLs and non-SQLite
+URLs pass through untouched.
+
+### Pattern: LLM call with deterministic fallback
+
+Location: `src/lib/ai.ts`.
+Purpose: the LLM never hard-fails — the catch renders canned content
+identical to the reference's fallback.
+
+```typescript
+try {
+  const res = await zai.chat.completions.create({ /* prompt + JSON schema */ });
+  return JSON.parse(res.choices[0].message.content);
+} catch (err) {
+  console.error("[ai] daily focus generation failed, using default:", err?.message);
+  return { quote: "…", author: "Paul J. Meyer", affirmation: "…" };
+}
+```
+
+### Pattern: Form reset via remount (not reset-effects)
+
+Location: `src/components/planning/TaskDialog.tsx`.
+Purpose: `react-hooks/set-state-in-effect` is an ERROR here; state
+resets by remounting, not by resetting in an effect.
+`<TaskDialog key={editingTask?.id ?? "new-task"} … />` — the key change
+mounts a fresh body with fresh form state; the dialog body component is
+mounted only while open.
+
+### Pattern: e2e spec cleanup that converges
+
+Location: `tests/e2e/planning.spec.ts`, `tests/e2e/dashboard.spec.ts`.
+Purpose: specs delete what they create so the shared db returns to the
+seed state — without ever resetting the file (FS-8).
+
+```typescript
+const list = await (await page.request.get("/api/tasks")).json();
+const residue = (list?.data?.tasks ?? []).filter(
+  (t: { title: string }) => t.title === "E2E planned task",
+);
+for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
+// page.request shares the browser context's session cookie — no re-login.
+```
+
+### Pattern: hydration gate before clicking
+
+Purpose: a pre-hydration click is a silent no-op (no React handler
+attached yet). Wait for a data-dependent element first — it only
+renders once the store has fetched:
+
+```typescript
+await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+// NOW interaction is safe:
+await mondayCard.locator("div.text-center").first().click();
+```
+
+## 16. Coding Anti-Patterns
+
+| Don't | Do instead | Why |
+|---|---|---|
+| `fetch("/api/…")` inside a component | go through `useFlowStore` actions | one fetcher, one envelope unwrap, one error surface |
+| `any` / untyped `res.json()` | type the envelope, guard fields | tsc strict is the gate |
+| `el.click()` in `page.evaluate` for Radix menus | Playwright `locator.click()` | Radix requires trusted pointer events |
+| `.find()`-then-delete in cleanup | `filter()` + delete-all | convergence (FS-9) |
+| `useState(() => localStorage…)` | SSR-safe read in effect / store init | hydration mismatch |
+| center-click on day cards in tests | header-block click | chip interception (FS-7) |
+| `db.task.findMany()` in a client component | route handler → store | server-only Prisma |
+| per-test logins | setup project + storageState | rate limiter (10/IP/60s) |
+
+## 17. Responsive Breakpoint Reference
+
+Tailwind default scale, no custom config (CSS-first v4). Usage census
+(`rg -o "\b(sm|md|lg|xl):"` over `src/`): `sm:` 7 · `md:` 10 · `lg:` 8 ·
+`xl:` 1.
+
+| Breakpoint | Where it matters |
+|---|---|
+| `sm` (640px) | header spacing, login card padding |
+| `md` (768px) | **desktop/mobile split**: avatar button visible (`md:flex`) vs user-icon trigger (`md:hidden`); Planning week grid `md:grid-cols-7` |
+| `lg` (1024px) | Planning two-column accordions (`lg:grid-cols-2`) |
+| `xl` (1280px) | dashboard max-width (`max-w-7xl`) |
+
+**Mobile testing:** the parity viewport is **390×844** (iPhone-class) —
+that is what the pinned menu-geometry specs and the reference
+measurements use. Always screenshot mobile at 390×844 (see
+`docs/screenshots/07-09-*.png`).
+
+## 18. Z-Index Layer Map
+
+Census (`rg -o "z-…"`): `z-50` ×5, `z-20` ×2, `z-10` ×3. Radix portals
+render at document end with their own stacking inside `z-50` contexts.
+
+| Layer | Element | Location |
+|---|---|---|
+| `z-50` | sticky header | `src/components/layout/Header.tsx` |
+| `z-50` | Radix Dialog/Menu portals (dropdown, select, dialog) | `src/components/ui/*` |
+| `z-20` | quick-action swap panels | `src/components/dashboard/QuickActions.tsx` |
+| `z-10` | background blobs, decorative absolutes | `src/components/layout/BackgroundBlobs.tsx` |
+
+Conflict rule: never raise a component above `z-50` — the header and
+portals own the top layer; anything needing more is a portal itself.
+
+## 19. Color Reference (Complete)
+
+Semantic tokens (`src/app/globals.css`, `:root` — full hsl values):
+
+| Token | Value |
+|---|---|
+| `--background` / `--card` / `--popover` | `hsl(0 0% 100%)` |
+| `--foreground` / `--card-foreground` / `--popover-foreground` | `hsl(222.2 84% 4.9%)` |
+| `--primary` | `hsl(222.2 47.4% 11.2%)` |
+| `--secondary` / `--muted` / `--accent` | `hsl(210 40% 96.1%)` |
+| `--muted-foreground` | `hsl(215.4 16.3% 46.9%)` |
+| `--destructive` | `hsl(0 84.2% 60.2%)` |
+| `--border` / `--input` | `hsl(214.3 31.8% 91.4%)` |
+| `--ring` | `hsl(222.2 84% 4.9%)` |
+| `--radius` | `0.625rem` |
+
+Category gradients (`CATEGORY_GRADIENTS`, calendar task blocks):
+work `blue-400→500` · personal `green-400→500` · health `red-400→500` ·
+learning `purple-400→500` · creative `pink-400→500` · social
+`yellow-400→500` · planning `indigo-400→500`.
+
+Skills Map pie hexes (`SKILL_COLORS`): work `#3b82f6` · personal
+`#22c55e` · health `#ef4444` · learning `#a855f7` · creative `#ec4899` ·
+social `#eab308` · planning `#6366f1`.
+
+Quick Action tile gradient stops (inline styles — Trap 3):
+`#0ea5e9→#2563eb` · `#10b981→#14b8a6` · `#8b5cf6→#6366f1` ·
+`#f59e0b→#f97316`.
+
+**Forbidden:** any palette value outside the pinned v3 hexes; oklch
+defaults; bare-HSL triplets. The reference build is the ground truth —
+hex drift IS a bug (pinned by `tests/domain.test.ts` + e2e gradient
+assertions).
+
+## 20. TypeScript Interface Reference
+
+Domain shapes (wire format is snake_case — see §6; TS models camelCase):
+
+```typescript
+// src/lib/domain.ts — enums as literal unions
+export type Priority = "low" | "medium" | "high" | "urgent";
+export type Category = "work" | "personal" | "health" | "learning"
+  | "creative" | "social" | "planning";
+export type TaskStatus = "todo" | "in_progress" | "completed";
+// + constants: CATEGORY_GRADIENTS, CATEGORY_BADGES, PRIORITY_BADGES,
+//   PRIORITY_TEXT, SKILL_COLORS, QUICK_ACTIONS, CALENDAR_* geometry
+
+// src/lib/api.ts — the envelope
+export type ApiError = { ok: false; error: { code: string; message: string } };
+export type ApiOk<T> = { ok: true; data: T };
+export type ApiResult<T> = ApiOk<T> | ApiError;
+export function ok<T>(data: T, status?: number): NextResponse<ApiOk<T>>;
+export function fail(code: string, message: string, status?: number): NextResponse<ApiError>;
+
+// src/lib/auth.ts — session primitives
+hashPassword(password: string): string;                 // scrypt
+verifyPassword(password: string, hash: string): boolean;
+createSessionToken(userId: string): string;             // userId.expiry.mac
+verifySessionToken(token: string): { userId: string } | null;
+export async function getSessionUser(): Promise<SessionUser | null>;
+
+// src/lib/site.ts — canonical origin
+export const SITE_URL_DEFAULT = "http://localhost:3000";
+export function siteUrl(): string;                      // NEXT_PUBLIC_SITE_URL, trimmed
+export function absoluteUrl(path: string): string;     // safe join
+
+// src/lib/db-path.ts — SQLite URL resolution
+export function resolveDatabaseUrl(envUrl: string | undefined, anchors: string[]): string;
+export function standaloneRepoRoot(dir: string): string | null;
+export function candidateRoots(): string[];
+export function resolveProcessDatabaseUrl(): string;
+
+// src/store/useFlowStore.ts — store slice (mapTask/mapNote are the
+// ONLY snake↔camel seams)
+type Task = { id: string; title: string; description: string | null;
+  priority: Priority; category: Category; status: TaskStatus;
+  start_time: string | null; duration_minutes: number | null;
+  end_time: string | null; created_at: string; updated_at: string };
+```
+
+---
+
+## Appendix A: ADRs
+
+The full ADR set with alternatives-rejected lives in
+`Project_Architecture_Document.md` (6 ADRs). Summary:
+
+| ADR | Decision | Rationale |
+|---|---|---|
+| ADR-1 | Real routes, no rewrites | `/Dashboard` etc. are the reference's exact paths; SPA-collapse was the ORBITAL pattern — rejected |
+| ADR-2 | Client islands + Zustand as sole fetcher | mirrors the reference SPA; RSC data-fetching would diverge from its loading behavior |
+| ADR-3 | Cookie sessions (scrypt + HMAC) | self-hosted replacement for base44 auth; no external IdP dependency |
+| ADR-4 | SQLite + Prisma with schema-anchored `file:` resolution | zero-config parity with the base44 entity layer; CWD-independent |
+| ADR-5 | Server-side z-ai-web-dev-sdk + deterministic fallbacks | reference's InvokeLLM equivalent; quota-proof |
+| ADR-6 | Playwright against the production standalone build | e2e must catch build-output issues (standalone path resolution, static copying) |
+
+## Appendix B: Verification Ledger
+
+Session 1 final gate (2026-10-04):
+
+| Check | Result |
+|---|---|
+| `bun run lint` | clean |
+| `bun run typecheck` | clean |
+| `bun run test` (Vitest) | **44/44** — auth ×8, db-path ×15, domain ×13, env-example ×4, site ×4 |
+| `bun run build` | green; routes include `/robots.txt`, `/sitemap.xml` (session 1) |
+| `bun run test:e2e` (Playwright) | **29/29** × 3 consecutive runs; post-run db = exactly 9 seed tasks |
+| `scripts/smoke-test.sh` | 25/25 (session 0; re-run after remediation if API surface changes) |
+| Reference parity | mobile menu re-measured byte-identical (374/54/192; trigger 374/50) |
+
+## Appendix C: Session History
+
+- **Session 0 (2026-10-03/04, commit `96d2dda`):** initial clone build —
+  full app (11 API routes, 4 pages, store, auth, AI fallbacks), the 5
+  Tailwind v4 trap mitigations, 36 unit + 29 e2e tests, 4 root docs,
+  first push via the SSH wrapper.
+- **Session 1 (2026-10-04, this skill):** review + remediation —
+  `.env.example` contract (test-pinned), real site metadata
+  (`site.ts` + sitemap + robots + `metadataBase`), e2e determinism
+  (FS-7/8/9 fixes), 44/44 unit, screenshots refreshed, session + skill
+  docs. See `docs/session_1-review.md` +
+  `docs/remediation-plan-session1.md` (the operator's build narrative
+  lives in `docs/session_1.md`).
+
+## Appendix D: Post-Deploy Live-Site Validation
+
+- **Smoke path:** `curl $SITE/api/health` → `{"status":"ok",…,"database":"up"}`;
+  register → login → task CRUD → AI endpoints return the envelope (or
+  the documented fallback content) → logout → pages render.
+- **agent-browser methodology** (used for parity verification): load
+  saved auth state (`agent-browser state load auth.json`) →
+  `set viewport 390 844` → open the app → click the mobile trigger →
+  measure `document.querySelector('[role=menu]').getBoundingClientRect()`
+  and compare against the reference measurement — the ONLY trustworthy
+  parity check for the mobile menu.
+- **What live-site testing catches that CI cannot:** the deployed
+  origin's `metadataBase`/sitemap URLs, LLM quota behavior from a
+  production IP, and cookie flags behind a real TLS terminator
+  (see `docs/DEPLOYMENT.md` §4 for the absolute-path database
+  requirement in production).

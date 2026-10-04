@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (36 tests: auth crypto, domain constants, db-path) |
+| `bun run test` | Vitest unit suites (44 tests: auth crypto, domain constants, db-path, .env.example contract, site URL helper) |
 | `bun run test:e2e` | Playwright (29 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -137,6 +137,12 @@ deliberately if the reference re-measures differently.
 - `Project_Architecture_Document.md` — the full engineering reference
   (ADRs, layer model, all five Tailwind v4 traps with fixes, the
   verification ledger).
+- `flow-schedule_SKILL.md` — the distilled engineering skill (20
+  sections + appendices: anti-patterns FS-1…FS-10, debugging guide,
+  pre-ship checklist, color/z-index references).
+- `docs/session_1.md` (build narrative) + `docs/session_1-review.md` +
+  `docs/remediation-plan-session1.md` — the session-1 review/remediation
+  record (the e2e determinism lessons FS-7/8/9 came from there).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env
