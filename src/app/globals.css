@@ -163,22 +163,26 @@
   }
 }
 
-/* Custom scrollbar — mirrors the reference's .custom-scrollbar rules
-   (used by the calendar scroller, Log Activity list and notes list). */
+/* Custom scrollbar — mirrors the reference's EFFECTIVE .custom-scrollbar
+   cascade (session 4, C-1). The reference ships three global styled-jsx
+   blocks (lre 6px, G1e 5px, fre 3px-width); with equal specificity the
+   LAST rule per property wins, which live-measures to: height 5px (G1e),
+   width 3px (fre), track rgba(0,0,0,0.1) r2, thumb rgba(0,0,0,0.2) r2,
+   hover rgba(0,0,0,0.3) (G1e — fre defines no hover). */
 .custom-scrollbar::-webkit-scrollbar {
   height: 5px;
-  width: 5px;
+  width: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* Trap 4 guardrail (space-y rewrite): v4 emits

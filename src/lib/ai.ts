@@ -11,41 +11,19 @@
 import ZAI from "z-ai-web-dev-sdk";
 import type { Category, Priority } from "@/lib/domain";
 import { format } from "date-fns";
+import {
+  DEFAULT_FOCUS,
+  EMPTY_DAY_SUMMARY,
+  FALLBACK_SUMMARY,
+  type AiSummary,
+  type DailyFocus,
+} from "@/lib/ai-defaults";
 
-export type DailyFocus = {
-  quote: string;
-  author: string;
-  affirmation: string;
-};
-
-export type AiSummary = {
-  mood: string;
-  focus_areas: string[];
-  activities: string[];
-  insights: string;
-};
-
-const DEFAULT_FOCUS: DailyFocus = {
-  quote:
-    "Productivity is never an accident. It is always the result of a commitment to excellence, intelligent planning, and focused effort.",
-  author: "Paul J. Meyer",
-  affirmation:
-    "I am capable, focused, and empowered to accomplish everything I set my mind to today.",
-};
-
-const EMPTY_DAY_SUMMARY: AiSummary = {
-  mood: "planning",
-  focus_areas: ["Free day"],
-  activities: ["Open schedule"],
-  insights: "Perfect opportunity for planning or taking a break!",
-};
-
-const FALLBACK_SUMMARY: AiSummary = {
-  mood: "productive",
-  focus_areas: ["Work tasks"],
-  activities: ["Mixed activities"],
-  insights: "Keep up the good work!",
-};
+// Re-export the shared types + fallback constants (single source of truth:
+// src/lib/ai-defaults.ts — pure, client-safe) so server callers and the
+// existing `@/lib/ai` type imports keep working.
+export { DEFAULT_FOCUS, EMPTY_DAY_SUMMARY, FALLBACK_SUMMARY };
+export type { AiSummary, DailyFocus } from "@/lib/ai-defaults";
 
 function asStringArray(v: unknown, limit: number): string[] | null {
   if (!Array.isArray(v)) return null;

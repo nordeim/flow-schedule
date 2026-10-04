@@ -20,6 +20,9 @@ import { useFlowStore, type Task } from "@/store/useFlowStore";
 export default function DashboardPage() {
   const tasks = useFlowStore((s) => s.tasks);
   const refreshTasks = useFlowStore((s) => s.refreshTasks);
+  // Mirrors the reference's X1e refresh counter: bumps on task mutations
+  // (create/update/delete) so the AI sidebar cards re-run their fetches.
+  const taskVersion = useFlowStore((s) => s.taskVersion);
   const { weekStart, prev, next } = useWeekStart();
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -53,7 +56,10 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    // The reference's X1e container: full-bleed at lg (NO max-w — the
+    // max-w-7xl was a session-0 guess, decompile + live-measured 1440px,
+    // session 4, D-1).
+    <div className="p-4 md:p-6 lg:p-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-9 space-y-6">
           <WeeklySchedule
@@ -72,8 +78,8 @@ export default function DashboardPage() {
         </div>
         <div className="lg:col-span-3 space-y-6">
           <StatusCard tasks={tasks} />
-          <DailyFocusCard />
-          <AISummaryCard day={today} />
+          <DailyFocusCard refreshTrigger={taskVersion} />
+          <AISummaryCard day={today} refreshTrigger={taskVersion} />
         </div>
       </div>
 

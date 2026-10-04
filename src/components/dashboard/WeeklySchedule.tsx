@@ -128,53 +128,56 @@ export function WeeklySchedule({
             ))}
           </div>
 
-          {/* Day rows */}
-          {days.map((day) => {
-            const dayTasks = tasksByDay.get(day.toISOString()) ?? [];
-            return (
-              <div
-                key={day.toISOString()}
-                className="grid items-center"
-                style={{ gridTemplateColumns: `${CALENDAR_LABEL_WIDTH}px 1fr`, minHeight: "50px" }}
-              >
-                <div className="p-1.5 text-left text-xs text-slate-600 font-medium flex flex-col justify-center items-start bg-slate-50/60 rounded-lg h-full">
-                  <div className="font-bold text-slate-800">{format(day, "EEE")}</div>
-                  <div className="text-slate-500 text-[10px]">{format(day, "MMM d")}</div>
-                </div>
+          {/* Day rows — the reference wraps all seven in space-y-1.5
+              (measured 6px inter-row gap, session 4, W-1). */}
+          <div className="space-y-1.5">
+            {days.map((day) => {
+              const dayTasks = tasksByDay.get(day.toISOString()) ?? [];
+              return (
                 <div
-                  className="relative h-full grid border-l border-slate-200/70"
-                  style={{ gridTemplateColumns: `repeat(${CALENDAR_HOURS.length}, ${CALENDAR_SLOT_WIDTH}px)` }}
+                  key={day.toISOString()}
+                  className="grid items-center"
+                  style={{ gridTemplateColumns: `${CALENDAR_LABEL_WIDTH}px 1fr`, minHeight: "50px" }}
                 >
-                  {CALENDAR_HOURS.map((hour, i) => (
-                    <div
-                      key={`${day.toISOString()}-${hour}`}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Add task on ${format(day, "EEE MMM d")} at ${format(
-                        new Date(2000, 0, 1, hour),
-                        "HH:mm",
-                      )}`}
-                      className={`h-full ${i < CALENDAR_HOURS.length - 1 ? "border-r" : ""} border-slate-200/50 group hover:bg-sky-50/30 transition-colors duration-150 cursor-pointer`}
-                      onClick={() => onCellClick(day, hour)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onCellClick(day, hour);
-                        }
-                      }}
-                    >
-                      <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                        <Plus className="w-3 h-3 text-sky-500" />
+                  <div className="p-1.5 text-left text-xs text-slate-600 font-medium flex flex-col justify-center items-start bg-slate-50/60 rounded-lg h-full">
+                    <div className="font-bold text-slate-800">{format(day, "EEE")}</div>
+                    <div className="text-slate-500 text-[10px]">{format(day, "MMM d")}</div>
+                  </div>
+                  <div
+                    className="relative h-full grid border-l border-slate-200/70"
+                    style={{ gridTemplateColumns: `repeat(${CALENDAR_HOURS.length}, ${CALENDAR_SLOT_WIDTH}px)` }}
+                  >
+                    {CALENDAR_HOURS.map((hour, i) => (
+                      <div
+                        key={`${day.toISOString()}-${hour}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Add task on ${format(day, "EEE MMM d")} at ${format(
+                          new Date(2000, 0, 1, hour),
+                          "HH:mm",
+                        )}`}
+                        className={`h-full ${i < CALENDAR_HOURS.length - 1 ? "border-r" : ""} border-slate-200/50 group hover:bg-sky-50/30 transition-colors duration-150`}
+                        onClick={() => onCellClick(day, hour)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onCellClick(day, hour);
+                          }
+                        }}
+                      >
+                        <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                          <Plus className="w-3 h-3 text-sky-500" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {dayTasks.map((task, idx) => (
-                    <TaskBlock key={task.id} task={task} index={idx} onClick={onTaskClick} />
-                  ))}
+                    ))}
+                    {dayTasks.map((task) => (
+                      <TaskBlock key={task.id} task={task} onClick={onTaskClick} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -183,18 +186,23 @@ export function WeeklySchedule({
 
 function TaskBlock({
   task,
-  index,
   onClick,
 }: {
   task: Task;
-  index: number;
   onClick: (task: Task) => void;
 }) {
   if (!task.start_time) return null;
   const start = new Date(task.start_time);
   const startHour = start.getHours() + start.getMinutes() / 60;
-  const minutesFromGridStart = (startHour - CALENDAR_HOURS[0]) * 60;
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
   const duration = task.duration_minutes ?? 60;
+  const minutesFromGridStart = (startHour - CALENDAR_HOURS[0]) * 60;
+  // The reference's rre (session 4, W-4): a task entirely before the
+  // 07:00 grid start is HIDDEN; one that spans 07:00 clips to the left
+  // edge (left = 0).
+  if (startHour < CALENDAR_HOURS[0]) {
+    if (startMinutes + duration <= CALENDAR_HOURS[0] * 60) return null;
+  }
   const left = Math.max(0, minutesFromGridStart * PX_PER_MINUTE);
   const width = Math.max(duration * PX_PER_MINUTE, 10);
   const gradient =
@@ -211,7 +219,9 @@ function TaskBlock({
         height: "calc(100% - 6px)",
         top: "3px",
         position: "absolute",
-        zIndex: 10 + index,
+        // The reference stacks by the task's start MINUTE (rre: 10 + i),
+        // not its list index (session 4, W-2).
+        zIndex: 10 + start.getMinutes(),
       }}
       className={`rounded-lg px-2 py-0.5 text-white text-[10px] font-medium shadow-md cursor-pointer hover:opacity-80 transition-opacity duration-200 flex items-center justify-center ${gradient} overflow-hidden`}
       onClick={(e) => {

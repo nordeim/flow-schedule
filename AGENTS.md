@@ -16,8 +16,8 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (53 tests: auth crypto, domain constants, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
-| `bun run test:e2e` | Playwright (38 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test` | Vitest unit suites (59 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
+| `bun run test:e2e` | Playwright (43 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -112,6 +112,22 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
   timing decides which resolves first — a real flake, session 3).
   Scope list-item assertions with `getByRole("paragraph").filter(...)`
   (see the Brainstorm specs).
+- **Playwright heading queries substring-match** (session 4): the Next
+  Up card's h4 TASK TITLE makes `getByRole("heading", { name: "Skills
+  Map" })` resolve to TWO elements (strict-mode violation). Use `exact:
+  true` for heading lookups near data-driven titles; scope legend/list
+  queries with `:scope > span` (`span:last-child` happily matches a
+  last-child of an INNER wrapper).
+- **e2e residue cascades CROSS-SPEC** (session 4): a failed spec's
+  un-cleaned tasks push the planning page's top-3 chips and the
+  StatusCard's Next Up selection around, failing specs that run LATER.
+  Dashboard specs wipe the whole `E2E *` task family at start, not just
+  their own title (FS-9 taken to its conclusion).
+- **agent-browser cannot open Radix menus on the dev build** (session 4):
+  its eval/CDP clicks do not dispatch the trusted pointer events React 19
+  + Radix require there (the reference app's menu opened via eval — that
+  made it look like a clone regression; it is not). The e2e spec
+  (Playwright trusted clicks on the production standalone) is the pin.
 
 ## Conventions that differ from defaults
 
@@ -147,11 +163,52 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
   end_time, no action buttons); Brainstorm supports note EDITING with
   30-char truncated clickable previews and window.confirm deletes.
   `tests/e2e/dashboard.spec.ts` pins all of it.
+- **The dashboard SIDEBAR CARDS are decompiled reference behavior, not
+  inferred design** (session 4, `ure`/`Y1e`/`fre`/`g0e` in the reference
+  bundle): the StatusCard is a state machine — loading skeleton, the rich
+  "Next Up" card (priority badge map, h4 title, optional description,
+  relative time, 75% progress + "Ready", FUNCTIONAL Mark Complete via
+  `completeTask`, decorative ArrowRight button) or the raw-icon "All
+  caught up!" empty state. The time formatter MIRRORS the reference's
+  format-string bug: `format(d, "MMM d at HH:mm")` renders
+  "Oct 6 AM1791284400 11:00" (date-fns `a`=AM/PM, `t`=unix seconds) —
+  bug parity, verified byte-identical on the live reference. DailyFocus's
+  fallback is the reference's Mark Twain set (NOT Paul J. Meyer —
+  `src/lib/ai-defaults.ts`, unit-pinned); its quote/affirmation are
+  VERTICAL blocks (icon mb-1 above, text below) with a Target affirmation
+  icon. AISummary's header is Brain + a Sparkles live indicator; its Mood
+  block is the purple→pink gradient with purple-800 body; chips are
+  bg-blue-100 / bg-green-100. SkillsMap carries an Award indicator, a
+  custom glass tooltip ("Xh Ym" / "Z% of day"), the m0e hex map
+  (#10B981/#8B5CF6/#F59E0B, fallback #64748B) and a capitalize legend
+  with percentage-only right column. `tests/e2e/dashboard.spec.ts` pins
+  all of it.
+- **The dashboard layout chrome is parity** (session 4): the page
+  container is full-bleed `p-4 md:p-6 lg:p-8` (NO max-w — the reference
+  measures 1440px at a 1440 viewport); day rows sit in `space-y-1.5`
+  (6px gap); calendar cells are default-cursor (the click handler is on
+  the parent grid in the reference; the clone keeps invisible role/aria);
+  task blocks stack by start-minute. The TaskDialog delete asks
+  `window.confirm("Are you sure you want to delete this task?")`. The
+  `.custom-scrollbar` globals carry the reference's live cascade
+  effective values (height 5px, width 3px, radius-2 track/thumb,
+  hover rgba(0,0,0,0.3)) — its three styled-jsx blocks resolve last-rule
+  per property.
+- **The store carries a `taskVersion` counter** (session 4, mirrors the
+  reference's X1e refresh design): bumped by createTask/updateTask/
+  deleteTask so the AI sidebar cards re-fetch on mutations; deliberately
+  NOT bumped by `completeTask` (the reference's Mark Complete re-fetches
+  only itself). `loadingTasks` starts `true` so the sidebar cards
+  skeleton from the first paint (bootstrap drops it when
+  unauthenticated).
 - The seed is idempotent via `is_sample: true` guards + user upsert;
   re-running never duplicates. Sample data belongs to the seed, never to
   the runtime.
 - Screenshots for docs live in `docs/screenshots/` and are captured from
-  the dev server at 1440×900 (desktop) and 390×844 (mobile).
+  the dev server at 1440×900 (desktop) and 390×844 (mobile) — interactive
+  Radix/dialog states need `scripts/capture-screenshots.mjs` (Playwright
+  trusted clicks; agent-browser's clicks cannot open Radix on the dev
+  build).
 - ESLint config intentionally relaxes several rules for AI-generated code
   ergonomics, but `react-hooks/set-state-in-effect` remains an ERROR —
   it has caught two real cascading-render bugs in this codebase.
@@ -186,6 +243,10 @@ deliberately if the reference re-measures differently.
   `docs/session_3.md` — the session-3 record (the Quick Actions
   open-panel decompile: FS-12, the textarea default-value locator flake,
   the dead-code alert mirroring, build-bypass removal).
+- `docs/session_4-review.md` + `docs/remediation-plan-session4.md` +
+  `docs/session_4.md` — the session-4 record (the sidebar-card decompile:
+  FS-14, the Mark Twain fallback fix, the format-string bug mirroring,
+  the full-bleed container, the residue-cascade lesson).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

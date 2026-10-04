@@ -60,11 +60,21 @@ type FlowState = {
   notes: Note[];
   loadingTasks: boolean;
   tasksError: string | null;
+  // Mirrors the reference dashboard's refresh counter (X1e): bumped by
+  // createTask/updateTask/deleteTask so the AI sidebar cards re-run their
+  // fetches on task mutations (the reference's onTaskUpdate/onTaskAdded
+  // wiring). deliberately NOT bumped by completeTask — the reference's
+  // Mark Complete (ure) re-fetches only itself.
+  taskVersion: number;
 
   bootstrap: () => Promise<void>;
   logout: () => Promise<void>;
   refreshTasks: () => Promise<void>;
   refreshNotes: () => Promise<void>;
+
+  // Mark Complete (StatusCard, ure): PATCH status=completed + refresh,
+  // WITHOUT bumping taskVersion.
+  completeTask: (id: string) => Promise<void>;
 
   createTask: (input: {
     title: string;
@@ -159,8 +169,14 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   user: null,
   tasks: [],
   notes: [],
-  loadingTasks: false,
+  // Starts TRUE: the tasks have never been fetched, so the dashboard
+  // sidebar cards (StatusCard/SkillsMap skeletons) render their loading
+  // state from the first paint — the reference's own behavior (its cards
+  // fetch on mount). A first-paint "empty" flash before bootstrap's fetch
+  // would diverge (session 4).
+  loadingTasks: true,
   tasksError: null,
+  taskVersion: 0,
 
   bootstrap: async () => {
     try {
@@ -172,6 +188,11 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     if (get().user) {
       void get().refreshTasks();
       void get().refreshNotes();
+    } else {
+      // No session → nothing will fetch; drop the initial loading flag so
+      // the cards settle into their empty states instead of skeletoning
+      // forever (the reference's failed fetch lands the same way).
+      set({ loadingTasks: false });
     }
   },
 
@@ -215,7 +236,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       body: JSON.stringify(input),
     });
     const task = mapTask(data.task);
-    set((s) => ({ tasks: [...s.tasks, task] }));
+    set((s) => ({ tasks: [...s.tasks, task], taskVersion: s.taskVersion + 1 }));
     return task;
   },
 
@@ -225,13 +246,27 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       body: JSON.stringify(input),
     });
     const task = mapTask(data.task);
-    set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? task : t)) }));
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? task : t)),
+      taskVersion: s.taskVersion + 1,
+    }));
     return task;
   },
 
   deleteTask: async (id) => {
     await api(`/api/tasks/${id}`, { method: "DELETE" });
-    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+    set((s) => ({
+      tasks: s.tasks.filter((t) => t.id !== id),
+      taskVersion: s.taskVersion + 1,
+    }));
+  },
+
+  completeTask: async (id) => {
+    await api<{ task: RawTask }>(`/api/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed" }),
+    });
+    await get().refreshTasks();
   },
 
   createNote: async (input) => {

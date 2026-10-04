@@ -1,22 +1,22 @@
 "use client";
 
-// FlowSchedule — Daily Focus card: LLM-generated quote + affirmation with a
-// deterministic fallback (never hard-fails). Sky→blue gradient card like the
-// reference.
+// FlowSchedule — Daily Focus card, rebuilt to the reference's decompiled
+// `Y1e` (session 4, F-1..F-4):
+//   - the deterministic fallback is the reference's j1 (Mark Twain) — the
+//     session-0 Paul J. Meyer guess was wrong (visible on every SDK 429)
+//   - quote/affirmation are VERTICAL blocks: icon (w-5 h-5 opacity-70
+//     mb-1) above the text — quote p is text-lg italic with literal
+//     double quotes, author p is text-sm opacity-80 text-right mt-1,
+//     affirmation p is font-medium
+//   - the affirmation icon is Target (the reference's rp), not CircleDot
+//   - re-fetches when refreshTrigger changes (the reference re-runs
+//     InvokeLLM on task mutations via X1e's counter)
 
 import * as React from "react";
-import { Sun, Lightbulb, CircleDot } from "lucide-react";
-import type { DailyFocus } from "@/lib/ai";
+import { Lightbulb, Sun, Target } from "lucide-react";
+import { DEFAULT_FOCUS, type DailyFocus } from "@/lib/ai-defaults";
 
-const DEFAULT_FOCUS: DailyFocus = {
-  quote:
-    "Productivity is never an accident. It is always the result of a commitment to excellence, intelligent planning, and focused effort.",
-  author: "Paul J. Meyer",
-  affirmation:
-    "I am capable, focused, and empowered to accomplish everything I set my mind to today.",
-};
-
-export function DailyFocusCard() {
+export function DailyFocusCard({ refreshTrigger = 0 }: { refreshTrigger?: number }) {
   const [focus, setFocus] = React.useState<DailyFocus>(DEFAULT_FOCUS);
   const [loading, setLoading] = React.useState(true);
 
@@ -32,7 +32,7 @@ export function DailyFocusCard() {
           setFocus(body.data.focus);
         }
       } catch {
-        // keep default
+        // keep default (the reference's own catch: n(j1))
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -40,11 +40,13 @@ export function DailyFocusCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshTrigger]);
 
   if (loading) {
+    // Y1e's skeleton — same shape the clone had, minus the clone-only
+    // min-h-[220px].
     return (
-      <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 animate-pulse min-h-[220px]">
+      <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 animate-pulse">
         <div className="h-6 bg-slate-200 rounded-2xl w-1/3 mb-4" />
         <div className="h-4 bg-slate-200 rounded-2xl w-full mb-2" />
         <div className="h-4 bg-slate-200 rounded-2xl w-2/3 mb-2" />
@@ -60,19 +62,13 @@ export function DailyFocusCard() {
         <h3 className="text-lg font-semibold">Daily Focus</h3>
       </div>
       <div className="mb-6">
-        <div className="flex gap-3">
-          <Lightbulb className="w-5 h-5 mt-1 opacity-80" />
-          <div>
-            <p className="italic font-medium leading-relaxed opacity-95">
-              &ldquo;{focus.quote}&rdquo;
-            </p>
-            <p className="text-right text-xs mt-1 opacity-75">- {focus.author}</p>
-          </div>
-        </div>
-        <div className="flex gap-3 pt-4">
-          <CircleDot className="w-5 h-5 mt-1 opacity-80" />
-          <p className="text-sm opacity-90 leading-relaxed">{focus.affirmation}</p>
-        </div>
+        <Lightbulb className="w-5 h-5 opacity-70 mb-1" />
+        <p className="text-lg italic">&quot;{focus.quote}&quot;</p>
+        <p className="text-sm opacity-80 text-right mt-1">- {focus.author}</p>
+      </div>
+      <div>
+        <Target className="w-5 h-5 opacity-70 mb-1" />
+        <p className="font-medium">{focus.affirmation}</p>
       </div>
     </div>
   );

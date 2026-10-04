@@ -261,12 +261,240 @@ test.describe("dashboard", () => {
   });
 
   test("sidebar cards render (status, daily focus, AI summary)", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Daily Focus" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "AI Summary" })).toBeVisible();
-    // Seeded week → status card shows Up Next (an upcoming task exists).
-    await expect(page.getByRole("heading", { name: "Up Next" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Daily Focus", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Summary", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Skills Map", exact: true })).toBeVisible();
+    // The status card is in whichever state the run time dictates
+    // (seeded week → Next Up or All caught up).
+    await expect(page.getByRole("heading", { name: /Next Up|All caught up/ })).toBeVisible();
     // Daily Focus resolves (LLM or deterministic fallback — both valid).
     await expect(page.getByText(/- .+/)).toBeVisible();
+
+    // --- Daily Focus structure (decompiled Y1e, session 4, F-2/F-3) ---
+    // Vertical blocks: icon above, text below — quote p is text-lg italic.
+    const df = await page.evaluate(() => {
+      const h3 = [...document.querySelectorAll("h3")].find(
+        (x) => x.textContent === "Daily Focus",
+      );
+      const card = h3?.closest("div[class*=bg-gradient]");
+      const ps = card ? [...card.querySelectorAll("p")] : [];
+      return {
+        quote: ps[0]?.className ?? "",
+        author: ps[1]?.className ?? "",
+        affirmation: ps[2]?.className ?? "",
+        affirmationIcon: ps[2]?.previousElementSibling?.getAttribute("class") ?? "",
+        quoteIcon: ps[0]?.previousElementSibling?.getAttribute("class") ?? "",
+      };
+    });
+    expect(df.quote).toContain("text-lg");
+    expect(df.quote).toContain("italic");
+    expect(df.author).toContain("text-sm");
+    expect(df.author).toContain("opacity-80");
+    expect(df.affirmation).toBe("font-medium");
+    expect(df.affirmationIcon).toContain("lucide-target");
+    expect(df.quoteIcon).toContain("lucide-lightbulb");
+
+    // --- AI Summary structure (decompiled fre, session 4, A-1..A-5) ---
+    // The "AI Summary" h3 exists in the skeleton too — gate on the loaded
+    // state (the mood gradient block only renders with data).
+    await page.waitForFunction(() => !!document.querySelector("main div[class*=from-purple-50]"));
+    const ai = await page.evaluate(() => {
+      const h3 = [...document.querySelectorAll("h3")].find(
+        (x) => x.textContent === "AI Summary",
+      );
+      const card = h3?.closest("div[class*=bg-white]");
+      const headerIcons = h3?.parentElement
+        ? [...h3.parentElement.querySelectorAll("svg")].map((s) => s.getAttribute("class") ?? "")
+        : [];
+      return {
+        headerIcons,
+        mood: card?.querySelector("div[class*=from-purple]")?.className ?? "",
+        moodP: [...(card?.querySelectorAll("p") ?? [])].map((p) => p.className),
+        insights: card?.querySelector("div[class*=max-h-]")?.className ?? "",
+      };
+    });
+    // Header: Brain icon + a Sparkles live indicator (A-1).
+    expect(ai.headerIcons.join(" ")).toContain("lucide-brain");
+    expect(ai.headerIcons.join(" ")).toContain("lucide-sparkles");
+    expect(ai.headerIcons.join(" ")).toContain("w-3 h-3 text-yellow-500");
+    // Mood block: the reference's purple→pink gradient (A-2).
+    expect(ai.mood).toContain("from-purple-50");
+    expect(ai.mood).toContain("to-pink-50");
+    expect(ai.moodP.join(" ")).toContain("text-purple-800");
+    // Insights: max-h-20 (A-5).
+    expect(ai.insights).toContain("max-h-20");
+    // Chips: the reference's blue-100 / green-100 (A-3/A-4).
+    const chipClasses = await page.evaluate(() =>
+      [...document.querySelectorAll("main span")]
+        .filter((s) => s.className.includes("bg-blue-100") || s.className.includes("bg-green-100"))
+        .map((s) => s.className),
+    );
+    expect(chipClasses.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("skills map matches the reference's data state (g0e)", async ({ page }) => {
+    // Converging cleanup: wipe ALL E2E residue — a failed spec anywhere in
+    // the suite leaves tasks that cascade into this one (the planning
+    // top-3 chips and the Next Up selection are both residue-sensitive).
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E ")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // Guarantee today's pie has data regardless of run day (the seed covers
+    // all days EXCEPT Saturday — offset 5 has no tasks).
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E skills map task",
+          start_time: new Date(Date.now() + 5 * 60_000).toISOString(),
+          duration_minutes: 45,
+          category: "health",
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+    await page.reload();
+    // The reload re-bootstraps the store (skeleton first) — wait for the
+    // loaded data state (the Award indicator only renders there).
+    await page.waitForFunction(() => !!document.querySelector("main svg.lucide-award"));
+
+    // Header carries the Award live indicator (K-2).
+    const award = await page.evaluate(() => {
+      const h3 = [...document.querySelectorAll("h3")].find(
+        (x) => x.textContent === "Skills Map",
+      );
+      return h3?.parentElement
+        ? [...h3.parentElement.querySelectorAll("svg")].map((s) => s.getAttribute("class") ?? "")
+        : [];
+    });
+    expect(award.join(" ")).toContain("lucide-award");
+
+    // Legend rows: left = capitalized slate-700 category, right =
+    // percentage ONLY (K-4 — no hours suffix).
+    const legend = await page.evaluate(() => {
+      const h3 = [...document.querySelectorAll("h3")].find(
+        (x) => x.textContent === "Skills Map",
+      );
+      const card = h3?.closest("div[class*=bg-white]");
+      const rows = card ? [...card.querySelectorAll("div.flex.items-center.justify-between.text-sm")] : [];
+      return rows.map((r) => ({
+        left: r.querySelector("span")?.className ?? "",
+        leftText: r.querySelector("span")?.textContent ?? "",
+        // The right span is the row's only DIRECT span child (the left one
+        // sits inside an inner wrapper where it is also a :last-child).
+        right: r.querySelector(":scope > span")?.className ?? "",
+        rightText: r.querySelector(":scope > span")?.textContent ?? "",
+      }));
+    });
+    expect(legend.length).toBeGreaterThanOrEqual(1);
+    for (const row of legend) {
+      expect(row.left).toContain("text-slate-700");
+      expect(row.left).toContain("capitalize");
+      expect(row.right).toContain("font-medium");
+      expect(row.right).toContain("text-slate-600");
+      expect(row.rightText).toMatch(/^\d+%$/);
+    }
+    await page.request.delete(`/api/tasks/${id}`);
+  });
+
+  test("status card marks the next task complete (ure, S-1/S-4)", async ({ page }) => {
+    // Converging cleanup: wipe ALL E2E residue (see the skills map spec).
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E ")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // A task 5 minutes out is the earliest upcoming task in practice (the
+    // only competing window is a seeded slot starting within the next 5
+    // minutes of TODAY — ≈0.3% of run times; converges on retry).
+    const start = new Date(Date.now() + 5 * 60_000).toISOString();
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E next up task",
+          start_time: start,
+          duration_minutes: 30,
+          priority: "high",
+          category: "work",
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+    await page.reload();
+
+    // The reference's rich Next Up card (S-1): heading, priority badge,
+    // progress row, and the functional Mark Complete button.
+    const card = page.locator("div.rounded-3xl", { hasText: "E2E next up task" });
+    await expect(page.getByRole("heading", { name: "Next Up", exact: true })).toBeVisible();
+    await expect(card).toBeVisible();
+    const cardInfo = await card.evaluate((el) => ({
+      outer: el.className,
+      badge: el.querySelector("div[class*=rounded-2xl]")?.textContent ?? "",
+      progress: el.querySelector("div.h-2 > div")?.className ?? "",
+      ready: el.querySelector("span.text-xs")?.textContent ?? "",
+    }));
+    expect(cardInfo.outer).toContain("relative");
+    expect(cardInfo.outer).toContain("overflow-hidden");
+    expect(cardInfo.badge).toBe("high");
+    expect(cardInfo.progress).toContain("from-sky-400");
+    expect(cardInfo.ready).toBe("Ready");
+
+    // Mark Complete is functional (S-4): PATCH → completed → the card
+    // re-renders without the task (live-verified on the reference).
+    await page.getByRole("button", { name: /Mark Complete/ }).click();
+    await expect(page.locator("div.rounded-3xl", { hasText: "E2E next up task" })).toHaveCount(0);
+    const after = await (await page.request.get("/api/tasks")).json();
+    const done = (after?.data?.tasks ?? []).find(
+      (t: { id: string }) => t.id === id,
+    ) as { status: string } | undefined;
+    expect(done?.status).toBe("completed");
+    await page.request.delete(`/api/tasks/${id}`);
+  });
+
+  test("task dialog delete asks for confirmation (Xne, T-1)", async ({ page }) => {
+    // Converging cleanup: wipe ALL E2E residue (see the skills map spec).
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E ")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // A task on today's row at a fixed grid hour (21:00 exists on the grid
+    // and stays rendered whether or not it is already past).
+    const start = new Date();
+    start.setHours(21, 0, 0, 0);
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E dialog delete task",
+          start_time: start.toISOString(),
+          duration_minutes: 30,
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+    await page.reload();
+
+    await page.getByRole("button", { name: /E2E dialog delete task/ }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Dismiss the confirm → the task survives.
+    page.once("dialog", (d) => d.dismiss());
+    await dialog.getByRole("button", { name: "Delete" }).click();
+    const stillThere = await (await page.request.get("/api/tasks")).json();
+    expect(
+      (stillThere?.data?.tasks ?? []).some((t: { id: string }) => t.id === id),
+    ).toBe(true);
+
+    // Accept the confirm → the task is deleted and the dialog closes.
+    page.once("dialog", (d) => d.accept());
+    await dialog.getByRole("button", { name: "Delete" }).click();
+    await expect(dialog).toBeHidden();
+    const gone = await (await page.request.get("/api/tasks")).json();
+    expect(
+      (gone?.data?.tasks ?? []).some((t: { id: string }) => t.id === id),
+    ).toBe(false);
   });
 
   test("calendar cell click opens the task dialog prefilled with day+hour", async ({ page }) => {
@@ -281,5 +509,64 @@ test.describe("dashboard", () => {
     await expect(start).toHaveValue(/T10:00/);
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toBeHidden();
+  });
+
+  test("calendar day rows carry the reference's spacing and cursor (are, W-1/W-3)", async ({ page }) => {
+    const rows = await page.evaluate(() => {
+      const list = [...document.querySelectorAll("main .grid.items-center")].filter(
+        (r) => (r as HTMLElement).style.minHeight === "50px",
+      );
+      const wrapper = list[0]?.parentElement;
+      const rects = list.map((r) => r.getBoundingClientRect());
+      const gaps = rects
+        .slice(1)
+        .map((r, i) => Math.round(r.top - rects[i].bottom));
+      return {
+        wrapper: wrapper?.className ?? "",
+        rowCount: list.length,
+        gaps: [...new Set(gaps)],
+        cellClasses: list[0]
+          ? [...list[0].querySelectorAll(":scope > div:last-child > div")].slice(0, 3).map(
+              (c) => c.className,
+            )
+          : [],
+      };
+    });
+    // The reference wraps the 7 day rows in a space-y-1.5 container
+    // (measured: 6px inter-row gap, live).
+    expect(rows.rowCount).toBe(7);
+    expect(rows.wrapper).toContain("space-y-1.5");
+    expect(rows.gaps).toEqual([6]);
+    // Reference cells are default-cursor (the click handler sits on the
+    // parent grid; only task blocks are cursor-pointer).
+    for (const cls of rows.cellClasses) {
+      expect(cls).not.toContain("cursor-pointer");
+    }
+  });
+});
+
+test.describe("dashboard layout (wide viewport)", () => {
+  // X1e's page container is `p-4 md:p-6 lg:p-8` — full-bleed, no max-width
+  // (live-measured 1440px wide at a 1440 viewport, session 4, D-1).
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/Dashboard");
+  });
+
+  test("dashboard page is full-bleed at lg with the reference's padding", async ({ page }) => {
+    const pageDiv = await page.evaluate(() => {
+      const main = document.querySelector("main");
+      const el = main?.firstElementChild as HTMLElement | null;
+      if (!el) return { cls: "", w: 0 };
+      return { cls: el.className, w: Math.round(el.getBoundingClientRect().width) };
+    });
+    expect(pageDiv.cls).toContain("p-4");
+    expect(pageDiv.cls).toContain("md:p-6");
+    expect(pageDiv.cls).toContain("lg:p-8");
+    expect(pageDiv.cls).not.toContain("max-w-7xl");
+    // Full-bleed: the container spans the 1440px viewport (the clone's old
+    // max-w-7xl mx-auto capped it at 1280).
+    expect(pageDiv.w).toBeGreaterThanOrEqual(1440);
   });
 });

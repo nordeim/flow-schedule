@@ -109,3 +109,102 @@ Stage Summary:
   pin every interactive state), FS-13 (textarea default-value text nodes match
   getByText — scope by role), dead-code mirroring (the unreachable alert is part of
   the contract)
+
+---
+Task ID: 19
+Agent: main agent
+Task: Session 4 — audit the never-decompiled sidebar cards + layout chrome
+
+Work Log:
+- git pull (fast-forward: docs/session_4.md — the operator's narrative of
+  the session-3 remediation that produced c3a8ef8)
+- Reviewed all five root docs + session_3-review.md, remediation-plan-
+  session3.md, session_4.md, worklog — aligned with the tree; fast gates
+  green at base (lint/typecheck/53 unit); env contract verified
+  (DATABASE_URL file:../db/custom.db, db/ at root, .env.example matches)
+- Mobile nav re-measured live on the reference at 390×844: trigger
+  374/50/36, menu 374/54/192, items [Profile, Settings, Logout] —
+  byte-identical to the clone's pin; NO Tailwind v4 regression on either app
+- Audit target (per session-3 review's forward note): the dashboard sidebar
+  cards + layout chrome that had never been decompile-verified. Decompiled
+  ure (StatusCard), Y1e (DailyFocus), fre (AISummary), g0e (SkillsMap),
+  X1e (Dashboard layout), are/rre (day rows/task blocks), Xne (TaskDialog)
+  from the reference bundle; corroborated EVERYTHING live on the logged-in
+  reference incl. a full Mark Complete round-trip (PATCH → completed → card
+  advances) and the reference's own time-format bug
+  ("Oct 6 AM1791284400 11:00" — date-fns `a`/`t` tokens in "MMM d at HH:mm")
+- 26 gaps found across 8 surfaces: S-1..S-4 StatusCard (rich "Next Up" state
+  machine: skeleton, priority badge, description, Clock row, 75% progress +
+  "Ready", FUNCTIONAL Mark Complete, decorative ArrowRight; empty state
+  p-6/raw-icon; loading skeleton), F-1..F-4 DailyFocus (WRONG fallback —
+  Mark Twain, not Paul J. Meyer; vertical quote layout text-lg italic;
+  Target affirmation icon; refreshTrigger re-fetch), A-1..A-6 AISummary
+  (Brain icon + Sparkles live indicator; purple→pink Mood; blue/green
+  chips; max-h-20; refreshTrigger), K-1..K-5 SkillsMap (loading skeleton;
+  Award indicator; custom glass tooltip; capitalize legend percentage-only;
+  m0e hexes #10B981/#8B5CF6/#F59E0B + #64748B fallback), W-1..W-4
+  WeeklySchedule (space-y-1.5 day rows; minute-stacked zIndex;
+  default-cursor cells; pre-07:00 spanning branch), D-1 Dashboard container
+  (full-bleed p-4 md:p-6 lg:p-8, max-w-7xl removed), T-1 TaskDialog delete
+  confirm, C-1 scrollbar cascade values, X-1 store taskVersion/completeTask
+- Wrote docs/remediation-plan-session4.md; validated against the codebase
+  (lucide exports, date-fns bug reproduction, recharts API, store seams)
+  before executing
+
+Stage Summary:
+- 26 findings (S/F/A/K/W/D/T/C/X) + 2 judgment-call divergences documented;
+  next: TDD remediation, gate, live parity, screenshots, docs, push
+
+---
+Task ID: 20
+Agent: main agent
+Task: Session 4 — TDD remediation execution, verification, screenshots, docs, push
+
+Work Log:
+- RED: tests/ai-defaults.test.ts (module absent) + domain.test.ts +3
+  (skills hexes/lookup/name) + 6 new/reworked e2e specs — all failed as
+  predicted (one test expectation corrected: "SELF CARE" not "SELF_CARE")
+- GREEN: StatusCard/DailyFocusCard/AISummaryCard/SkillsMap rebuilt to the
+  decompiled forms; WeeklySchedule chrome fixes (space-y-1.5 wrapper,
+  zIndex 10+minutes, cursor removal, pre-07:00 branch); Dashboard container
+  full-bleed; TaskDialog window.confirm; src/lib/ai-defaults.ts shared
+  constants (client-safe); domain SKILL_COLORS/LOOKUP/skillRowName;
+  globals.css scrollbar effective values; store taskVersion (bumped by
+  create/update/delete, NOT completeTask) + completeTask + initial
+  loadingTasks=true (first-paint skeletons; bootstrap drops when
+  unauthenticated)
+- Flakes fixed: "Skills Map" heading strict-mode substring collision →
+  exact:true; skeleton-state evaluate race → waitForFunction on the
+  loaded-state Award icon; legend span:last-child wrong match →
+  :scope > span; chip filter regex → includes; e2e residue CASCADE
+  (failed specs' tasks shifted planning top-3 chips + Next Up selection)
+  → all E2E specs wipe the whole "E2E " family at start
+- Gate: lint clean · tsc clean · 59/59 unit · build green (self-type-
+  checked) · 43/43 e2e × 2 consecutive full runs · smoke 25/25
+- Live parity re-verified on BOTH apps (agent-browser): page container
+  1440=1440 full-bleed; Next Up card byte-identical + Mark Complete
+  round-tripped on both; empty state identical; Mark Twain fallback +
+  vertical DailyFocus identical; Brain+Sparkles/Award headers; space-y-1.5
+  6px row gap; mobile trigger 374/50/36 (menu geometry pinned by the e2e
+  spec — agent-browser cannot open Radix on the dev build, a tooling
+  quirk documented in AGENTS.md)
+- 15 screenshots in docs/screenshots/ (01–09 re-captured + 10–13 from
+  session 3 still current + new 14-statuscard-nextup, 15-taskdialog via
+  scripts/capture-screenshots.mjs — Playwright trusted clicks)
+- Docs realigned: README (features/testing/tree/screenshots), PAD (§3 tree,
+  §11 format-bug + store-seam notes, §12 ledger + 2 new parity rows),
+  AGENTS.md (counts, sidebar-card + chrome conventions, 4 new quirks,
+  references), CLAUDE.md (counts, testing), flow-schedule_SKILL.md v1.3.0
+  (FS-14, 3 debugging rows, appendices B/C), remediation-plan-session4.md
+  execution record, docs/session_4-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 4 delivered: the sidebar cards now mirror the decompiled
+  reference exactly (state machines included); e2e 38 → 43 specs; unit
+  53 → 59; the fallback content and layout chrome are pinned surfaces
+- Key new knowledge: FS-14 (content-presence checks are not parity —
+  fallbacks and chrome are surfaces), bug parity beyond dead code (the
+  format-string bug), residue cascades are cross-spec (wipe the E2E
+  family), agent-browser vs Radix on the dev build (the e2e spec is the
+  pin)

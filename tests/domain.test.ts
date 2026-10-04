@@ -9,10 +9,14 @@ import {
   PRIORITIES,
   PRIORITY_BADGES,
   QUICK_ACTIONS,
+  SKILL_COLORS,
+  SKILL_COLORS_LOOKUP,
   TASK_STATUSES,
   isCategory,
   isPriority,
   isTaskStatus,
+  skillRowName,
+  type Category,
 } from "@/lib/domain";
 
 // Domain constants — the contract the reference app's bundle pinned:
@@ -91,6 +95,39 @@ describe("quick actions", () => {
     for (const a of QUICK_ACTIONS) {
       expect(a.formColor).toMatch(/bg-\w+-50\/90/);
     }
+  });
+});
+
+describe("skills map colors", () => {
+  it("carries the reference's m0e hex map exactly", () => {
+    // Decompiled from the reference bundle (m0e) + live-corroborated:
+    // work #3B82F6, personal #10B981 (emerald — NOT green-500 #22c55e),
+    // health #EF4444, learning #8B5CF6 (violet — NOT purple-500 #a855f7),
+    // creative #EC4899, social #F59E0B (amber — NOT yellow-500 #eab308),
+    // planning #6366F1.
+    expect({ ...SKILL_COLORS }).toEqual({
+      work: "#3B82F6",
+      personal: "#10B981",
+      health: "#EF4444",
+      learning: "#8B5CF6",
+      creative: "#EC4899",
+      social: "#F59E0B",
+      planning: "#6366F1",
+    });
+  });
+
+  it("SKILL_COLORS_LOOKUP falls back to the reference's slate #64748B", () => {
+    // The reference's g0e uses m0e[v] || "#64748B" for unknown categories
+    // (NOT slate-400 #94a3b8).
+    expect(SKILL_COLORS_LOOKUP("other" as Category)).toBe("#64748B");
+    expect(SKILL_COLORS_LOOKUP("work")).toBe("#3B82F6");
+  });
+
+  it("skillRowName mirrors the reference's name transform", () => {
+    // g0e: v.replace("_", " ").toUpperCase() — first underscore becomes a
+    // space before the uppercase.
+    expect(skillRowName("work")).toBe("WORK");
+    expect(skillRowName("self_care" as Category)).toBe("SELF CARE");
   });
 });
 

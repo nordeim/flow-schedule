@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–3, 2026-10-04).
-version: 1.2.0
+  codebase-verified (sessions 1–4, 2026-10-04).
+version: 1.3.0
 last_updated: 2026-10-04
-project_state: 53/53 unit tests, 38/38 e2e tests, all gates green, build self-type-checks
+project_state: 59/59 unit tests, 43/43 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -487,6 +487,31 @@ so `.first()` resolved to the textarea, not the list `<p>`.
 textbox; it also makes `toBeVisible()` correctly WAIT for the view
 switch. `getByText` on a page with live form views is a footgun.
 
+### FS-14: Content-presence checks are not parity — fallbacks and chrome are surfaces too (Critical — parity)
+
+**Symptom:** the dashboard sidebar cards were "verified" for three
+sessions (headings render, data appears) while: the StatusCard shipped a
+minimal "Up Next" instead of the reference's rich "Next Up" state machine
+(skeleton, priority badge, 75% progress, a FUNCTIONAL Mark Complete, a
+decorative ArrowRight), the DailyFocus fallback quoted Paul J. Meyer
+instead of the reference's Mark Twain (user-visible on EVERY SDK 429),
+AISummary used a Sparkles header icon where the reference ships Brain +
+a Sparkles live indicator, SkillsMap had wrong slice hexes and no Award
+indicator, the page container carried a clone-only `max-w-7xl`, the day
+rows had no spacing, and the dialog deleted without a confirm.
+**Root cause:** "the card renders content" was accepted as a parity
+claim — nobody decompiled the cards' STATE MACHINES or the LAYOUT
+CHROME, and the deterministic fallback strings were never treated as
+UI surfaces.
+**Fix + rule:** enumerate the full surface: every state (loading/empty/
+loaded/mutating), every string the user can see — including fallback
+constants (decompile them; a "reasonable" quote stayed wrong for three
+sessions) — and the container/spacing/scrollbar classes. Pin the
+fallback content with a unit contract (`tests/ai-defaults.test.ts`) and
+the chrome with e2e evaluates. The reference's own format-string bugs
+are part of the contract (date-fns "MMM d at HH:mm" renders "Oct 6
+AM1791284400 11:00" — mirrored byte-identically).
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -502,6 +527,9 @@ switch. `getByText` on a page with live form views is a footgun.
 | AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
 | Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
 | Text assertion matches the form, not the list (flaky under load) | FS-13 — getByText matched the textarea's default-value text node | Scope by role: `getByRole("paragraph").filter({ hasText: … })` |
+| Heading locator resolves to 2 elements (strict mode) | FS-14 corollary — role queries SUBSTRING-match; the Next Up h4 task title matches "Skills Map" | `exact: true` on heading lookups near data-driven titles |
+| A passing spec fails after another spec failed earlier | e2e residue cascades CROSS-SPEC — leftover tasks shift the planning top-3 chips and the Next Up selection | Wipe the whole `E2E *` family at spec start (converging cleanup, FS-9 extended) |
+| agent-browser can't open the clone's Radix menu (but the reference's opens) | React 19 + Radix require trusted pointer events on the dev build; the reference's menu is not Radix | The e2e spec is the pin; screenshots via `scripts/capture-screenshots.mjs` |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -512,9 +540,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 53/53
+bun run test          # 59/59
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 38/38 on the production standalone :3100
+bun run test:e2e      # 43/43 on the production standalone :3100
 scripts/smoke-test.sh # 25/25 curl checks (auth, CRUD, AI envelopes, pages)
 ```
 
@@ -828,20 +856,22 @@ The full ADR set with alternatives-rejected lives in
 
 ## Appendix B: Verification Ledger
 
-Session 3 final gate (2026-10-04, after the Quick Actions parity
-remediation):
+Session 4 final gate (2026-10-04, after the sidebar-card + layout-chrome
+parity remediation):
 
 | Check | Result |
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
-| `bun run test` (Vitest) | **53/53** — auth ×8, db-path ×15, domain ×13, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
+| `bun run test` (Vitest) | **59/59** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **38/38** × 2 consecutive full runs (was 34; +4 new Quick Actions open-panel specs — see FS-12) |
+| `bun run test:e2e` (Playwright) | **43/43** × 2 consecutive full runs (was 38; +5 sidebar-card/layout/dialog specs — see FS-14) |
 | `scripts/smoke-test.sh` | 25/25 |
-| Reference parity (mobile menu) | re-measured live on BOTH apps after the session-3 change: 374/54/192; trigger 374/50 — byte-identical, geometry pin held |
-| Reference parity (Quick Actions) | bundle decompile (G1e/z1e/W1e/H1e/K1e) + live DOM on both apps: container classes + gradient morph, tiles h-24/rounded-2xl/p-3/shadow-lg + w-5h-5 icon + text-[11px] label, placeholder-only quick-add with bg-slate-700 submit, minutes hidden while running + Pause icon + disabled-at-0, read-only top-5 history, notes create/edit/confirm-delete — all matched; completion alert verified by a one-off run |
-| Reference parity (Planning) | bundle decompile + live DOM comparison on both apps: null-init selection, selected-day highlight, static stats placeholder, decorative Filter, chip bubbling, display-only items, no Unscheduled — all matched |
+| Reference parity (mobile menu) | re-measured live on BOTH apps in session 4: 374/54/192; trigger 374/50/36 — byte-identical, geometry pin held |
+| Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
+| Reference parity (layout chrome) | full-bleed `p-4 md:p-6 lg:p-8` (1440px on both), day rows `space-y-1.5` (6px gap), default-cursor cells, minute-stacked blocks, dialog delete confirm, scrollbar cascade values |
+| Reference parity (Quick Actions) | session 3: bundle decompile (G1e/z1e/W1e/H1e/K1e) + live DOM on both apps — all matched; completion alert verified by a one-off run |
+| Reference parity (Planning) | session 2: bundle decompile + live DOM comparison on both apps: null-init selection, selected-day highlight, static stats placeholder, decorative Filter, chip bubbling, display-only items, no Unscheduled — all matched |
 | Reference parity (gradients) | Quick Action tiles byte-identical; canvas endpoints identical, oklab midtone delta measured 0–3 RGB units (accepted) |
 | Rate limiter hygiene | throttled expired-bucket sweep unit-pinned (5,000-key spray bounded; live keys preserved) |
 
@@ -866,7 +896,21 @@ remediation):
   FS-11 lesson recorded. See `docs/session_2-review.md` +
   `docs/remediation-plan-session2.md` (the operator's narrative lives
   in `docs/session_2.md`).
-- **Session 3 (2026-10-04, this skill revision):** audit + Quick Actions
+- **Session 4 (2026-10-04, this skill revision):** audit + sidebar-card
+  and layout-chrome parity — decompiled `ure`/`Y1e`/`fre`/`g0e`/`X1e`/
+  `are`/`rre`/`Xne` from the reference bundle and fixed 26 gaps across 8
+  surfaces (S/F/A/K/W/D/T/C/X): the StatusCard's full "Next Up" state
+  machine with a FUNCTIONAL Mark Complete and the mirrored format-string
+  bug, the Mark Twain fallback (wrong since session 0), Brain/Sparkles/
+  Award/Target/ArrowRight icons, the m0e skills hexes, the full-bleed
+  `p-4 md:p-6 lg:p-8` container (max-w-7xl removed), day-row
+  `space-y-1.5` spacing, minute-stacked task blocks, default-cursor
+  cells, the dialog delete confirm, the scrollbar cascade values, and
+  the store's `taskVersion` refresh counter. e2e 38 → 43 specs, unit
+  53 → 59; FS-14 lesson recorded. See `docs/session_4-review.md` +
+  `docs/remediation-plan-session4.md` (the operator's narrative lives
+  in `docs/session_4.md`).
+- **Session 3 (2026-10-04):** audit + Quick Actions
   open-panel parity — decompiled `G1e`/`z1e`/`W1e`/`H1e`/`K1e` from the
   reference bundle and fixed 9 gaps (Q-1…Q-7 + deferred D-1/D-2):
   gradient container morph + expanding overlay, heading replacement,

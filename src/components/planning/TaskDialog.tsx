@@ -145,6 +145,9 @@ function TaskFormBody({
 
   const remove = async () => {
     if (!editing || busy) return;
+    // The reference's Xne delete guard (session 4, T-1): a native confirm
+    // before the DELETE — dismiss aborts, accept deletes.
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
     setBusy(true);
     setError(null);
     try {

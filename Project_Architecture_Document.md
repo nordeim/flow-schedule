@@ -297,6 +297,7 @@ src/
 │   ├── auth.ts                     # scrypt + HMAC + session helpers
 │   ├── api.ts                      # ok/fail envelope, rate limit, guard
 │   ├── domain.ts                   # enums, geometry, color maps (measured)
+│   ├── ai-defaults.ts              # shared AI fallback content (client-safe, unit-pinned)
 │   ├── ai.ts                       # LLM wrappers + fallbacks
 │   ├── db.ts / db-path.ts          # Prisma singleton + URL resolution seam
 │   └── utils.ts                    # cn()
@@ -680,29 +681,43 @@ bun run lint && bun run typecheck && bun run test && bun run build && bun run te
 - The Focus Timer's "Please set a valid duration." alert is unreachable
   dead code — the start control is disabled at minutes=0 (the reference's
   own W1e ships both; the clone mirrors the pair faithfully).
+- The StatusCard's time row renders `format(d, "MMM d at HH:mm")` — the
+  reference's own format-string bug (date-fns reads `a` as AM/PM and `t`
+  as the unix timestamp, producing "Oct 6 AM1791284400 11:00"). Bug
+  parity by design: the live reference DOM shows the same string, and
+  the clone reproduces it byte-identically via the same date-fns call.
+- The reference's per-card data fetching is collapsed into the Zustand
+  store (the store is the only fetcher): the sidebar cards derive their
+  skeletons from `loadingTasks` and re-fetch AI content on the store's
+  `taskVersion` counter (mirroring the reference's X1e refresh design).
+  Accepted divergence: the clone's calendar Refresh button re-fetches
+  the store and flashes the card skeletons; the reference's refreshes
+  only its own card.
 
 ---
 
 ## 12. Verification Ledger
 
-Claims made in this PAD, with evidence (all executed 2026-10-04; session-3
-rows re-executed after the Quick Actions parity remediation):
+Claims made in this PAD, with evidence (all executed 2026-10-04; session-4
+rows re-executed after the sidebar-card/layout-chrome remediation):
 
 | Claim | Status | Evidence |
 |---|---|---|
 | lint clean | Verified | `bun run lint` → zero errors |
 | typecheck clean | Verified | `bun run tsc --noEmit` → clean |
-| Unit tests pass | Verified | `bun run test` → 53/53 (44 + next-config contract + rate-limit window/eviction) |
+| Unit tests pass | Verified | `bun run test` → 59/59 (44 + next-config + rate-limit + skills-colors/name-transform + ai-defaults fallback contract) |
 | Production build succeeds WITHOUT the type-bypass flag | Verified | `bun run build` (typescript.ignoreBuildErrors removed) → 19 routes (8 static incl. `/sitemap.xml` + `/robots.txt`, 11 API) |
-| E2E passes | Verified | `bun run test:e2e` → 38/38 (two consecutive full runs) through live SDK 429s (fallbacks by design) |
+| E2E passes | Verified | `bun run test:e2e` → 43/43 (two consecutive full runs) through live SDK 429s (fallbacks by design — the Mark Twain fallback now live-verified) |
 | Smoke suite | Verified | `scripts/smoke-test.sh` → 25/25 |
-| Mobile menu geometry parity | Verified | Live re-measurement on BOTH apps (2026-10-04, 390×844, re-pinned after the session-3 change): menu right 374 = trigger right 374, y=54, w=192 — byte-identical |
+| Mobile menu geometry parity | Verified | Live re-measurement on BOTH apps (2026-10-04 session 4, 390×844): menu right 374 = trigger right 374, y=54, w=192 — byte-identical; the clone trigger measures 374/50/36 |
 | Planning page reference parity | Verified | Reference component decompiled from its bundle (`eSe` in `bundle.js`) + live DOM comparison of both apps: null-init selectedDay, selection-following highlight, static Day Statistics placeholder, decorative Filter, display-only chips/task items, no Unscheduled section — all matched; pinned by 9 planning e2e specs |
 | Quick Action gradient parity | Verified | Computed-style comparison: byte-identical inline hex gradients (`rgb(14,165,233)→rgb(37,99,235)` etc.) on both apps |
 | **Quick Actions open-panel parity** | Verified | **Session 3:** container/tiles/panels decompiled from the reference bundle (`G1e`/`z1e`/`W1e`/`H1e`/`K1e`) + live DOM corroboration on both apps: container `p-4 … overflow-hidden min-h-[280px]` with background morph to the action gradient, tiles `h-24 rounded-2xl p-3 shadow-lg` + icon `w-5 h-5 mb-1.5` + label `text-[11px]`, placeholder-only quick-add with `bg-slate-700` submit, minutes input hidden while running + Pause icon, read-only top-5 history, notes create/edit/confirm-delete — all matched and pinned by 8 dashboard e2e specs; the completion alert verified by a one-off Playwright run |
+| **Dashboard sidebar-card parity** | Verified | **Session 4:** `ure`/`Y1e`/`fre`/`g0e` decompiled + live DOM corroboration on both apps: the Next Up card (blob, priority badge, h4 title, Clock row with the reference's format-string bug mirrored — "Oct 6 AM1791284400 11:00" on both apps, 75% progress + "Ready", FUNCTIONAL Mark Complete live round-tripped on both, decorative ArrowRight), the raw-icon "All caught up!" empty state, loading skeletons from first paint, DailyFocus's Mark Twain fallback + vertical text-lg italic layout + Target icon, AISummary's Brain + Sparkles live indicator + purple→pink Mood + blue/green chips + max-h-20, SkillsMap's Award indicator + glass tooltip + m0e hexes + percentage-only legend — pinned by 6 dashboard e2e specs + the ai-defaults/domain unit suites |
+| **Dashboard layout chrome parity** | Verified | **Session 4:** page container `p-4 md:p-6 lg:p-8` full-bleed (1440px measured on both apps; the clone's old `max-w-7xl mx-auto` removed), day rows in `space-y-1.5` (6px gap measured on both), default-cursor cells, minute-stacked task blocks, TaskDialog delete `window.confirm`, `.custom-scrollbar` at the reference's live cascade effective values (height 5px / width 3px / radius-2 / hover 0.3) |
 | Canvas gradient parity | Verified | Computed-style + pixel sampling: endpoints byte-identical; oklab-vs-sRGB midtone delta measured 0–3 RGB units (documented acceptance, ADR-004) |
 | Reference app facts (routes, enums, geometry, gradients, prompts) | Verified | Extracted from the reference's deployed bundle + live authenticated DOM/API probing (sessions recorded in the worklog) |
 | LLM fallbacks fire under 429 | Verified | e2e logs: "[ai] daily focus generation failed, using default" + suite green |
 | SQLite path seam | Verified | `tests/db-path.test.ts` (15 cases) + dev/e2e/prod all open the same file per environment |
-| Screenshots | Verified | 13 captures in `docs/screenshots/` from the running dev server (remediated codebase; incl. the three quick-action open panels) |
+| Screenshots | Verified | 15 captures in `docs/screenshots/` from the running dev server (remediated codebase; incl. the three quick-action open panels, the Next Up card and the task dialog — the Radix/dialog states via `scripts/capture-screenshots.mjs`) |
 | Rate-limiter eviction (D-2) | Verified | `tests/rate-limit.test.ts`: 5,000-key spray keeps the map bounded; expired buckets fully evicted on the next window; live keys preserved through a sweep |

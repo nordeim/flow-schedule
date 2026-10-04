@@ -69,16 +69,32 @@ export const PRIORITY_TEXT: Record<Priority, string> = {
   urgent: "text-red-600",
 };
 
-// Skills Map pie slice colors (recharts Cells), keyed by category.
+// Skills Map pie slice colors (recharts Cells), keyed by category — the
+// reference's m0e map exactly (decompiled + live-corroborated, session 4):
+// personal is EMERALD #10B981 (not green-500), learning is VIOLET #8B5CF6
+// (not purple-500), social is AMBER #F59E0B (not yellow-500).
 export const SKILL_COLORS: Record<Category, string> = {
-  work: "#3b82f6",
-  personal: "#22c55e",
-  health: "#ef4444",
-  learning: "#a855f7",
-  creative: "#ec4899",
-  social: "#eab308",
-  planning: "#6366f1",
+  work: "#3B82F6",
+  personal: "#10B981",
+  health: "#EF4444",
+  learning: "#8B5CF6",
+  creative: "#EC4899",
+  social: "#F59E0B",
+  planning: "#6366F1",
 };
+
+// The reference's g0e lookup: m0e[v] || "#64748B" — the fallback is
+// slate-500, NOT slate-400.
+export function SKILL_COLORS_LOOKUP(category: string): string {
+  return SKILL_COLORS[category as Category] ?? "#64748B";
+}
+
+// The reference's g0e row-name transform: v.replace("_", " ").toUpperCase()
+// (first underscore only — mirrored exactly, including the toLowerCase the
+// legend applies on render).
+export function skillRowName(category: string): string {
+  return category.replace("_", " ").toUpperCase();
+}
 
 export const QUICK_ACTIONS = [
   {
