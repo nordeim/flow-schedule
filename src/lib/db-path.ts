@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -41,10 +41,7 @@ const DEFAULT_RELATIVE_DB = "../db/custom.db";
  */
 export function resolveDatabaseUrl(envUrl: string | undefined, anchors: string[]): string {
   const url = envUrl?.trim();
-  const schemaRoot =
-    anchors.find((root) => existsSync(path.join(root, "prisma", "schema.prisma"))) ??
-    anchors[anchors.length - 1] ??
-    process.cwd();
+  const schemaRoot = findSchemaRoot(anchors);
 
   if (!url) {
     return `file:${path.resolve(schemaRoot, "prisma", DEFAULT_RELATIVE_DB)}`;
@@ -101,7 +98,136 @@ export function candidateRoots(): string[] {
   return roots;
 }
 
+// ---------------------------------------------------------------------------
+// v3 (session 9, F-1): the repo's own .env is authoritative for DATABASE_URL.
+//
+// The environment a repo runs in can carry a DATABASE_URL the repo never
+// asked for: Bun auto-loads .env files from PARENT directories (a workspace
+// parent .env with an absolute URL wins over this repo's relative one — the
+// session-1 quirk), and CI/sandbox harnesses can export DATABASE_URL
+// directly into the shell. Both were reproduced in session 9: `db:push`,
+// `db:seed` and `next dev` all resolved to a database OUTSIDE the repo
+// (a file lost on every workspace reset, and a dev server whose queries
+// fail outright once the parent file is removed).
+//
+// The v3 rule (chooseEnvSource below):
+//   1. A repo .env DATABASE_URL beats an ambient SQLite file: URL that
+//      resolves OUTSIDE the schema-owning repo (the hijack protection).
+//   2. An ambient SQLite file: URL that resolves INSIDE the repo still
+//      wins — a deliberate isolation override (the e2e suite's
+//      file:../db/e2e.db).
+//   3. A non-SQLite ambient URL (PostgreSQL in production) always wins —
+//      a deliberate provider override, never a parent-workspace artifact.
+//   4. No repo .env value → the ambient value wins (the production
+//      env-var flow, DEPLOYMENT.md).
+// The prisma CLI gets the same rule via scripts/prisma-cli.ts (its own
+// dotenv never overrides an existing process-env value).
+// ---------------------------------------------------------------------------
+
+/** True when a URL string is a SQLite file: URL (case-insensitive). */
+function isSqliteUrl(url: string): boolean {
+  return /^file:/i.test(url);
+}
+
+/**
+ * Resolve a SQLite file: URL to an ABSOLUTE PATH using the same anchoring
+ * rule as resolveDatabaseUrl (schema-relative). Non-SQLite URLs → null.
+ */
+function sqliteUrlAbsolutePath(url: string, schemaRoot: string): string | null {
+  if (!isSqliteUrl(url)) return null;
+  const raw = url.trim().replace(/^file:/i, "");
+  if (path.isAbsolute(raw) || /^[A-Za-z]:[\\/]/.test(raw)) return path.resolve(raw);
+  return path.resolve(schemaRoot, "prisma", raw);
+}
+
+/** True when `p` sits strictly inside `root` (not the root itself). */
+function isStrictlyInside(p: string, root: string): boolean {
+  const rel = path.relative(path.resolve(root), path.resolve(p));
+  return rel !== "" && !rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel);
+}
+
+/**
+ * The v3 priority rule (pure). `ambientUrl` is the process-env DATABASE_URL;
+ * `repoEnvUrl` is the value read from the schema-owning repo's own .env
+ * (repoEnvDatabaseUrl, undefined when absent/blank); `schemaRoot` is the
+ * anchor directory that owns prisma/schema.prisma. Returns the URL that
+ * should be resolved (may be undefined → the documented default applies).
+ */
+export function chooseEnvSource(
+  ambientUrl: string | undefined,
+  repoEnvUrl: string | undefined,
+  schemaRoot: string,
+): string | undefined {
+  const ambient = ambientUrl?.trim() || undefined;
+  const repoEnv = repoEnvUrl?.trim() || undefined;
+  if (!repoEnv) return ambient; // no repo .env → ambient (or undefined)
+  if (!ambient) return repoEnv; // only the repo .env → it wins
+  // Non-SQLite ambient URLs are deliberate production provider overrides.
+  if (!isSqliteUrl(ambient)) return ambient;
+  // A SQLite ambient URL resolving INSIDE the schema repo is a deliberate
+  // isolation override (the e2e suite's db/e2e.db) — it wins.
+  const ambientPath = sqliteUrlAbsolutePath(ambient, schemaRoot);
+  if (ambientPath && isStrictlyInside(ambientPath, schemaRoot)) return ambient;
+  // The ambient SQLite URL points outside the repo (the parent-workspace
+  // hijack) — the repo's own .env is authoritative.
+  return repoEnv;
+}
+
+/**
+ * Read DATABASE_URL from a repo's own .env file (if any). A tiny,
+ * dependency-free dotenv subset: KEY=VALUE lines, `#` comments, matching
+ * quotes stripped, blank/absent values → undefined. The repo's .env is the
+ * repo's own contract — it is read from DISK, not from process.env (which
+ * may be polluted by a parent workspace or a harness shell).
+ */
+export function repoEnvDatabaseUrl(repoRoot: string | undefined): string | undefined {
+  if (!repoRoot) return undefined;
+  try {
+    const envPath = path.join(repoRoot, ".env");
+    if (!existsSync(envPath)) return undefined;
+    const text = readFileSync(envPath, "utf8");
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const match = /^DATABASE_URL\s*=\s*(.*)$/.exec(line);
+      if (!match) continue;
+      let value = match[1].trim();
+      // Strip a same-line trailing comment (only outside quotes — a `#`
+      // directly after a space; quoted values containing " #" are exotic
+      // and out of scope for this subset).
+      const commentAt = value.indexOf(" #");
+      if (commentAt !== -1) value = value.slice(0, commentAt).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+        (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+      ) {
+        value = value.slice(1, -1).trim();
+      }
+      return value || undefined;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The schema-owning anchor for a set of candidate roots (first hit wins). */
+export function findSchemaRoot(anchors: string[]): string {
+  return (
+    anchors.find((root) => existsSync(path.join(root, "prisma", "schema.prisma"))) ??
+    anchors[anchors.length - 1] ??
+    process.cwd()
+  );
+}
+
 /** Resolve DATABASE_URL for the running process (the db.ts entry point). */
 export function resolveProcessDatabaseUrl(): string {
-  return resolveDatabaseUrl(process.env.DATABASE_URL, candidateRoots());
+  const anchors = candidateRoots();
+  const schemaRoot = findSchemaRoot(anchors);
+  const chosen = chooseEnvSource(
+    process.env.DATABASE_URL,
+    repoEnvDatabaseUrl(schemaRoot),
+    schemaRoot,
+  );
+  return resolveDatabaseUrl(chosen, anchors);
 }

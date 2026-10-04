@@ -7,9 +7,9 @@ description: >
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
   codebase-verified (sessions 1–8, 2026-10-04).
-version: 1.7.0
-last_updated: 2026-10-04
-project_state: 66/66 unit tests, 63/63 e2e tests, all gates green, build self-type-checks
+version: 1.8.0
+last_updated: 2026-10-05
+project_state: 88/88 unit tests, 64/64 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative)
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -160,14 +160,19 @@ Demo credentials (seed): `demo@flowschedule.app` / `demo1234`.
 - `eslint.config.mjs` — flat config; `react-hooks/set-state-in-effect`
   is an ERROR and has caught two real bugs.
 
-**Environment traps** (both hit in practice):
+**Environment traps** (both hit in practice — both NEUTRALIZED by db-path
+v3, session 9):
 
 1. Bun auto-loads `.env` from PARENT directories — a workspace parent
-   `.env` with an absolute `DATABASE_URL` wins over this repo's relative
-   one.
-2. A shell-EXPORTED `DATABASE_URL` beats every `.env` file. Symptom:
-   `db:seed` says "Sample tasks already present — skipped" while
-   `<repo>/db/custom.db` stays 0 bytes. Fix: `unset DATABASE_URL`.
+   `.env` with an absolute `DATABASE_URL` used to win over this repo's
+   relative one. v3: the repo's own `.env` is authoritative; ambient
+   SQLite URLs resolving OUTSIDE the repo are ignored (FS-19).
+2. A shell-EXPORTED `DATABASE_URL` beats every `.env` file. Symptom
+   (pre-v3): `db:seed` says "Sample tasks already present — skipped"
+   while `<repo>/db/custom.db` stays 0 bytes. v3: same rule — the
+   export only wins if it resolves INSIDE the repo (the e2e
+   isolation) or is a non-SQLite provider URL; the CLI-facing scripts
+   apply it via `scripts/prisma-cli.ts`.
 
 ## 4. The Design System (Code-First)
 
@@ -642,6 +647,44 @@ Prisma objects (with internal fields); a wire serializer
 (`serializeTask`/`serializeNote`) closed it, and the docs' claim became
 true.
 
+### FS-19: A pass-through env seam is a policy vacuum — pin WHERE the value is consumed (Critical — environment)
+
+**Symptom:** the repo's `.env` said `DATABASE_URL="file:../db/custom.db"`
+and every doc claimed the DB lives at `<repo>/db/custom.db` — yet
+`bun run db:push` created `/home/z/<parent>/db/custom.db` (OUTSIDE the
+repo), the seed populated THAT file, and a dev server started in the
+same shell pointed at it too (querying a missing file → "Unable to open
+the database file" once the parent file was deleted). Sessions 1–8
+documented the parent-.env quirk as an environmental given and let it
+win.
+**Root cause:** db-path v2.3's "absolute `file:` URLs pass through
+untouched" is a pass-through POLICY VACUUM — it answers "how do I
+resolve a URL?" but never "whose URL wins?". The workspace injected the
+variable twice over: a parent `.env` (Bun auto-loads parent
+directories) AND a harness shell export (env vars beat .env files in
+both Bun and Prisma's dotenv). Nobody owned the authority question, so
+the environment answered it by accident.
+**Fix + rules (db-path v3):** the schema-owning repo's OWN `.env` is
+authoritative — `chooseEnvSource(ambient, repoEnv, schemaRoot)` decides
+with three deliberate exceptions, each unit-pinned: (1) an ambient
+SQLite URL resolving INSIDE the repo wins (the e2e suite's
+`file:../db/e2e.db` isolation override — otherwise the suite would run
+against custom.db!); (2) a non-SQLite ambient URL wins (production
+PostgreSQL); (3) no repo `.env` value → ambient wins (the production
+env-var flow). Rules: (a) when a config value can arrive from multiple
+sources, write the PRIORITY rule down and pin it with tests — "both are
+supported" is not a contract, it's a coin flip; (b) CLI tools that load
+dotenv with no-override semantics (Prisma!) need a wrapper that applies
+the same rule (`scripts/prisma-cli.ts`) — one rule, two enforcement
+points; (c) acceptance-test the ENVIRONMENT, not just the code: this
+session's gates run in the polluted shell on purpose — the fix must
+make the pollution irrelevant, not require `env -u` discipline.
+**The locator corollary (same session):** when an e2e locator relies on
+a TAG as its discriminator ("the task items are DIVs — the day CARDS
+are buttons"), converting the tag silently retargets the locator —
+discriminate on a class the reference's own DOM guarantees (the day
+cards carry `cursor-pointer`; task items never do).
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -652,7 +695,7 @@ true.
 | "attempt to write a readonly database" | FS-8 — someone deleted the db file under the server | Restart the server; keep globalSetup header comment intact |
 | e2e "day statistics" flaky | FS-7 chip interception / pre-hydration click | Header-block click + hydration gate (already in spec) |
 | Login rejected in tests | Rate limiter (10/IP/60s) after repeated runs | The setup project signs in ONCE and shares storageState; per-test logins are forbidden |
-| `db:seed` says "skipped" but `db/custom.db` is 0 bytes | Stale shell-exported or parent `.env` `DATABASE_URL` | `unset DATABASE_URL`; see §3 traps |
+| `db:push`/`db:seed` target a file OUTSIDE the repo | FS-19 — an ambient (parent `.env` or shell-exported) `DATABASE_URL` | db-path v3 makes the repo's own `.env` authoritative; verify with `bun -e 'import("./src/lib/db-path").then(m=>console.log(m.resolveProcessDatabaseUrl()))'` |
 | Tasks created in e2e pollute totals | FS-9 | Spec cleanup blocks (already in place) |
 | AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
 | Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
@@ -684,9 +727,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 66/66
+bun run test          # 88/88
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 63/63 on the production standalone :3100
+bun run test:e2e      # 64/64 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -1007,9 +1050,9 @@ parity remediation):
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
-| `bun run test` (Vitest) | **66/66** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6, wire-format ×7 |
+| `bun run test` (Vitest) | **88/88** — auth ×8, db-path ×32 (v3: the repo-.env authority rule, the e2e-isolation + provider overrides), domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6, wire-format ×7, db-cli-scripts ×5 |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **63/63** × 2 consecutive full runs (58 after session 7; +5 session-8 pins — the enter animation, the classic DialogTitle/SelectTrigger classes, the single lucide class, the snake_case response shape) |
+| `bun run test:e2e` (Playwright) | **64/64** × 2 consecutive full runs (+5 session-8 pins — the enter animation, the classic DialogTitle/SelectTrigger classes, the single lucide class, the snake_case response shape; +1 session-9 pin — the plain-DIV day cards) |
 | `scripts/smoke-test.sh` | 30/30 (incl. authed page renders + unauth guard redirects) |
 | Reference parity (mobile menu) | re-measured live on BOTH apps every session; session 8: 182/54/192×164 at 390×844, trigger 338/14/36×36 — identical, now ANIMATED like the reference's |
 | Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
@@ -1155,6 +1198,30 @@ parity remediation):
   53; FS-12/FS-13 lessons recorded. See `docs/session_3-review.md` +
   `docs/remediation-plan-session3.md` (the operator's narrative lives
   in `docs/session_3.md`).
+
+- **Session 9 (2026-10-04/05, this skill revision):** environment
+  authority + the last class-tree divergence. The audit's new surfaces:
+  the OPEN Select listbox item states (byte-identical on both apps —
+  session 8's suggestion), Profile/Settings class trees (26/26, 39/39),
+  the mobile-dashboard tree (761/761 + the 3 documented style nodes),
+  and BOTH LLMs observed live for the first time (the reference's
+  InvokeLLM returned a Paul J. Meyer quote — session 4's Mark Twain
+  claim is about the FALLBACK and still holds; the clone's z-ai SDK
+  returned a Walt Disney quote). Fixed 2 gaps: **F-1 db-path v3** — the
+  workspace's parent `.env` + harness shell export hijacked
+  `DATABASE_URL` (db:push/seed AND the dev server targeted a file
+  OUTSIDE the repo, reproduced twice; the repo's own `.env` is now
+  authoritative — `chooseEnvSource` with the e2e-isolation and
+  production-provider exceptions, 17 new unit tests; the CLI applies
+  the same rule via `scripts/prisma-cli.ts`); **F-2** — the Planning
+  day cards converted from `button … text-left` to the reference's
+  plain clickable `div` (Planning now diffs 63/63 and 98/98 IDENTICAL;
+  the a11y trees match; e2e-pinned — one locator corollary: the
+  badge spec's task-item locator had used the button TAG as its
+  discriminator and needed the `cursor-pointer` class instead).
+  Unit 66 → 88, e2e 63 → 64 (×2 consecutive). FS-19 recorded. See
+  `docs/session_9-review.md` + `docs/remediation-plan-session9.md`
+  (the operator's narrative lives in `docs/session_9.md`).
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

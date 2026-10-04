@@ -59,6 +59,17 @@ attributes derive the right scheme.
    ambiguity across service managers, containers, or cron wrappers. Point
    them at a persisted volume and back the file up.
 
+   **Where to put it (session 9, db-path v3):** the repo's own `.env` is
+   AUTHORITATIVE — set the absolute path IN the repo's `.env` (the
+   deployed copy's own file). If you prefer the environment variable
+   (systemd `Environment=`, container env), remove or comment out the
+   `DATABASE_URL` line in the deployed `.env` first — otherwise the
+   file wins over an env-var SQLite URL that resolves outside the repo
+   (parent-workspace hijack protection, `src/lib/db-path.ts` v3 /
+   FS-19). Non-SQLite URLs (PostgreSQL) always win from the
+   environment, and the e2e's in-repo `file:../db/e2e.db` override is
+   unaffected.
+
 3. **PostgreSQL.** Switch `provider = "postgresql"` in
    `prisma/schema.prisma`, set a `postgresql://` URL, then
    `bun run db:push && bun run db:seed`.

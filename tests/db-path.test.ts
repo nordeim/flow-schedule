@@ -2,7 +2,12 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { resolveDatabaseUrl, standaloneRepoRoot } from "@/lib/db-path";
+import {
+  chooseEnvSource,
+  repoEnvDatabaseUrl,
+  resolveDatabaseUrl,
+  standaloneRepoRoot,
+} from "@/lib/db-path";
 
 // The db-path contract (docs/parity-remediation-v2.3.md WS-1):
 // a RELATIVE `file:` URL resolves against the first "anchor" directory that
@@ -152,5 +157,164 @@ describe("anchor validation", () => {
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v3 (session 9, F-1): the schema-owning repo's OWN .env is authoritative
+// for DATABASE_URL against an ambient env URL that resolves OUTSIDE the
+// repo (the parent-workspace .env hijack — Bun auto-loads parent .env files,
+// and a workspace harness can also export DATABASE_URL directly; both were
+// reproduced this session). An ambient URL that resolves INSIDE the repo
+// still wins (the e2e suite's deliberate file:../db/e2e.db isolation
+// override); a non-SQLite ambient URL (PostgreSQL in production) always
+// wins (a deliberate provider override, never a parent-workspace artifact).
+// ---------------------------------------------------------------------------
+
+describe("repoEnvDatabaseUrl (the repo's own .env reader)", () => {
+  let repo: string;
+
+  beforeAll(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "dbpath-envrepo-"));
+    mkdirSync(path.join(repo, "prisma"));
+    writeFileSync(path.join(repo, "prisma", "schema.prisma"), "datasource db { provider = \"sqlite\" }");
+  });
+  afterAll(() => rmSync(repo, { recursive: true, force: true }));
+
+  it("reads a double-quoted DATABASE_URL and strips the quotes", () => {
+    writeFileSync(path.join(repo, ".env"), 'DATABASE_URL="file:../db/custom.db"\n');
+    expect(repoEnvDatabaseUrl(repo)).toBe("file:../db/custom.db");
+  });
+
+  it("reads an unquoted DATABASE_URL", () => {
+    writeFileSync(path.join(repo, ".env"), "DATABASE_URL=file:./dev.db\n");
+    expect(repoEnvDatabaseUrl(repo)).toBe("file:./dev.db");
+  });
+
+  it("reads a single-quoted DATABASE_URL and strips the quotes", () => {
+    writeFileSync(path.join(repo, ".env"), "DATABASE_URL='file:../db/custom.db'\nAUTH_SECRET=x\n");
+    expect(repoEnvDatabaseUrl(repo)).toBe("file:../db/custom.db");
+  });
+
+  it("ignores same-line comments and unrelated keys", () => {
+    writeFileSync(
+      path.join(repo, ".env"),
+      "# comment line\nAUTH_SECRET=abc\nDATABASE_URL=file:../db/custom.db # trailing comment\n",
+    );
+    expect(repoEnvDatabaseUrl(repo)).toBe("file:../db/custom.db");
+  });
+
+  it("returns undefined when the file exists but has no DATABASE_URL", () => {
+    writeFileSync(path.join(repo, ".env"), "AUTH_SECRET=abc\n");
+    expect(repoEnvDatabaseUrl(repo)).toBeUndefined();
+  });
+
+  it("treats an empty/blank DATABASE_URL value as absent", () => {
+    writeFileSync(path.join(repo, ".env"), 'DATABASE_URL=""\n');
+    expect(repoEnvDatabaseUrl(repo)).toBeUndefined();
+  });
+
+  it("returns undefined when the .env file does not exist", () => {
+    expect(repoEnvDatabaseUrl(path.join(repo, "nowhere"))).toBeUndefined();
+  });
+});
+
+describe("chooseEnvSource (the v3 priority rule)", () => {
+  let repo: string;
+  let outside: string;
+
+  beforeAll(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "dbpath-prio-"));
+    mkdirSync(path.join(repo, "prisma"));
+    writeFileSync(path.join(repo, "prisma", "schema.prisma"), "// x");
+    outside = mkdtempSync(path.join(tmpdir(), "dbpath-outside-"));
+    mkdirSync(path.join(outside, "db"));
+  });
+  afterAll(() => {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it("the repo .env wins over an ambient absolute file URL that resolves OUTSIDE the repo (the hijack)", () => {
+    const chosen = chooseEnvSource(
+      `file:${path.join(outside, "db", "custom.db")}`, // ambient (parent workspace)
+      "file:../db/custom.db", // the repo's own .env
+      repo,
+    );
+    expect(chosen).toBe("file:../db/custom.db");
+  });
+
+  it("an ambient RELATIVE file URL that resolves INSIDE the repo still wins (the e2e isolation override)", () => {
+    const chosen = chooseEnvSource(
+      "file:../db/e2e.db", // resolves to <repo>/db/e2e.db — inside
+      "file:../db/custom.db",
+      repo,
+    );
+    expect(chosen).toBe("file:../db/e2e.db");
+  });
+
+  it("an ambient ABSOLUTE file URL that resolves inside the repo still wins", () => {
+    const inside = `file:${path.join(repo, "db", "e2e.db")}`;
+    const chosen = chooseEnvSource(inside, "file:../db/custom.db", repo);
+    expect(chosen).toBe(inside);
+  });
+
+  it("a non-SQLite ambient URL always wins (the production provider override)", () => {
+    const pg = "postgresql://user:pass@localhost:5432/app";
+    const chosen = chooseEnvSource(pg, "file:../db/custom.db", repo);
+    expect(chosen).toBe(pg);
+  });
+
+  it("no repo .env value → the ambient value wins (the production env-var flow)", () => {
+    const chosen = chooseEnvSource("file:/var/data/prod.db", undefined, repo);
+    expect(chosen).toBe("file:/var/data/prod.db");
+  });
+
+  it("no ambient value → the repo .env value wins (the fresh-checkout dev flow)", () => {
+    const chosen = chooseEnvSource(undefined, "file:../db/custom.db", repo);
+    expect(chosen).toBe("file:../db/custom.db");
+  });
+
+  it("neither source → undefined (the documented default applies downstream)", () => {
+    expect(chooseEnvSource(undefined, undefined, repo)).toBeUndefined();
+  });
+
+  it("a blank ambient value is treated as absent (the repo .env wins)", () => {
+    const chosen = chooseEnvSource("   ", "file:../db/custom.db", repo);
+    expect(chosen).toBe("file:../db/custom.db");
+  });
+});
+
+describe("the v3 end-to-end resolution (chooseEnvSource + resolveDatabaseUrl)", () => {
+  let repo: string;
+  let outside: string;
+
+  beforeAll(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "dbpath-e2e-v3-"));
+    mkdirSync(path.join(repo, "prisma"));
+    writeFileSync(path.join(repo, "prisma", "schema.prisma"), "// x");
+    mkdirSync(path.join(repo, "db"));
+    outside = mkdtempSync(path.join(tmpdir(), "dbpath-e2e-out-"));
+    mkdirSync(path.join(outside, "db"));
+  });
+  afterAll(() => {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it("the hijacked ambient URL loses; the repo .env value anchors inside the repo", () => {
+    const chosen = chooseEnvSource(
+      `file:${path.join(outside, "db", "custom.db")}`,
+      "file:../db/custom.db",
+      repo,
+    );
+    const out = resolveDatabaseUrl(chosen, [repo]);
+    expect(toPosix(out)).toBe(`file:${toPosix(path.join(repo, "db", "custom.db"))}`);
+  });
+
+  it("the e2e isolation URL survives the repo .env (resolved inside the repo)", () => {
+    const chosen = chooseEnvSource("file:../db/e2e.db", "file:../db/custom.db", repo);
+    const out = resolveDatabaseUrl(chosen, [repo]);
+    expect(toPosix(out)).toBe(`file:${toPosix(path.join(repo, "db", "e2e.db"))}`);
   });
 });

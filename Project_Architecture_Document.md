@@ -475,9 +475,31 @@ are the wire→client conversion seams.
 standalone server (which `chdir`s into `.next/standalone`). The logic
 lives in `src/lib/db-path.ts` with anchor fallbacks (module repo root →
 standalone root detection → CWD), absolute URLs pass through, and
-`tests/db-path.test.ts` pins the contract. **Bun also auto-loads `.env`
-from parent directories** — a workspace parent `.env` with an absolute
-`DATABASE_URL` wins; both shapes are supported by design.
+`tests/db-path.test.ts` pins the contract.
+
+**v3 (session 9, F-1): the repo's own `.env` is AUTHORITATIVE.** The
+environment a repo runs in can carry a `DATABASE_URL` the repo never asked
+for — Bun auto-loads `.env` files from PARENT directories, and CI/sandbox
+harnesses can export the variable directly into the shell; both were
+reproduced (the session-1..8 behavior let either one win, so `db:push`,
+`db:seed` and `next dev` silently targeted a database OUTSIDE the repo,
+lost on every workspace reset). The v3 rule (`chooseEnvSource`, pure,
+unit-pinned):
+
+| Condition (ambient env vs repo's own `.env`) | Winner |
+|---|---|
+| Ambient SQLite `file:` URL resolving **outside** the repo | **Repo `.env`** (hijack protection) |
+| Ambient SQLite `file:` URL resolving **inside** the repo (e.g. the e2e `file:../db/e2e.db`) | Ambient (a deliberate isolation override) |
+| Ambient non-SQLite URL (PostgreSQL in production) | Ambient (a deliberate provider override) |
+| No repo `.env` `DATABASE_URL` | Ambient (the production env-var flow) |
+| No ambient value | Repo `.env` (the fresh-checkout dev flow) |
+
+The Prisma CLI path applies the same rule via `scripts/prisma-cli.ts`
+(db:push/db:migrate/db:reset route through it — prisma's own dotenv never
+overrides an existing process-env value); `db:seed` self-resolves
+(`prisma/seed.ts` imports the seam). Production guidance (DEPLOYMENT.md §4,
+updated): set the absolute path in the repo's `.env`, or remove the
+`DATABASE_URL` line there and use the environment variable.
 
 ---
 
@@ -649,7 +671,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 66/66 unit · build ✓ (self-type-checked) · 63/63 e2e
+# lint clean · tsc clean · 88/88 unit · build ✓ (self-type-checked) · 64/64 e2e
 ```
 
 ### 10.2 Common tasks
@@ -781,3 +803,13 @@ rows re-executed after the sidebar-card/layout-chrome remediation):
 | Mobile menu re-pin (session 8) | Verified | Live on BOTH apps at 390×844 (trusted clicks, animation settled): trigger 338/14/36×36 both; menu 182/54/192×164, items [Profile, Settings, Logout] — no Tailwind v4 regression; the menu now ANIMATES like the reference's |
 | **Reference residue cleanup (session 8, P-3)** | Verified | Session 5's leftover "Live verify scheduled" (completed, Oct 6 11:00) found on the reference's NEXT week — sessions 6/7's "0 tasks" checks only looked at the current week. Deleted via the reference's own dialog (confirm armed); the account is back to the TRUE 0-task baseline |
 | Screenshots (session 8) | Verified | All 20 captures re-run on the remediated codebase (the animated dialog + menu settled before capture; the lucide 0.475 icons render in every shot) |
+| **Full-gate re-run at base (session 9)** | Verified | Fresh clone (workspace reset) · lint ✓ · typecheck ✓ · 66/66 unit · build (19 routes) · 63/63 e2e · smoke 30/30 — the session-8 remediation held; the account baseline held (0 tasks) |
+| **Open Select-listbox item-state parity (session 9, first-time diff)** | Verified | Create-dialog priority Select open on BOTH apps: byte-identical listbox content class (all side slide-ins), all four item class strings, the `absolute right-2 flex h-3.5 w-3.5` indicator spans, and the `checked` state on Medium — the session-8 suggested surface, now pinned by inspection |
+| **Dashboard / Profile / Settings / mobile-dashboard class-tree parity (session 9, state-matched)** | Verified | An empty parity user registered in the clone to match the reference's 0-task state: dashboard **761/761** (desktop AND mobile) — only the 3 documented styled-jsx `<style>` nodes differ; Profile **26/26**; Settings **39/39** — byte-identical |
+| **db-path v3 — the repo .env authority (session 9, F-1)** | Verified | The workspace harness's ambient `DATABASE_URL=file:/home/z/my-project/db/custom.db` (outside the repo) previously hijacked `db:push`, `db:seed` AND `next dev` (reproduced: the parent file was created/seeded; a polluted dev server fails every query). v3 (`chooseEnvSource` + `repoEnvDatabaseUrl`, 17 new unit tests) makes the repo's own `.env` authoritative; verified live: `db:push`/`db:seed` target `<repo>/db/custom.db` and the dev server serves the seeded repo DB — all in the polluted shell; the e2e isolation (`db/e2e.db`) survives (ambient-inside wins; 64/64 × 2) |
+| **prisma-CLI wrapper (session 9, F-1)** | Verified | `scripts/prisma-cli.ts` + package.json (db:push/db:migrate/db:reset) — the CLI applies the v3 rule (5 contract tests); verified live: `bun run db:push` in the polluted shell pushes `<repo>/db/custom.db` |
+| **Planning day-card div parity (session 9, F-2)** | Verified | The last remaining live class-tree divergence (sessions 7–8 documented): the clone's `<button … text-left …>` vs the reference's plain `<div …>` (no role/tabindex, cursor-pointer, text-align start). Converted; the Planning class-tree diff is now **63/63 (unselected) and 98/98 (day-selected) — IDENTICAL**; the a11y trees match (`generic … [cursor:pointer, onclick]`); e2e-pinned (the new div-shape spec + the updated `div.p-4.cursor-pointer` locators) |
+| Mobile menu re-pin (session 9) | Verified | Live on BOTH apps at 390×844 (trusted clicks, animation settled): trigger 338/14/36×36 both; menu 182/54/192×164, items [Profile, Settings, Logout]; computed `animation-name: enter` on both; navigation round-trip (Profile → /Profile) verified — **no Tailwind v4 regression** |
+| Desktop avatar menu re-pin (session 9) | Verified | Live on BOTH apps at 1440×900: trigger 1252/14/76×36, menu 1136/54/192, right 1328, items identical |
+| Both LLMs observed LIVE (session 9, P-1) | Verified | The reference's Daily Focus rendered a Paul J. Meyer quote (its InvokeLLM succeeded — the Mark Twain FALLBACK claim from session 4 is about the bundle's catch block and still holds) while the clone's z-ai SDK returned a Walt Disney quote — the first session observing BOTH live LLMs working; content stays non-deterministic by design, the fallback structure unit-pinned |
+| Screenshots (session 9) | Verified | All 20 captures re-run on the remediated codebase via `scripts/capture-screenshots.mjs` (the day-card divs render in 03/09/10; the capture script's locator updated to the div shape) |

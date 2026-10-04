@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository. Every line here
 answers: "would an agent likely get this wrong without being told?" —
-verified against the toolchain on 2026-10-04.
+verified against the toolchain on 2026-10-04/05.
 
 ## Commands
 
@@ -16,9 +16,9 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (66 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers) |
-| `bun run test:e2e` | Playwright (63 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
-| `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
+| `bun run test` | Vitest unit suites (88 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers, the prisma-CLI wrapper contract) |
+| `bun run test:e2e` | Playwright (64 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
 
@@ -131,11 +131,18 @@ never page-element COUNTs, for data that legitimately persists elsewhere
 - **Radix menus need trusted pointer events**: synthetic
   `el.click()` via `page.evaluate` does NOT open them. Use Playwright
   `locator.click()`.
-- **Bun auto-loads `.env` from parent directories too** — a workspace
-  parent `.env` with an absolute `DATABASE_URL` wins over this repo's
-  relative one. Both are supported: `src/lib/db-path.ts` passes absolute
-  `file:` URLs through untouched and anchors relative ones to the repo that
-  owns `prisma/schema.prisma` (pinned by `tests/db-path.test.ts`).
+- **Bun auto-loads `.env` from parent directories too, and harness shells
+  can export `DATABASE_URL` directly** — either one used to win over this
+  repo's relative value (the session-1..8 quirk: the dev DB silently lived
+  OUTSIDE the repo, at the parent path). **db-path v3 (session 9) made the
+  repo's own `.env` authoritative**: an ambient SQLite `file:` URL that
+  resolves outside the repo is IGNORED; an ambient URL resolving INSIDE
+  the repo (the e2e suite's `db/e2e.db`) or a non-SQLite URL (production
+  PostgreSQL) still wins. `src/lib/db-path.ts` implements the rule
+  (`chooseEnvSource`/`repoEnvDatabaseUrl`, pinned by `tests/db-path.test.ts`);
+  the CLI-facing db scripts (db:push/db:migrate/db:reset) apply it via
+  `scripts/prisma-cli.ts` (prisma's own dotenv never overrides an
+  existing process-env value).
 - **`typescript.ignoreBuildErrors` is GONE from `next.config.ts`** (removed
   in session 3 — the production build now fails on type errors itself;
   `tests/next-config.test.ts` pins the contract). `bun run typecheck`
@@ -253,6 +260,12 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   bubble to select the day); task items have no action buttons (editing
   happens ONLY from the Dashboard calendar task blocks); and there is no
   Unscheduled section (the string is absent from the reference bundle).
+  **The day cards are plain clickable DIVs** (session 9, F-2 — live-measured:
+  `p-4 rounded-2xl border cursor-pointer transition-all duration-200 …`
+  with onclick and NO role/tabindex/aria, NOT buttons, NO `text-left`):
+  keyboard access is the reference's own behavior (none) — documented
+  acceptance, same class as its decorative Filter button. The e2e pins
+  the div shape (`div.p-4.cursor-pointer` locators).
   **The selected-day sections are plain Cards** (session 6, P-1 — the
   reference's `tE`/`nE`/`rE`/`iE`): Card/CardHeader/CardTitle/CardContent,
   always visible — NO accordion, no collapse button, and CardTitle is a
@@ -412,6 +425,12 @@ deliberately if the reference re-measures differently.
   + the tw-animate-css import, the lucide 0.475 pin, the classic
   DialogTitle/SelectTrigger/DialogContent forms, the snake_case response
   serializer).
+- `docs/session_9-review.md` + `docs/remediation-plan-session9.md` — the
+  session-9 record (the environment-authority fix: db-path v3 — the
+  repo's own .env wins over parent-workspace/harness ambient URLs, the
+  prisma-CLI wrapper; the day-card div conversion — Planning is now
+  100% class-tree identical; the open-Select-listbox item-state diff;
+  both LLMs observed live).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

@@ -101,11 +101,19 @@ export default function PlanningPage() {
             // no today highlight (P-2).
             const isSelected = selectedDay && isSameDay(selectedDay, day);
             const dayTasks = tasksForDay(day);
+            // Reference (live-measured, session 9 F-2): the day card is a
+            // plain clickable DIV — `p-4 rounded-2xl border cursor-pointer
+            // transition-all duration-200 …` with onclick and NO role/
+            // tabindex/aria — NOT a button (the clone's earlier button +
+            // text-left form was the last remaining class-tree divergence
+            // on this page). Keyboard access is the reference's own
+            // behavior: none (same evidence class as its decorative Filter
+            // button — documented acceptance, see AGENTS.md).
             return (
-              <button
+              <div
                 key={day.toISOString()}
                 onClick={() => setSelectedDay(day)}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 text-left ${
+                className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 ${
                   isSelected
                     ? "bg-sky-50 border-sky-200"
                     : "bg-white/50 border-slate-200 hover:bg-slate-50"
@@ -141,7 +149,7 @@ export default function PlanningPage() {
                     <div className="text-xs text-slate-400 text-center py-2">No tasks</div>
                   )}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

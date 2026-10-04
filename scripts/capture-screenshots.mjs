@@ -111,7 +111,7 @@ await page2.screenshot({ path: `${OUT}/03-planning.png` });
 
 // 10-planning-selected (the reference's always-visible Card structure —
 // session 6, P-1; NOT an accordion).
-await page2.locator("button.p-4", { hasText: "Mon" }).first().click();
+await page2.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first().click();
 await page2.getByText(/^Monday, /).waitFor();
 await page2.waitForTimeout(600);
 await page2.screenshot({ path: `${OUT}/10-planning-selected.png` });

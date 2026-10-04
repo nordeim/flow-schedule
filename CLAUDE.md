@@ -96,6 +96,18 @@ equivalents at identical URLs and JSON shapes.
 - Quick Action gradients stay as inline-style hex gradients (Trap 3 —
   sidesteps in-oklab interpolation drift and matches the reference).
 
+### Database URL authority (db-path v3, session 9)
+
+- The schema-owning repo's own `.env` `DATABASE_URL` is authoritative: an
+  ambient env var carrying a SQLite URL that resolves OUTSIDE the repo is
+  ignored (parent-workspace/harness hijack protection); an ambient URL
+  resolving INSIDE the repo (the e2e `db/e2e.db`) or a non-SQLite URL
+  (production PostgreSQL) still wins.
+- The CLI-facing db scripts (db:push/db:migrate/db:reset) apply the same
+  rule via `scripts/prisma-cli.ts`; `db:seed` self-resolves.
+- Production: set the absolute path in the repo's `.env`, or remove the
+  `DATABASE_URL` line there and use the environment variable.
+
 ## Development Workflow
 
 ### Environment Setup
@@ -116,8 +128,8 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (66 tests) |
-| `bun run test:e2e` | Playwright e2e (63 specs, needs prior build) |
+| `bun run test` | Vitest unit (88 tests) |
+| `bun run test:e2e` | Playwright e2e (64 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
 Single test: `bunx vitest run tests/auth.test.ts`.
@@ -127,8 +139,8 @@ Single e2e: `bun run test:e2e -- -g "mobile account menu"`.
 
 | Level | Tool | Location | Notes |
 |-------|------|----------|-------|
-| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction |
-| E2E | Playwright (63 specs — the planning pins incl. the createdAt-desc order + the DIV badges; the dashboard pins incl. the recharts 2.x DOM shape, the new-task-first semantics, the enter-animation pin, the classic dialog/select classes, the single lucide-trash2 class, the snake_case response shape) | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity (animation-settled), auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon) |
+| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path v3 (incl. the repo-.env authority rule), .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializer, the prisma-CLI wrapper contract |
+| E2E | Playwright (64 specs — the planning pins incl. the createdAt-desc order + the DIV badges + the plain-DIV day cards (session 9, F-2); the dashboard pins incl. the recharts 2.x DOM shape, the new-task-first semantics, the enter-animation pin, the classic dialog/select classes, the single lucide-trash2 class, the snake_case response shape) | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity (animation-settled), auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon, the clickable-DIV day cards) |
 
 - E2E runs against the **production standalone** on `:3100` with its own
   seeded `db/e2e.db`; the setup project signs in ONCE (login is

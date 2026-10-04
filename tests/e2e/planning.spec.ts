@@ -39,6 +39,35 @@ test.describe("planning page", () => {
     }
   });
 
+  test("day cards are the reference's clickable divs, not buttons (session 9, F-2)", async ({ page }) => {
+    // Live-measured on the reference (2026-10-05, agent-browser outerHTML):
+    //   <div class="p-4 rounded-2xl border cursor-pointer transition-all
+    //    duration-200 bg-white/50 border-slate-200 hover:bg-slate-50">
+    // …onclick, NO role/tabindex/aria, cursor:pointer, text-align:start.
+    // The clone had rendered a <button … text-left …> (the last remaining
+    // class-tree divergence, sessions 7–8) — this spec pins the div form.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+
+    // Seven day cards, in the reference's div shape.
+    const dayCards = page.locator("main div.p-4.cursor-pointer.rounded-2xl");
+    await expect(dayCards).toHaveCount(7);
+
+    // ZERO button day-cards remain (the converted form must not regress).
+    await expect(page.locator("main button.p-4")).toHaveCount(0);
+
+    // The card class list matches the reference's EXACT shape: the base
+    // string, no text-left compensation, the hover + transition utilities.
+    const mon = dayCards.filter({ hasText: "Mon" }).first();
+    await expect(mon).toHaveClass(/^p-4 rounded-2xl border cursor-pointer transition-all duration-200 /);
+    await expect(mon).not.toHaveClass(/text-left/);
+    await expect(mon).toHaveClass(/hover:bg-slate-50|bg-sky-50 border-sky-200/);
+
+    // A11y-tree parity: the reference's day card is a generic (no button
+    // role, not focusable) — the div conversion must not add a role.
+    await expect(mon).not.toHaveAttribute("role");
+    await expect(mon).not.toHaveAttribute("tabindex");
+  });
+
   test("no selected-day section renders before a day is clicked", async ({ page }) => {
     // Hydration gate: wait for a seeded chip so the store has fetched.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
@@ -102,7 +131,7 @@ test.describe("planning page", () => {
     await expect(page.getByText(LONG_DATE)).toHaveCount(0);
     // Chips are display-only (P-5), so any click position selects the day —
     // the header-block click is kept as the maximally robust variant.
-    await page.locator("button.p-4", { hasText: "Wed" }).first().locator("div.text-center").first().click();
+    await page.locator("div.p-4.cursor-pointer", { hasText: "Wed" }).first().locator("div.text-center").first().click();
     await expect(page.locator(DAY_TITLE).filter({ hasText: /Wednesday/ })).toBeVisible();
   });
 
@@ -112,7 +141,7 @@ test.describe("planning page", () => {
     // explicitly (Monday carries 3 seeded tasks — the strongest
     // temptation for a data branch to appear).
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    const mondayCard = page.locator("button.p-4", { hasText: "Mon" }).first();
+    const mondayCard = page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first();
     await mondayCard.click();
     await expect(page.locator(DAY_TITLE).filter({ hasText: /Monday/ })).toBeVisible();
     await expect(page.getByText("Day Statistics")).toBeVisible();
@@ -127,7 +156,7 @@ test.describe("planning page", () => {
     // visible, no collapse button, no chevron, no heading role, and the
     // Card's tailwind-merged signature carries text-card-foreground shadow.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    await page.locator("button.p-4", { hasText: "Mon" }).first().click();
+    await page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first().click();
     const title = page.locator(DAY_TITLE).filter({ hasText: /Monday/ });
     await expect(title).toBeVisible();
     // No accordion trigger: the day title must NOT be a button, and no
@@ -157,11 +186,11 @@ test.describe("planning page", () => {
     // on every run date (pre-fix, Monday-as-today or Sunday-as-today was
     // highlighted instead of the selection).
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    await page.locator("button.p-4", { hasText: "Wed" }).first().click();
-    const wed = page.locator("button.p-4", { hasText: "Wed" }).first();
+    await page.locator("div.p-4.cursor-pointer", { hasText: "Wed" }).first().click();
+    const wed = page.locator("div.p-4.cursor-pointer", { hasText: "Wed" }).first();
     await expect(wed).toHaveClass(/bg-sky-50/);
     await expect(wed).toHaveClass(/border-sky-200/);
-    const mon = page.locator("button.p-4", { hasText: "Mon" }).first();
+    const mon = page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first();
     await expect(mon).not.toHaveClass(/bg-sky-50/);
   });
 
@@ -170,7 +199,7 @@ test.describe("planning page", () => {
     // day card and selects that day (P-5) — the session-1 FS-7
     // chip-interception class of flake is now structurally impossible.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    await page.locator("button.p-4", { hasText: "Mon" }).first().getByText("Team standup").click();
+    await page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first().getByText("Team standup").click();
     await expect(page.locator(DAY_TITLE).filter({ hasText: /Monday/ })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
@@ -180,7 +209,7 @@ test.describe("planning page", () => {
     // HH:mm — no Mark-done/Edit buttons, no duration text (P-6). Editing
     // happens exclusively from the Dashboard calendar task blocks.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    await page.locator("button.p-4", { hasText: "Mon" }).first().click();
+    await page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first().click();
     await expect(page.locator(DAY_TITLE).filter({ hasText: /Monday/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark done" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
@@ -254,7 +283,7 @@ test.describe("planning page", () => {
     // Day-card chips: beta (created last) renders BEFORE alpha. Wait for
     // the store's fetch to land first (allTextContents has no auto-wait —
     // reading before the chips render is a real race).
-    const dayCard = page.locator("button.p-4", { hasText: dayName }).first();
+    const dayCard = page.locator("div.p-4.cursor-pointer", { hasText: dayName }).first();
     await expect(dayCard).toBeVisible();
     await expect(dayCard.getByText("E2E order beta")).toBeVisible();
     const chips = await dayCard.locator("div.font-medium").allTextContents();
@@ -286,7 +315,7 @@ test.describe("planning page", () => {
     // hover:bg-primary/80 (selected-day task items). The modern shadcn
     // span form the clone shipped renders SPAN without those classes.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    const mon = page.locator("button.p-4", { hasText: "Mon" }).first();
+    const mon = page.locator("div.p-4.cursor-pointer", { hasText: "Mon" }).first();
     await mon.click();
 
     // Day-card chip badge (variant="secondary").
@@ -299,9 +328,14 @@ test.describe("planning page", () => {
     expect(chipInfo.cls).toContain("hover:bg-secondary/80");
 
     // Selected-day task-item badge (default variant). The task items are
-    // DIVs (the day CARDS are buttons — a tag discriminator).
+    // DIVs like the day cards now (session 9, F-2 converted the day cards
+    // from buttons to the reference's divs) — the discriminator is the
+    // day-cards' cursor-pointer class (task items are display-only and
+    // carry none).
     const itemBadge = page
-      .locator('main div[class*="bg-white/50"][class*="rounded-2xl"]')
+      .locator(
+        'main div[class*="bg-white/50"][class*="rounded-2xl"]:not([class*="cursor-pointer"])',
+      )
       .first()
       .locator("[class*=inline-flex][class*=rounded-md]")
       .first();

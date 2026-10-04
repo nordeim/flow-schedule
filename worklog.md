@@ -524,3 +524,90 @@ Stage Summary:
   dialog modes), wire contracts must be symmetric, and cleanup claims
   must match their probe scope (enumerate the API, not just the
   current week)
+
+---
+Task ID: 25
+Agent: main agent
+Task: Session 9 — audit + environment-authority + day-card parity remediation
+
+Work Log:
+- Workspace reset — fresh `git clone` (main @ e4c66e8); bun install; .env +
+  db/ recreated per the operator's instruction; db:push + db:seed
+- Reviewed the five root docs + session_8-review.md +
+  remediation-plan-session8.md + worklog.md + session_9.md — all aligned
+  with the tree; full gates re-executed green at base (lint · tsc · 66/66
+  unit · build 19 routes · 63/63 e2e · smoke 30/30)
+- Session-8 remediation spot-checked in code: tw-animate-css import,
+  lucide ^0.475.0, classic dialog/select primitives, serializeTask/
+  serializeNote in all 4 task/note routes — all present, pins held
+- skills/ exclusions verified: eslint ignores, tsconfig excludes, vitest
+  includes only src/ + tests/
+- Read skills/skills-catalog.md; used: agent-browser (live diffing on
+  BOTH apps), clone-app-pat-pro (parity method), tdd/tdd-workflow (red →
+  green), verification-and-review-protocol; reviewed the scandihaven
+  repo's root docs for the tech-stack pattern family
+- Logged into the reference (sepnetflix2023@outlook.com) via
+  agent-browser trusted clicks; the account is at the TRUE 0-task
+  baseline (session 8's cleanup held)
+- **F-1 discovered**: the first db:push/db:seed created and seeded
+  /home/z/my-project/db/custom.db (OUTSIDE the repo) — the workspace
+  harness exports DATABASE_URL=file:/home/z/my-project/db/custom.db into
+  every shell, and a parent .env (Bun auto-loads parent dirs) does the
+  same; db-path v2.3's pass-through let it win; a dev server booted in
+  that shell fails every query once the parent file is gone
+- Audit (state-matched: an empty parity-empty@flowschedule.app user in
+  the clone vs the reference's 0 tasks): dashboard 761/761 desktop AND
+  mobile (only the 3 documented style nodes); Planning 63/63 + 98/98
+  modulo the day-card div/button; Profile 26/26; Settings 39/39; the
+  OPEN Select listbox item states byte-identical (session 8's
+  suggestion, first-time diff); mobile menu re-pinned (338/14/36×36 +
+  182/54/192×164, animation enter, navigation round-trip); desktop
+  avatar menu re-pinned (1252/14/76×36 + 1136/54/192, right 1328); both
+  LLMs observed LIVE (reference: Paul J. Meyer quote; clone: Walt
+  Disney quote — P-1, the fallback claims remain about catch blocks)
+- Wrote docs/remediation-plan-session9.md (F-1 db-path v3 + CLI wrapper,
+  F-2 day-card div, F-3 docs narrative, P-1 observation); validated the
+  plan against the code (locator sites, fixture structure, e2e env
+  precedence) before execution
+- TDD RED: 21 failing unit tests (chooseEnvSource/repoEnvDatabaseUrl
+  absent; wrapper contract) + 1 failing e2e spec (day-card div pin)
+- TDD GREEN: db-path v3 (chooseEnvSource + repoEnvDatabaseUrl +
+  exported findSchemaRoot; 17 new unit tests); scripts/prisma-cli.ts +
+  package.json db:push/db:migrate/db:reset rerouted (5 contract tests);
+  Planning day-card button → the reference's plain div (no text-left);
+  badge-spec locator retargeted to :not([class*=cursor-pointer]) (the
+  tag-discriminator cascade — FS-19 locator corollary); 10 spec locator
+  sites + the capture script updated
+- Gate (in the POLLUTED shell — the point of F-1): lint clean · tsc
+  clean · 88/88 unit (66 → 88) · build green · 64/64 e2e × 2 consecutive
+  full runs (63 → 64) · smoke 30/30; the e2e isolation survived (the
+  webServer's file:../db/e2e.db resolves INSIDE the repo → ambient wins)
+- Live parity re-verified on BOTH apps: Planning unselected 63/63 and
+  day-selected 98/98 IDENTICAL (the class trees are now 100% matched);
+  dashboard 761/761 + 3 style nodes; mobile menu re-pinned; the F-1
+  acceptance in the polluted shell (db:push/db:seed target <repo>/db/,
+  dev server serves the seeded repo DB, login + health + CRUD green)
+- Screenshots: all 20 captures re-run on the remediated codebase
+- Docs realigned: README, AGENTS.md (the parent-.env quirk rewritten to
+  the v3 authority), CLAUDE.md (new DB authority section), PAD (§4.3
+  priority table + 10 ledger rows), flow-schedule_SKILL.md v1.8.0 (FS-19
+  + env-trap rewrite + session-9 history), .env.example (v3 contract),
+  DEPLOYMENT.md §4, remediation-plan-session9.md execution record,
+  docs/session_9-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 9 delivered: db-path v3 — the repo's own .env is AUTHORITATIVE
+  for DATABASE_URL (parent-workspace/harness hijack protection, the e2e
+  isolation override preserved, the production provider override
+  preserved; the CLI applies the same rule via scripts/prisma-cli.ts);
+  the Planning day cards converted to the reference's plain clickable
+  divs — Planning now diffs 100% IDENTICAL in both states; the open
+  Select listbox states verified byte-identical for the first time; both
+  LLMs observed live (P-1). Unit 66 → 88, e2e 63 → 64 (×2)
+- Key new knowledge: FS-19 (a pass-through env seam is a policy vacuum —
+  pin WHERE the value is consumed; one rule, two enforcement points;
+  acceptance-test the environment itself), the locator corollary (tag
+  discriminators silently retarget on tag conversions — discriminate on
+  a class the reference's DOM guarantees), and LLM-content-vs-fallback
+  evidence discipline (live output is not the fallback)
