@@ -214,4 +214,103 @@ test.describe("planning page", () => {
     await expect(add).not.toHaveClass(/text-white/);
     await expect(add).toHaveClass(/text-primary-foreground/);
   });
+
+  test("chips and selected-day list follow the reference's createdAt-desc order (G-1)", async ({ page }) => {
+    // The reference's default fn.Task.list() returns tasks createdAt DESC
+    // (newest first — live-verified on the reference: creating tasks in
+    // order Alpha→Beta→Gamma→Delta yields [Delta, Gamma, Beta, Alpha]).
+    // The clone's API must match, because the day-card chips (slice(0,3))
+    // and the selected-day task list render the array AS RETURNED.
+    // alpha: created FIRST, starts EARLIER (09:00); beta: created LAST,
+    // starts LATER (15:00) — startTime-asc would order [alpha, beta],
+    // createdAt-desc orders [beta, alpha].
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const d = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    const dayName = today.toLocaleDateString("en-US", { weekday: "short" });
+    // Converging cleanup FIRST: a RED-phase run of this very spec fails
+    // before its own tail cleanup, leaving residue that would duplicate
+    // the h4 titles below (the suite's FS-9 discipline).
+    const residue0 = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue0?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E order")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    for (const t of [
+      { title: "E2E order alpha", start: "09:00", category: "work", priority: "low" },
+      { title: "E2E order beta", start: "15:00", category: "personal", priority: "high" },
+    ]) {
+      await page.request.post("/api/tasks", {
+        data: {
+          title: t.title,
+          start_time: `${d}T${t.start}`,
+          duration_minutes: 30,
+          category: t.category,
+          priority: t.priority,
+        },
+      });
+    }
+    await page.goto("/Planning");
+
+    // Day-card chips: beta (created last) renders BEFORE alpha. Wait for
+    // the store's fetch to land first (allTextContents has no auto-wait —
+    // reading before the chips render is a real race).
+    const dayCard = page.locator("button.p-4", { hasText: dayName }).first();
+    await expect(dayCard).toBeVisible();
+    await expect(dayCard.getByText("E2E order beta")).toBeVisible();
+    const chips = await dayCard.locator("div.font-medium").allTextContents();
+    expect(chips.indexOf("E2E order beta")).toBeGreaterThanOrEqual(0);
+    expect(chips.indexOf("E2E order alpha")).toBeGreaterThanOrEqual(0);
+    expect(chips.indexOf("E2E order beta")).toBeLessThan(chips.indexOf("E2E order alpha"));
+
+    // Selected-day task list: same order (the h4 titles inside the
+    // selected-day Card's space-y-3 list).
+    await dayCard.click();
+    await expect(page.locator("main div.space-y-3 h4", { hasText: "E2E order beta" })).toBeVisible();
+    const titles = await page.locator("main div.space-y-3 h4").allTextContents();
+    const list = titles.filter((t) => t === "E2E order alpha" || t === "E2E order beta");
+    expect(list).toEqual(["E2E order beta", "E2E order alpha"]);
+
+    // Cleanup: delete EVERY match (crashed-run residue converges).
+    const list2 = await (await page.request.get("/api/tasks")).json();
+    const residue = (list2?.data?.tasks ?? []).filter((t: { title: string }) =>
+      t.title.startsWith("E2E order"),
+    );
+    for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
+  });
+
+  test("category badges are the reference's classic div badge (G-4)", async ({ page }) => {
+    // The reference's Badge (Z1e/W$ in its bundle) is the CLASSIC shadcn
+    // form: a <div> with focus:ring-2 focus:ring-ring focus:ring-offset-2
+    // in the base; the secondary variant carries hover:bg-secondary/80
+    // (day-card chips) and the default variant carries shadow
+    // hover:bg-primary/80 (selected-day task items). The modern shadcn
+    // span form the clone shipped renders SPAN without those classes.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    const mon = page.locator("button.p-4", { hasText: "Mon" }).first();
+    await mon.click();
+
+    // Day-card chip badge (variant="secondary").
+    const chipBadge = mon.locator("[class*=inline-flex][class*=rounded-md]").first();
+    const chipInfo = await chipBadge.evaluate((el) => ({ tag: el.tagName, cls: el.className }));
+    expect(chipInfo.tag).toBe("DIV");
+    expect(chipInfo.cls).toContain("focus:ring-2");
+    expect(chipInfo.cls).toContain("focus:ring-ring");
+    expect(chipInfo.cls).toContain("focus:ring-offset-2");
+    expect(chipInfo.cls).toContain("hover:bg-secondary/80");
+
+    // Selected-day task-item badge (default variant). The task items are
+    // DIVs (the day CARDS are buttons — a tag discriminator).
+    const itemBadge = page
+      .locator('main div[class*="bg-white/50"][class*="rounded-2xl"]')
+      .first()
+      .locator("[class*=inline-flex][class*=rounded-md]")
+      .first();
+    const itemInfo = await itemBadge.evaluate((el) => ({ tag: el.tagName, cls: el.className }));
+    expect(itemInfo.tag).toBe("DIV");
+    expect(itemInfo.cls).toContain("focus:ring-2");
+    expect(itemInfo.cls).toContain("focus:ring-ring");
+    expect(itemInfo.cls).toContain("focus:ring-offset-2");
+    expect(itemInfo.cls).toContain("shadow");
+    expect(itemInfo.cls).toContain("hover:bg-primary/80");
+  });
 });

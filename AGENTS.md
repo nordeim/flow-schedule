@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (59 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
-| `bun run test:e2e` | Playwright (54 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (58 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -27,6 +27,20 @@ bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
 `db/e2e.db` itself; it does NOT touch `db/custom.db`. The production build
 fails on type errors by itself (`typescript.ignoreBuildErrors` was removed
 in session 3 — `tests/next-config.test.ts` pins that it stays gone).
+
+### The task-list ORDER is parity (session 7, G-1)
+
+The reference's default `fn.Task.list()` returns tasks **createdAt desc**
+(newest first — live-verified: creating Alpha→Beta→Gamma→Delta renders
+[Delta, Gamma, Beta, Alpha]). The clone's `GET /api/tasks` matches with
+`orderBy: { createdAt: "desc" }` — do NOT "fix" it to startTime asc: the
+Planning day-card chips (`slice(0,3)` + "+N more") and the selected-day
+task list render the array AS RETURNED, so the order decides which chips
+are visible. Order-independent by design: the StatusCard sorts by
+start_time itself, the Log Activity panel sorts by end_time desc, and the
+calendar blocks are absolutely positioned. The store's `createTask`
+**prepends** (the reference's dialog save refetches → newest first);
+`updateTask`/`deleteTask` are position-neutral.
 
 ### FS-16 (time-of-day flake — added session 6)
 
@@ -149,6 +163,20 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   + Radix require there (the reference app's menu opened via eval — that
   made it look like a clone regression; it is not). The e2e spec
   (Playwright trusted clicks on the production standalone) is the pin.
+- **recharts is PINNED to 2.15.x** (session 7, G-3): the reference's
+  SkillsMap DOM is the recharts 2.x shape (its bundle contains ZERO
+  `recharts-zIndex` strings; the tooltip wrapper is a sibling AFTER the
+  svg; no `g.recharts-shape` wrappers). recharts 3 emits 12 empty zIndex
+  layer groups + shape wrappers + a pre-svg tooltip + an extra wrapper
+  DIV — visually identical, DOM-different. A dashboard e2e spec pins the
+  2.x shape; do NOT bump the major without re-diffing the reference's pie
+  DOM.
+- **The Badge primitive is the CLASSIC shadcn form** (session 7, G-4): a
+  `<div>` (forwardRef) with `focus:ring-2 focus:ring-ring
+  focus:ring-offset-2` in the base and `shadow`/`hover:bg-*` on the
+  variants — the reference's Z1e/W$. Do NOT modernize it to the
+  data-slot `<span>` form; the Planning chips and task items render DIV
+  badges with exactly those classes (live-measured).
 - **Next's route announcer carries `role="alert"`** (session 5): every
   App-Router page ships an (always empty) `#__next-route-announcer__`
   div, so `getByRole("alert")` resolves to TWO elements on the clone
@@ -287,6 +315,16 @@ never page-element COUNTs, for data that legitimately persists elsewhere
 - ESLint config intentionally relaxes several rules for AI-generated code
   ergonomics, but `react-hooks/set-state-in-effect` remains an ERROR —
   it has caught two real cascading-render bugs in this codebase.
+- The e2e's Mark Complete spec must scope its post-click locator to
+  EITHER StatusCard state (session 7, F-2): after completing the last
+  upcoming task the card's heading CHANGES from "Next Up" to "All caught
+  up!" — a "Next Up"-only filter makes the locator vanish and the negated
+  assertion fails with "element(s) not found" (a state-transition flake
+  that only bites after the day's last seeded task has started; sessions
+  4–6 passed because their runs predated it). The mobile menu is pinned at
+  390×844: trigger 338/14/36×36, menu 182/54/192×164, items [Profile,
+  Settings, Logout] (re-pinned every session — no Tailwind v4 regression
+  has ever been found).
 
 ## Mobile navigation (the highest-regression-risk surface)
 
@@ -330,6 +368,10 @@ deliberately if the reference re-measures differently.
   Planning Card-vs-Accordion structure, the "Create Task" dialog label,
   the icon-margin family, the icon_sm dead variant, the FS-16
   time-of-day flake).
+- `docs/session_7-review.md` + `docs/remediation-plan-session7.md` — the
+  session-7 record (the POPULATED-state diff: the createdAt-desc task
+  ordering, the store prepend, the recharts 2.x pin, the classic Badge
+  form, the state-transition locator flake).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

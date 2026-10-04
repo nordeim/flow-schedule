@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–6, 2026-10-04).
-version: 1.5.0
+  codebase-verified (sessions 1–7, 2026-10-04).
+version: 1.6.0
 last_updated: 2026-10-04
-project_state: 59/59 unit tests, 54/54 e2e tests, all gates green, build self-type-checks
+project_state: 59/59 unit tests, 58/58 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -572,6 +572,39 @@ its own chevron (the desktop avatar trigger); (4) when a spec creates
 time-relative data, ask WHICH rendering windows can contain it at every
 hour of the day.
 
+### FS-17: Array ordering is a parity surface — and class-tree diffs cannot see it (Critical — parity)
+
+**Symptom:** six sessions of exhaustive class-tree diffs (761/761!) never
+noticed that the clone's `GET /api/tasks` ordered tasks `startTime asc`
+while the reference's default `fn.Task.list()` returns them **createdAt
+desc**. The gap was user-visible the whole time: the Planning day-card
+chips (`slice(0,3)` + "+N more") and the selected-day task list render
+the array AS RETURNED — different apps showed different chips behind
+"+N more".
+**Root cause:** two stacked blind spots. (1) The class-tree diff compares
+tag + class strings in document order — a re-ordered list is IDENTICAL
+to it, and text content was never compared. (2) Session 6's diff ran on
+MATCHED EMPTY states — the populated branches (chips, badges, item
+order) simply did not exist.
+**Fix + rules:** (1) diff with MATCHED POPULATED data — create the same
+entities on both apps through their own UIs; (2) API response ORDER is
+contract: pin it (`orderBy: { createdAt: "desc" }`, e2e-pinned); (3) the
+store's create-task must PREPEND (the reference's save → refetch →
+newest-first); (4) when a component renders `slice(0,N)`, the array
+order is a user-visible surface. The same session found the Badge
+element type (SPAN vs the reference's classic DIV) and the recharts
+major (3.x vs the reference's 2.x DOM) — ALL three were
+populated-state-only findings.
+**Corollary (F-2, the state-transition locator):** a spec that scopes
+via a heading must survive the component CHANGING that heading. The
+status-card spec's post-Mark-Complete locator filtered by the "Next Up"
+heading — but completing the last upcoming task swaps the h3 to "All
+caught up!", the locator resolves to ZERO elements, and the NEGATED
+assertion fails with "element(s) not found". Verify the app first
+(PATCH landed; the card re-rendered — reproduced on a debug boot), then
+accept BOTH headings in the filter. Sessions 4–6 passed only because
+their runs predated the day's last seeded task.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -595,6 +628,10 @@ hour of the day.
 | A spec passes twice, then fails at a different hour of the day | FS-16 — a page-wide text/class locator whose match set depends on the wall clock (the calendar grid renders the task 07:00–22:00) | Scope to the component (the StatusCard's heading filter); assert content, not page counts |
 | An `svg.lucide-chevron-down` count assertion fails on Planning | The HEADER's desktop avatar trigger also ships a chevron-down | Scope icon locators to `main` (FS-16 corollary) |
 | A button/label "feels right" but the decompile says otherwise | FS-11 at the string level — "Add Task"/"Save Changes" were session-0 inferences; the reference says "Create Task"/"Update Task" | The decompile wins, including over existing e2e pins — rewrite the spec |
+| The Planning chips/list order differs from the reference (or "+N more" hides a different task) | FS-17 — the API response ORDER is parity; the reference returns createdAt desc | `GET /api/tasks` must `orderBy: { createdAt: "desc" }`; the store's createTask PREPENDS |
+| The class-tree diff is 100% green but the apps look different | FS-17 — tag+class diffs are BLIND to text content and DOM order | Re-diff with MATCHED POPULATED data and compare text/order too |
+| A negated assertion fails with "element(s) not found" | The component CHANGED the heading the locator filters by (e.g. "Next Up" → "All caught up!") | Accept BOTH headings in the filter; verify the app first (debug boot: PATCH + re-render) |
+| recharts upgrade makes the e2e DOM-shape pin fail | The reference's pie is the recharts 2.x DOM (no zIndex layers, no shape wrappers, tooltip after svg) | Keep recharts at 2.15.x; re-diff the reference's pie DOM before any major bump |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -942,6 +979,30 @@ parity remediation):
 
 ## Appendix C: Session History
 
+- **Session 7 (2026-10-04, this skill revision):** audit + POPULATED-state
+  parity — the first diff with matched data on both apps (4 identical
+  tasks created through each app's own TaskDialog; prior sessions diffed
+  empty states). Fixed 4 gaps: the task-list ORDER (the reference's
+  default Task.list() is createdAt desc — the clone shipped startTime
+  asc; the Planning chips/selected-day list render the array AS
+  RETURNED, so the visible chips differed; G-1), the store's createTask
+  now PREPENDS (the reference's save → refetch → newest-first, verified
+  without reload; G-2), recharts 3.10.1 → **2.15.4** (the reference's
+  pie DOM is the 2.x shape — no zIndex layers, no shape wrappers,
+  tooltip wrapper after the svg; G-3), and the Badge rebuilt to the
+  reference's CLASSIC shadcn div form (focus-ring base + shadow/hover
+  variants; G-4). Plus the F-2 de-flake: the status-card spec's
+  post-click locator now accepts BOTH card headings (Next Up OR All
+  caught up!) — the app was proven correct first (PATCH + re-render
+  reproduced on a debug boot), the old filter failed with "element(s)
+  not found" whenever no future task remained. First-time measured: the
+  desktop dropdown geometry (1136/54/192×164, right-anchored —
+  identical). e2e 54 → 58 specs; both apps now diff at Planning
+  **74/74** (unselected) and **132/132** (day-selected), dashboard
+  845/838 (7 = the documented styled-jsx + LLM-content nodes). Mobile
+  menu re-pinned 374/54/192 — no Tailwind v4 regression. See
+  `docs/session_7-review.md` + `docs/remediation-plan-session7.md` (the
+  operator's narrative lives in `docs/session_7.md`).
 - **Session 6 (2026-10-04, this skill revision):** audit + exhaustive
   state-matched class-tree parity — the reference account turned out to
   hold 0 tasks / 0 notes, so an empty user was registered in the clone and

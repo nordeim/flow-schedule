@@ -1,7 +1,7 @@
 {
   "name": "flow-schedule",
   "version": "1.0.0",
-  "description": "FlowSchedule — weekly schedule planner with AI insights (Next.js 16 + React 19 + Prisma/SQLite)",
+  "description": "FlowSchedule \u2014 weekly schedule planner with AI insights (Next.js 16 + React 19 + Prisma/SQLite)",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
@@ -39,7 +39,7 @@
     "prisma": "^6.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "recharts": "^3.10.1",
+    "recharts": "^2.15.4",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "z-ai-web-dev-sdk": "^0.0.18",

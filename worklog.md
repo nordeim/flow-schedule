@@ -343,3 +343,80 @@ Stage Summary:
 - Key new knowledge: FS-16 (time-of-day locators — two green runs
   prove nothing about the other 22 hours), dead config is parity data
   (icon_sm), specs can inherit wrong inferences (the dialog label pin)
+
+---
+Task ID: 23
+Agent: main agent
+Task: Session 7 — audit the POPULATED-state surfaces (first matched-data
+diff) + remediation of the ordering family, the recharts major, the Badge
+form + the state-transition spec de-flake
+
+Work Log:
+- git pull (fast-forward: docs/session_7.md — the operator's session-6
+  narrative); base main @ 58d471f; fast gates green at base
+  (lint/tsc/59 unit); env/db/screenshots/.env.example verified intact
+- Audit method upgrade: session 6 diffed EMPTY states; this session
+  created 4 identical tasks through each app's own TaskDialog (Parity
+  Alpha 10:00/work/high, Beta 12:00/personal/medium, Gamma 15:00/health/
+  urgent, Delta 08:00/learning/low) and diffed the POPULATED state
+- 4 gaps found: G-1 the tasks API ordered startTime asc vs the
+  reference's default fn.Task.list() = createdAt DESC (live: creating
+  A→B→C→D renders [D,C,B,A]) — the Planning chips (slice 0,3 + "+N
+  more") and the selected-day list render the array AS RETURNED so the
+  visible chips differed; G-2 the store's createTask APPENDED (the
+  reference's save → refetch → newest-first); G-3 recharts 3.10.1 vs
+  the reference's 2.x pie DOM (no zIndex layers, no shape wrappers,
+  tooltip after svg); G-4 the Badge was the modern span form vs the
+  reference's classic shadcn DIV (focus-ring + shadow/hover classes)
+- Also live-verified clean: mobile menu geometry (re-pinned 374/54/192),
+  the desktop dropdown open-state geometry (FIRST-TIME measured —
+  1136/54/192×164 right-anchored, identical), header class-tree
+  (byte-identical), week-init (Ka(new Date,{weekStartsOn:1}) both — an
+  observed previous-week display was session-6 view state), StatusCard
+  selection logic (decompile + live), Log Activity (end_time desc
+  equivalent), notes ordering (matches "-created_date")
+- Plan saved to docs/remediation-plan-session7.md; validated against
+  the codebase (route line 14, store line 239, recharts 2.15.4
+  React-19 peer range, badge usage sites, spec locator patterns)
+- RED: 4 spec failures predicted and confirmed on the pre-fix build
+- GREEN: tasks route orderBy createdAt desc; store createTask prepend;
+  recharts ^2.15.4 + bun install; badge.tsx rebuilt to the classic
+  div form; mid-GREEN F-2 — the status-card spec failed (57/58):
+  a standalone debug boot + a one-off Playwright script proved the APP
+  correct (PATCH landed, card re-rendered to "All caught up!" in 3s)
+  and the SPEC's locator wrong (a "Next Up"-only heading filter zeroes
+  out on the empty-state transition → "element(s) not found" on the
+  negated assertion; sessions 4-6 passed only pre-10:00-UTC on
+  Sundays); locator broadened to /^(Next Up|All caught up!)$/, verified
+  green inside the previously failing window
+- Gate: lint clean · tsc clean · 59/59 unit · build green (19 routes)
+  · 58/58 e2e × 2 consecutive full runs (54 → 58) · smoke 30/30
+- Live parity re-verified on BOTH apps (populated): Planning unselected
+  74/74 and day-selected 132/132 (only the documented filter/funnel
+  icon + day-card div/button diffs); dashboard 845/838 (the 7-element
+  delta = 3 styled-jsx STYLE + 4 LLM-content chips — documented);
+  G-2 live (new task first, no reload); mobile menu re-pinned after
+  the changes — no Tailwind v4 regression
+- Reference data cleaned up (4 Parity tasks deleted via its UI —
+  account back to 0 tasks); clone debug tasks removed
+- Screenshots: all 20 captures re-run via scripts/capture-screenshots.mjs
+- Docs realigned: README (recharts 2.15.x, planning row, 58 e2e),
+  AGENTS.md (ordering-is-parity section, recharts + Badge quirks, F-2
+  rule, session-7 references), CLAUDE.md, PAD (§1.2/§5.3/§8/§10.1/§12
+  — 8 new session-7 ledger rows), flow-schedule_SKILL.md v1.6.0 (FS-17
+  + the state-transition corollary, 5 debugging rows, session history),
+  remediation-plan-session7.md execution record,
+  docs/session_7-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 7 delivered: the first POPULATED-state class-tree diff
+  (matched data on both apps) closed the ordering family (chips/list
+  order), the recharts major (2.x pinned, DOM byte-parity), and the
+  Badge primitive form; e2e 54 → 58 specs; Planning now diffs at
+  74/74 and 132/132, dashboard 845/838 (all documented divergences)
+- Key new knowledge: FS-17 (array ordering is a parity surface —
+  class-tree diffs are blind to text and DOM order; populated-state
+  diffs need matched data), library versions are parity data, the
+  state-transition locator corollary (accept BOTH headings), and
+  prove-the-app-first before fixing a spec (the debug boot)

@@ -452,8 +452,20 @@ test.describe("dashboard", () => {
     // re-renders without the task (live-verified on the reference). The
     // completed task REMAINS on the calendar (no status filter) — assert
     // the STATUSCARD drops it, not the page (FS-16 corollary).
+    // The post-click card can EITHER advance to another upcoming task
+    // (heading stays "Next Up") OR fall to its "All caught up!" empty
+    // state (the h3 CHANGES) — scope to the card either way. A "Next Up"-
+    // only filter makes the locator VANISH on the empty-state transition
+    // and the negated assertion fails with "element(s) not found" (a
+    // state-transition flake that only bites when no future task remains
+    // — on Sundays after the 10:00 seed slot, or any run after the day's
+    // last seeded task has started; sessions 4–6 passed only because
+    // their runs predated the day's last seed slot).
+    const statusCard = page.locator("div.rounded-3xl").filter({
+      has: page.getByRole("heading", { name: /^(Next Up|All caught up!)$/ }),
+    });
     await page.getByRole("button", { name: /Mark Complete/ }).click();
-    await expect(card).not.toContainText("E2E next up task");
+    await expect(statusCard).not.toContainText("E2E next up task");
     const after = await (await page.request.get("/api/tasks")).json();
     const done = (after?.data?.tasks ?? []).find(
       (t: { id: string }) => t.id === id,
@@ -572,6 +584,111 @@ test.describe("dashboard", () => {
     // parent grid; only task blocks are cursor-pointer).
     for (const cls of rows.cellClasses) {
       expect(cls).not.toContain("cursor-pointer");
+    }
+  });
+
+  test("the Skills Map pie renders the reference's recharts 2.x DOM shape (G-3)", async ({ page }) => {
+    // The reference's pie (recharts 2.x — its bundle contains ZERO
+    // "recharts-zIndex" strings): div.recharts-wrapper's children are
+    // [svg.recharts-surface, div.recharts-tooltip-wrapper] in that order,
+    // no g.recharts-zIndex-layer_* groups, no g.recharts-shape wrappers
+    // (both are recharts 3-only). Pinned so a recharts major bump cannot
+    // silently change the DOM.
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E ")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E recharts task",
+          start_time: new Date(Date.now() + 5 * 60_000).toISOString(),
+          duration_minutes: 30,
+          category: "work",
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+    await page.reload();
+    await page.waitForFunction(() => !!document.querySelector("main svg.lucide-award"));
+
+    const pie = await page.evaluate(() => {
+      const wrapper = document.querySelector("main .recharts-wrapper");
+      if (!wrapper) return { present: false };
+      return {
+        present: true,
+        zIndexLayers: wrapper.querySelectorAll('g[class*="recharts-zIndex"]').length,
+        shapeWrappers: wrapper.querySelectorAll("g.recharts-shape").length,
+        children: [...wrapper.children].map((c) => {
+          const cls =
+            typeof c.className === "string" ? c.className : (c as SVGElement).getAttribute("class") ?? "";
+          // tagName is UPPERCASE for HTML elements ("DIV") but lowercase
+          // for SVG ("svg") — normalize for the assertion.
+          return `${c.tagName.toLowerCase()}.${cls}`;
+        }),
+      };
+    });
+    expect(pie.present).toBe(true);
+    expect(pie.zIndexLayers).toBe(0);
+    expect(pie.shapeWrappers).toBe(0);
+    expect(pie.children).toEqual(["svg.recharts-surface", "div.recharts-tooltip-wrapper"]);
+    await page.request.delete(`/api/tasks/${id}`);
+  });
+
+  test("a newly created task takes the first DOM position on its day (G-2)", async ({ page }) => {
+    // The reference's dialog save refetches the task list (createdAt desc)
+    // so the newest task renders FIRST among its day's blocks — the
+    // clone's store mirrors that with a PREPEND on createTask. Verified
+    // WITHOUT a reload after the second creation.
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E ")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const d = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    const dayName = today.toLocaleDateString("en-US", { weekday: "short" });
+    // Task A first (15:00 — a slot free of seeded tasks on every weekday).
+    const a = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E prepend alpha",
+          start_time: `${d}T15:00`,
+          duration_minutes: 30,
+          category: "work",
+          priority: "low",
+        },
+      })
+    ).json();
+    const aId = a?.data?.task?.id;
+    expect(aId).toBeTruthy();
+    await page.goto("/Dashboard");
+
+    // Task B (21:00 — also free on every weekday) through the calendar-cell
+    // dialog, exactly like a user would.
+    await page
+      .getByRole("button", { name: new RegExp(`^Add task on ${dayName} .* at 21:00$`) })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Task Title").fill("E2E prepend beta");
+    await dialog.getByRole("button", { name: "Create Task", exact: true }).click();
+    await expect(dialog).toBeHidden();
+
+    // No reload: the day's task blocks must read [beta, alpha] — the
+    // newest task FIRST (the reference's refetch semantics).
+    const order = await page.evaluate(() =>
+      [...document.querySelectorAll('main div[style*="position: absolute"]')]
+        .map((el) => el.textContent.trim())
+        .filter((t) => t.startsWith("E2E prepend")),
+    );
+    expect(order).toEqual(["E2E prepend beta", "E2E prepend alpha"]);
+    await page.request.delete(`/api/tasks/${aId}`);
+    const residue2 = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue2?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E prepend")) await page.request.delete(`/api/tasks/${t.id}`);
     }
   });
 });

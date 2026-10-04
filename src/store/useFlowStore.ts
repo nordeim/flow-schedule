@@ -236,7 +236,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       body: JSON.stringify(input),
     });
     const task = mapTask(data.task);
-    set((s) => ({ tasks: [...s.tasks, task], taskVersion: s.taskVersion + 1 }));
+    // PREPEND: the reference's dialog save refetches the task list
+    // (createdAt desc — session 7, G-2), so the newly created task takes
+    // the FIRST array position. Prepending the mapped response to the
+    // already-createdAt-desc array yields the identical order without
+    // the extra round-trip (ADR-003's single-fetcher design).
+    set((s) => ({ tasks: [task, ...s.tasks], taskVersion: s.taskVersion + 1 }));
     return task;
   },
 

@@ -11,7 +11,13 @@ export async function GET() {
   if ("response" in auth) return auth.response;
   const tasks = await db.task.findMany({
     where: { userId: auth.user.id },
-    orderBy: [{ startTime: "asc" }, { createdAt: "desc" }],
+    // The reference's default fn.Task.list() returns tasks createdAt DESC
+    // (newest first — live-verified on the reference, session 7: creating
+    // tasks in order Alpha→Beta→Gamma→Delta yields [Delta, Gamma, Beta,
+    // Alpha]). Ordering IS parity: the Planning day-card chips (slice(0,3))
+    // and the selected-day task list render the array AS RETURNED, so the
+    // order decides which chips are visible behind "+N more".
+    orderBy: { createdAt: "desc" },
   });
   return ok({ tasks });
 }

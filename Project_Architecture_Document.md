@@ -60,7 +60,7 @@ activity log, notes brainstorm), and **two LLM-backed sidebar cards**
 | Language | TypeScript | 5.x (strict) | Typesafety across the store/API/Prisma seams |
 | Styling | Tailwind CSS | 4.x (CSS-first) | The reference's utility vocabulary; `@theme` tokens with v3 values pinned (see §5.4) |
 | Component primitives | Radix (shadcn-style) | latest | Accessible Dialog/Select/DropdownMenu/Accordion — focus trap, Escape, and ARIA for free |
-| Charts | recharts | 3.x | The Skills Map pie (reference uses recharts) |
+| Charts | recharts | 2.15.x | The Skills Map pie — the reference's MEASURED major (its bundle's pie DOM has no recharts-zIndex layers; session 7, G-3, e2e-pinned) |
 | Motion | framer-motion | 14.x | The reference's three drifting background blobs |
 | Client state | Zustand | 5.x | Single store, envelope unwrapping, no server-state caching layer needed |
 | ORM | Prisma | 6.x | Schema-as-code, SQLite-first with a PostgreSQL escape hatch |
@@ -494,7 +494,13 @@ category gradients per §1.1, destructive `text-red-600`.
 
 shadcn-style Radix wrappers in `src/components/ui/` (button, input,
 textarea, label, badge, dialog, select, dropdown-menu, accordion, card)
-— unstyled primitives themed via `cn()`; portals at z-50.
+— unstyled primitives themed via `cn()`; portals at z-50. The Badge is
+the reference's CLASSIC shadcn form (session 7, G-4): a `<div>` with the
+focus-ring classes in the cva base and `shadow`/`hover:bg-*` on the
+variants — live-measured against the reference's Z1e/W$ and e2e-pinned;
+do not modernize it to the data-slot span form. recharts is pinned to
+2.15.x (the reference's measured major — see §1.2 and the e2e DOM-shape
+pin).
 
 ### 5.4 The Five Tailwind v4 Traps (all applied as code)
 
@@ -589,7 +595,7 @@ during the e2e run — both cards rendered their defaults (by design).
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
 | Unit (59) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation) |
-| E2E (54) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill + the "Create Task"/Save-icon submit, the content-sized Refresh button, the decompiled sidebar-card states (status-card locators scoped to the Next Up heading — hour-of-day independent, FS-16), the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, the ALWAYS-VISIBLE CARD structure — CardHeader/CardTitle-div/CardContent, no accordion/heading/chevron, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter with its mr-2 icon margin, the header icon margins + no-hover-gradient Add Task) |
+| E2E (58) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill + the "Create Task"/Save-icon submit, the content-sized Refresh button, the decompiled sidebar-card states (status-card locators scoped to the Next Up heading — hour-of-day independent, FS-16), the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, the ALWAYS-VISIBLE CARD structure — CardHeader/CardTitle-div/CardContent, no accordion/heading/chevron, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter with its mr-2 icon margin, the header icon margins + no-hover-gradient Add Task, the createdAt-desc chips/list order, the classic DIV category badges), `dashboard.spec.ts` gains the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers; tooltip wrapper after the svg) + the new-task-first store semantics after a dialog create; the status-card spec's post-click locator accepts BOTH card states (Next Up OR All caught up! — the state-transition flake, session 7 F-2) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
 `auth.setup.ts` signs in ONCE (rate-limiter budget) and shares
@@ -624,7 +630,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 59/59 unit · build ✓ (self-type-checked) · 54/54 e2e
+# lint clean · tsc clean · 59/59 unit · build ✓ (self-type-checked) · 58/58 e2e
 ```
 
 ### 10.2 Common tasks
@@ -739,3 +745,11 @@ rows re-executed after the sidebar-card/layout-chrome remediation):
 | **Mobile menu re-pin (session 6)** | Verified | Re-measured on BOTH apps after the remediation: trigger 374/50/36, menu 374/54/192, items [Profile, Settings, Logout] — no Tailwind v4 regression from the session-6 changes |
 | Screenshots (session 6) | Verified | 20 captures — 02-dashboard, 03-planning, 10-planning-selected, 15-taskdialog re-captured (the changed surfaces; the capture script gained the desktop 02/03/10 captures) |
 | Smoke suite (session 5) | Verified | `scripts/smoke-test.sh` → 30/30 (authed page renders + the unauth guard redirects, incl. "/") |
+| **Populated-state parity (session 7)** | Verified | 4 identical tasks created through each app's own TaskDialog; full `<main>` class-tree diff: dashboard 845/838 (the 7-element delta = 3 styled-jsx STYLE nodes + 4 LLM-content chip nodes — the documented divergences), Planning unselected **74/74** and day-selected **132/132** — only the documented filter/funnel icon + day-card div/button differences remain; the mobile populated tree carries the same result |
+| **Task ordering parity (session 7, G-1/G-2)** | Verified | The reference's default Task.list() = createdAt desc (live: Alpha→Beta→Gamma→Delta renders [Delta, Gamma, Beta, Alpha]); the clone's GET /api/tasks now matches, and the store's createTask PREPENDS (the reference's save→refetch→newest-first semantics, live-verified without reload); Planning chips + selected-day list render the identical order on both apps |
+| **recharts 2.x pin (session 7, G-3)** | Verified | The reference's pie DOM has no recharts-zIndex strings (bundle-verified); recharts downgraded 3.10.1 → 2.15.4; the SkillsMap pie DOM now byte-matches the reference's shape (svg + tooltip-wrapper after, no shape wrappers); e2e-pinned; visual output unchanged (same decompiled props) |
+| **Badge classic form (session 7, G-4)** | Verified | badge.tsx rebuilt to the reference's Z1e/W$ (div + focus-ring base + shadow/hover variants); the Planning chips and task items render DIV badges with the identical class strings on both apps (live class-tree diff) |
+| **State-transition locator de-flake (session 7, F-2)** | Verified | The status-card spec's post-Mark-Complete locator now accepts BOTH card headings ("Next Up" or "All caught up!") — the app was verified CORRECT first (PATCH landed + the card re-rendered to the empty state within 3s, reproduced on a standalone debug boot); the old "Next Up"-only filter failed with "element(s) not found" whenever no future task remained (Sundays after the 10:00 seed slot; sessions 4–6 passed only pre-slot) |
+| Mobile menu re-pin (session 7) | Verified | Live on BOTH apps at 390×844: trigger 338/14/36×36, menu 182/54/192×164, items [Profile, Settings, Logout] — no Tailwind v4 regression |
+| Desktop dropdown geometry (session 7) | Verified | First-time measured on BOTH apps at 1440×900: trigger 1252/14/76×36, menu 1136/54/192×164 right-anchored to 1328, items identical — pinned by the existing desktop-menu spec (items) + this measurement |
+| Screenshots (session 7) | Verified | 20 captures re-run via `scripts/capture-screenshots.mjs` (the recharts 2.x pie + the ordered chips + the DIV badges render in 02/03/10) |
