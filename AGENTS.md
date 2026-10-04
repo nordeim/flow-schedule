@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (88 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers, the prisma-CLI wrapper contract) |
-| `bun run test:e2e` | Playwright (66 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -193,6 +193,28 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   300-char title guard lives ONLY in the API routes (self-hosted write
   validation — the login-rate-limiter evidence class). The e2e pins
   `#title` has no maxlength attribute.
+- **Log Activity's top-5 slice is a PIN, not a suggestion** (session 11,
+  G-1): the reference's H1e filter is `d.status==="completed" ||
+  d.end_time && Wc(d.end_time) < l` — decompile-verified, including the
+  NULL guard (a quick-added task has no end_time and is excluded on BOTH
+  apps) and the once-per-mount `now` capture. Live-diffed with 7
+  qualifying items: both apps render exactly the newest 5 and cut the
+  6th/7th (cross-week included). The e2e pins the SATURATED list (count
+  5, end_time-desc DOM order, the cut items absent from the panel) —
+  a member-level seed can never catch a slice regression.
+- **The Brainstorm no-op + ordering are pinned behavior** (session 11,
+  G-2/G-3): the empty-content save is a no-op on both apps (live), and
+  the multi-note list is newest-first on both. Mutation evidence: the
+  clone's empty-save no-op is enforced SERVER-side (`/api/notes`
+  VALIDATION) — the client `content.trim()` guard is defense-in-depth —
+  and the rendered note order is server-driven (the save flow's
+  `refreshNotes()` re-fetch); the pins guard the BEHAVIOR surface, which
+  is the parity contract, not the implementation seam.
+- **Relative-word pins must sit far from unit boundaries** (session 11,
+  P-1): a 23h59m-past end renders "24 hours ago" (the hour band rounds
+  23.98 → 24) and flips to "1 day ago" one minute later — both STRICT
+  behavior; only the OBSERVATION TIME moved. Pin distances ≥ hours from
+  a band edge (the G-1 spec uses +40h/−6h/−30h…).
 - **recharts is PINNED to 2.15.x** (session 7, G-3): the reference's
   SkillsMap DOM is the recharts 2.x shape (its bundle contains ZERO
   `recharts-zIndex` strings; the tooltip wrapper is a sibling AFTER the
@@ -461,6 +483,11 @@ deliberately if the reference re-measures differently.
   attribute-inventory method; F-2 the strict relative-time formatter;
   F-3 the title-input maxLength removal; the completion alert
   live-verified on the reference).
+- `docs/session_11-review.md` + `docs/remediation-plan-session11.md` —
+  the session-11 record (the >5-item Log Activity top-5-slice live diff +
+  the H1e null-guard decompile; the Brainstorm deeper-state diffs; the
+  three pin specs G-1/G-2/G-3 with mutation evidence; the enforcement-
+  layer lesson; the 24 h band-boundary lesson).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

@@ -691,3 +691,91 @@ Stage Summary:
   ("uses date-fns" is a family claim — pin the VARIANT; band-stable
   discriminators), and the populated-diff discipline (same data on
   both apps through their own UIs before blaming code)
+
+---
+Task ID: 27
+Agent: main agent
+Task: Session 11 — >5-item Log Activity top-5-slice + Brainstorm deeper-state audit, the three pin specs (G-1/G-2/G-3) with mutation evidence
+
+Work Log:
+- Workspace refreshed via fresh git clone (main a8e2987); .env re-created
+  from .env.example (DATABASE_URL="file:../db/custom.db" + generated
+  AUTH_SECRET); db/ at the repo root; db:push + db:seed; dev server
+  verified healthy (database "up", login + CRUD green) in the
+  ambient-polluted shell — the harness exports a parent-workspace
+  DATABASE_URL resolving OUTSIDE the repo; db-path v3 ignored it and
+  the repo's own DB was served (the session-9 F-1 acceptance re-proven
+  on a clean clone)
+- Five root docs + session_10-review + remediation-plan-session10 +
+  worklog + session_11 re-read and validated against the tree; full
+  gates green at base (lint · tsc · 88/88 unit · build 19 routes ·
+  66/66 e2e · smoke 30/30); skills/ exclusions verified (eslint ·
+  tsconfig · vitest include patterns)
+- Read skills/skills-catalog.md; used: agent-browser (live diffing on
+  BOTH apps), clone-app-pat-pro (parity method), tdd/tdd-workflow,
+  verification-and-review-protocol
+- Logged into the reference (sepnetflix2023@outlook.com; session held);
+  the account carried session 10's 3 parity tasks
+- Log Activity (session 10's suggested surface): created 4 more tasks
+  on the reference through its own dialog (Top5 Parity D/E/F + a
+  cross-week G at -12d) → 7 qualifying items on BOTH apps (the same
+  instants seeded on the clone via its API, parity-s11@flowschedule.app);
+  the panels render IDENTICALLY — exactly the newest 5 by end_time desc,
+  the 6th (4.5d) and 7th (12d cross-week) CUT on both; the one wording
+  difference ("24 hours ago" vs "1 day ago") resolved to an
+  observation-time artifact (the strict formatter's hour/day boundary
+  sits at exactly 24h — P-1); H1e re-decompiled from the live bundle:
+  d.status==="completed" || d.end_time && Wc(d.end_time) < l — the NULL
+  guard and the once-per-mount now-capture match the clone exactly
+- Brainstorm (session 10's suggested surface): empty → create → list
+  (30-char truncation) → viewNote/edit → update → empty-save no-op →
+  confirm text (hooked window.confirm) → multi-note ordering — every
+  state diffs IDENTICAL on both apps (class trees, text, behavior)
+- Standing re-pins: mobile menu 390×844 (trigger 338/14/36×36 right
+  374; menu 182/54/192×164 right 374; items [Profile, Settings,
+  Logout]; animation enter; navigation round-trip) and desktop avatar
+  menu 1440×900 (trigger 1252/14/76×36; menu 1136/54/192×164 right
+  1328) — identical on both apps; the sticky-header scroll-away
+  behavior probed identical on both (P-2) — no Tailwind v4 regression
+- Wrote docs/remediation-plan-session11.md (G-1 top-5-slice pin, G-2
+  empty-save no-op pin, G-3 multi-note order pin, P-1 band boundary,
+  P-2 sticky header); plan validated against the code (insertion
+  points, locator patterns, API contracts) before execution
+- Pin phase: G-1 spec (7 seeds, count/order/cut/wordding) + the
+  extended Brainstorm spec; two wrong-test traps hit and fixed during
+  the RED runs (page-level count while the create view masks the list;
+  .first()/.last() colliding with the seed's own notes — asserted
+  within the E2E family via DOM indices)
+- Mutation (RED evidence) phase: 3 deliberate regressions applied and
+  rebuilt — the slice removal FAILED the G-1 spec (the exact regression
+  class session 10 worried about); the client guard deletion and the
+  store-prepend flip stayed GREEN with enforcement-layer findings (the
+  no-op is server-validated in /api/notes; the rendered order is the
+  refreshNotes() re-fetch — the pins guard the behavior surface);
+  mutations reverted, tree verified clean, rebuilt
+- Gate: lint clean · tsc clean · 88/88 unit · build green · 67/67 e2e
+  × 2 consecutive full runs (66 → 67) · smoke 30/30
+- Screenshots: all 20 captures re-run; .env/.env.example contract
+  unchanged (its test green); docs realigned: README, AGENTS.md (4 new
+  convention bullets + the Reference section), CLAUDE.md, PAD (§8
+  counts + 6 ledger rows + date), flow-schedule_SKILL.md v2.0.0 (FS-22
+  + debugging rows + session-11 history), remediation-plan-session11
+  execution record, docs/session_11-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 11 delivered: the two suggested surfaces audited at FULL
+  PARITY (the saturated top-5 slice live-diffed identical on both apps
+  with the H1e null-guard decompile closing the one reachable edge;
+  the Brainstorm deeper states identical in every probed state) — and
+  the parity made DURABLE with three pin specs (the saturated slice
+  with mutation evidence, the empty-save no-op, the newest-first
+  order), the audit's real deliverable being the pin layer rather than
+  code changes. Unit 88, e2e 66 → 67 (×2)
+- Key new knowledge: FS-22 (live-verified ≠ pinned — member-level
+  seeds never exercise list-capacity boundaries; pin the saturated
+  state; take mutation evidence; document which layer enforces the
+  behavior), the 24h band-boundary discriminator rule (generalizing
+  FS-21), and the two wrong-test traps (assert from the view where the
+  list is mounted; scope order assertions within the test's own title
+  family)

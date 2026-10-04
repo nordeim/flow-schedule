@@ -245,6 +245,92 @@ test.describe("dashboard", () => {
     await page.request.delete(`/api/tasks/${id}`);
   });
 
+  test("Log Activity caps the history at the top-5 by end_time desc (>5 items, G-1)", async ({ page }) => {
+    // Session 11, G-1: the slice + sort only ever executed with ONE seeded
+    // item in CI before this spec. Live-diffed on both apps with 7
+    // qualifying items (session 11): the panel renders exactly the top-5 by
+    // end_time desc and CUTS the rest — including cross-week items.
+    const FAMILY = "E2E top5 slice task";
+    // Converging cleanup: crashed earlier runs leave residue (FS-9).
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith(FAMILY)) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // Seed SEVEN qualifying tasks (status completed OR end_time past — the
+    // H1e filter, decompile-verified session 11: d.status==="completed" ||
+    // d.end_time && Wc(d.end_time) < now). End_times (minutes from now):
+    //   1: +2400 (completed, FUTURE end — the C-class case, sorts FIRST)
+    //   2:  -360 · 3: -1800 · 4: -3240 · 5: -4680   (past, spread by ~1 day)
+    //   6:  -6480 (4.5 d past — must be CUT)  ·  7: -17280 (12 d, cross-week — CUT)
+    // Distances are hours away from any formatter rounding boundary (P-1
+    // session 11): +2400 m renders "in 2 days" (40 h → Math.round(1.67)=2;
+    // the boundary sits at 1.5 d) with ±minutes of test drift.
+    const offsets = [
+      { n: 1, min: 2400, completed: true },
+      { n: 2, min: -360, completed: false },
+      { n: 3, min: -1800, completed: false },
+      { n: 4, min: -3240, completed: false },
+      { n: 5, min: -4680, completed: false },
+      { n: 6, min: -6480, completed: false },
+      { n: 7, min: -17280, completed: false },
+    ];
+    const createdIds: string[] = [];
+    for (const o of offsets) {
+      const start = new Date(Date.now() + (o.min - 30) * 60_000).toISOString();
+      const res = await (
+        await page.request.post("/api/tasks", {
+          data: {
+            title: `${FAMILY} ${o.n}`,
+            start_time: start,
+            duration_minutes: 30,
+            status: "todo",
+          },
+        })
+      ).json();
+      const id = res?.data?.task?.id;
+      expect(id).toBeTruthy();
+      createdIds.push(id);
+      if (o.completed) {
+        await page.request.patch(`/api/tasks/${id}`, { data: { status: "completed" } });
+      }
+    }
+
+    await page.getByRole("button", { name: "Log Activity", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recently Completed / Past" })).toBeVisible();
+    const panel = page.locator("div.max-h-80");
+    // Wait past the panel's refresh ("Loading history..." until ready).
+    await expect(panel.getByText(`${FAMILY} 1`)).toBeVisible();
+
+    // Exactly FIVE item rows render (the reference's .slice(0,5)).
+    const rows = panel.locator("div.p-2\\.5");
+    await expect(rows).toHaveCount(5);
+
+    // The DOM order IS the end_time-desc order: 1 (future completed) first,
+    // then the increasingly-older past tasks.
+    const titles = await panel.locator("p.text-sm.font-medium").allTextContents();
+    expect(titles).toEqual([
+      `${FAMILY} 1`,
+      `${FAMILY} 2`,
+      `${FAMILY} 3`,
+      `${FAMILY} 4`,
+      `${FAMILY} 5`,
+    ]);
+
+    // The 6th (4.5 d old) and 7th (12 d, cross-week) are CUT — scoped to
+    // the panel: both tasks also render as calendar blocks on the page
+    // (the 6th inside this week's grid), so page-level negation would
+    // false-fail.
+    await expect(panel.getByText(`${FAMILY} 6`)).toHaveCount(0);
+    await expect(panel.getByText(`${FAMILY} 7`)).toHaveCount(0);
+
+    // The completed-with-future-end item keeps its Completed label and the
+    // band-stable strict relative time (live: "Completed in 2 days").
+    await expect(panel.getByText("Completed in 2 days")).toBeVisible();
+
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    for (const id of createdIds) await page.request.delete(`/api/tasks/${id}`);
+  });
+
   test("no data-slot attributes on the rendered surfaces (F-1)", async ({ page }) => {
     // The reference's DOM never carries data-slot (attribute-inventory
     // diff, session 10 F-1): the shadcn generator marker is invisible to
@@ -302,12 +388,56 @@ test.describe("dashboard", () => {
     const updated = page.getByRole("paragraph").filter({ hasText: /E2E QA note: second/ });
     await expect(updated).toBeVisible();
 
-    // Delete via the trash icon behind a confirm dialog (Q-7).
+    // G-2 (session 11): the EMPTY-content save is a no-op on both apps
+    // (live-verified: the create view stays mounted, nothing is created —
+    // the K1e guard `if (!content.trim()) return`).
+    await page.getByRole("button", { name: "New Note" }).click();
+    const emptyArea = page.getByPlaceholder("Your note...");
+    await expect(emptyArea).toHaveValue("");
+    await page.getByRole("button", { name: "Save Note" }).click();
+    // Still in the create view — a non-no-op would flip back to the list and
+    // unmount the textarea.
+    await expect(emptyArea).toBeVisible();
+    // Back on the list, the note count is UNCHANGED (an empty save created
+    // nothing). The list itself is unmounted while the create view is open,
+    // so the count must be asserted from the list view.
+    await page.getByRole("button", { name: "← Back to List" }).click();
+    await expect(
+      page.getByRole("paragraph").filter({ hasText: /E2E QA note/ }),
+    ).toHaveCount(1);
+
+    // G-3 (session 11): the multi-note list is NEWEST-FIRST on both apps
+    // (live-verified: the reference's createdAt-desc list = the clone's
+    // store prepend). Create a second note — the note created LAST must
+    // render FIRST. The seed's own sample notes stay in the list, so the
+    // order is asserted WITHIN the E2E family (DOM positions).
+    await page.getByRole("button", { name: "New Note" }).click();
+    await page.getByPlaceholder("Your note...").fill("E2E QA note: created second note");
+    await page.getByRole("button", { name: "Save Note" }).click();
+    await expect(
+      page.locator("div.max-h-80 p.truncate").filter({ hasText: /E2E QA note/ }),
+    ).toHaveCount(2);
+    const domOrder = await page.evaluate(() =>
+      [...document.querySelectorAll("div.max-h-80 p.truncate")].map((p) => p.textContent ?? ""),
+    );
+    const newestIdx = domOrder.findIndex((t) => t.includes("created second"));
+    const olderIdx = domOrder.findIndex((t) => t.includes("second draft"));
+    expect(newestIdx).toBeGreaterThanOrEqual(0);
+    expect(olderIdx).toBeGreaterThan(newestIdx); // newest renders FIRST
+
+    // Delete via the trash icon behind a confirm dialog (Q-7) — the newest
+    // first, then the survivor; the E2E family ends fully cleared.
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Delete note" }).first().click();
     await expect(
-      page.getByRole("paragraph").filter({ hasText: /E2E QA note: second/ }),
+      page.getByRole("paragraph").filter({ hasText: /E2E QA note: created second/ }),
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("paragraph").filter({ hasText: /E2E QA note: second draft/ }),
+    ).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Delete note" }).first().click();
+    await expect(page.getByRole("paragraph").filter({ hasText: /E2E QA note/ })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Close Notes" }).click();
     await expect(page.getByRole("heading", { name: "Quick Brainstorm", exact: true })).toBeHidden();

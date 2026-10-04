@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–8, 2026-10-04).
-version: 1.9.0
+  codebase-verified (sessions 1–11, 2026-10-05).
+version: 2.0.0
 last_updated: 2026-10-05
-project_state: 88/88 unit tests, 66/66 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM
+project_state: 88/88 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -741,6 +741,36 @@ GJ's token table); (b) discriminators for the pin must be
 band-stable under test-time drift (3h ± seconds stays "3 hours" in
 both variants; 90 min would flap).
 
+### FS-22: A behavior verified live but unpinned is a regression waiting to happen (High — parity process)
+
+**Symptom:** session 11's audit diffed the Log Activity's top-5 slice
+live on both apps with a SATURATED 7-item list — identical — while the
+e2e suite's Log Activity specs each seeded exactly ONE task. Removing
+the `.slice(0, 5)` (or breaking the end_time comparator) would have
+passed CI. Same class: the Brainstorm empty-save no-op and the
+multi-note newest-first order were live-verified in sessions 4–11 but
+never executed together in CI.
+**Root cause:** the suite grew by *member-level* seeds (one item, one
+assertion), so list-capacity behaviors (slices, sorts, pagination,
+dedup) never executed at their boundary. "The code is right today" and
+"the code is pinned" are different claims.
+**Fix + rules:** three pins (session 11): the saturated top-5 slice
+(count 5, end_time-desc DOM order, the 6th/7th cross-week items absent
+FROM THE PANEL — they render as calendar blocks page-wide, so the
+negation must be panel-scoped), the empty-save no-op (assert from the
+LIST view — the create view unmounts the list, so a page-level count
+is 0 by construction — a wrong-test trap this session hit), and the
+newest-first order (assert DOM indices WITHIN the E2E title family —
+`.first()/.last()` collide with the seed's own notes). Pin specs over
+live-verified correct behavior take MUTATION evidence, not a RED phase:
+break the behavior deliberately (remove the slice, delete the guard,
+flip the sort), prove the spec fails, revert, GREEN. Two mutations will
+stay green when the behavior is enforced at ANOTHER layer (the
+empty-save no-op is server-validated in `/api/notes`; the rendered note
+order is the save flow's `refreshNotes()` re-fetch, not the store
+prepend) — that is not a weak pin, it is the pin correctly guarding the
+BEHAVIOR surface while documenting which seam actually enforces it.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -755,6 +785,8 @@ both variants; 90 min would flap).
 | Tasks created in e2e pollute totals | FS-9 | Spec cleanup blocks (already in place) |
 | Relative times read "about 3 hours ago" | FS-21 territory — the non-strict formatter | The reference uses `formatDistanceToNowStrict` (plain xHours/xDays, Math.round); swap the import and call site in QuickActions.tsx |
 | A DOM attribute the reference lacks appears (data-slot, maxlength, …) | FS-20 — class-tree diffs cannot see attributes | Attribute-inventory diff on both DOMs; remove generator leftovers; pin with an attribute-count locator |
+| A list-capacity behavior regresses in CI-passing code (slice/sort/order) | FS-22 — member-level seeds never exercise the boundary | Pin the SATURATED state (7 items for a top-5) with panel-scoped negations; add mutation evidence |
+| A relative-word pin flakes near a unit boundary ("24 hours" ↔ "1 day") | The strict formatter's band edge sits at exactly 24 h | Move the seeded distance hours away from any boundary (+40 h, −6 h, −30 h are safe) |
 | AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
 | Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
 | Text assertion matches the form, not the list (flaky under load) | FS-13 — getByText matched the textarea's default-value text node | Scope by role: `getByRole("paragraph").filter({ hasText: … })` |
@@ -1302,6 +1334,23 @@ parity remediation):
   routes). Unit 88 (unchanged), e2e 64 → 66 (×2 consecutive). See
   `docs/session_10-review.md` + `docs/remediation-plan-session10.md`
   (the operator's narrative lives in `docs/session_10.md`).
+- **Session 11 (2026-10-05, v2.0.0):** the two surfaces session 10
+  suggested — the Log Activity top-5 slice with a **saturated >5-item
+  cross-week list** and the Brainstorm note-editing deeper states —
+  diffed live on BOTH apps: **full parity, zero code changes needed**.
+  The H1e filter re-decompiled (`d.status==="completed" || d.end_time
+  && Wc(d.end_time) < l`) — the null-end_time guard and the
+  once-per-mount `now` capture match the clone exactly (quick-added
+  title-only tasks are excluded on both apps). The deliverable became
+  the PIN LAYER: three specs (the saturated slice G-1 with mutation
+  evidence; the empty-save no-op G-2 and the newest-first order G-3 —
+  both with their enforcement-layer findings: the no-op is
+  server-validated, the order is refresh-driven) — e2e 66 → 67 (×2
+  consecutive). The 24 h band boundary ("24 hours ago" at 23h59m,
+  "1 day ago" at 24h01m — both correct strict behavior, only the
+  observation time moved) generalized FS-21's discriminator rule.
+  See `docs/session_11-review.md` +
+  `docs/remediation-plan-session11.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 
