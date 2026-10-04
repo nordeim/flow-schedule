@@ -1,4 +1,6 @@
 // /api/tasks/[id] — PATCH (update, incl. status toggle) + DELETE.
+// Session 12 (W-3/W-4): a caller-supplied end_time wins over derivation;
+// description is stored verbatim ("" stays "", null when absent).
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
@@ -10,6 +12,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const auth = await requireUser();
   if ("response" in auth) return auth.response;
   const { id } = await ctx.params;
+  const author = { id: auth.user.id, email: auth.user.email };
 
   const existing = await db.task.findFirst({
     where: { id, userId: auth.user.id },
@@ -27,11 +30,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (title.length > 300) return fail("VALIDATION", "Task title must be 300 characters or fewer.");
     data.title = title;
   }
+  // W-4: verbatim — a string is stored as-is ("" stays ""); the field
+  // must be explicitly null to clear it.
   if ("description" in body) {
-    data.description =
-      typeof body.description === "string" && body.description.trim().length > 0
-        ? body.description.trim()
-        : null;
+    data.description = typeof body.description === "string" ? body.description : null;
   }
   if (isPriority(body.priority)) data.priority = body.priority;
   if (isCategory(body.category)) data.category = body.category;
@@ -61,15 +63,29 @@ export async function PATCH(req: Request, ctx: Ctx) {
     recomputeEnd = true;
   }
 
-  const start = (data.startTime as Date | null | undefined) ?? existing.startTime;
-  const duration =
-    (data.durationMinutes as number | null | undefined) ?? existing.durationMinutes;
-  if (recomputeEnd) {
+  // W-3: a caller-supplied end_time WINS (the reference's dialog always
+  // sends it, client-computed); derivation from start+duration only
+  // applies when the caller did not send one.
+  const hasExplicitEnd = body.end_time !== undefined;
+  if (hasExplicitEnd) {
+    if (body.end_time === null || body.end_time === "") {
+      data.endTime = null;
+    } else {
+      const parsed = new Date(String(body.end_time));
+      if (Number.isNaN(parsed.getTime())) {
+        return fail("VALIDATION", "end_time is not a valid date.");
+      }
+      data.endTime = parsed;
+    }
+  } else if (recomputeEnd) {
+    const start = (data.startTime as Date | null | undefined) ?? existing.startTime;
+    const duration =
+      (data.durationMinutes as number | null | undefined) ?? existing.durationMinutes;
     data.endTime = start && duration ? new Date(start.getTime() + duration * 60_000) : null;
   }
 
   const task = await db.task.update({ where: { id }, data });
-  return ok({ task: serializeTask(task) });
+  return ok({ task: serializeTask(task, author) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

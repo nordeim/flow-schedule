@@ -447,13 +447,22 @@ The shapes mirror the reference app's entities exactly (Task with
 `start_time`/`duration_minutes`/`end_time`, Note with `tags` array, User)
 — the field names corroborated by the reference's bundle (its TaskDialog
 state initializes `{start_time:"", end_time:"", duration_minutes:60}`;
-`fn.Note.list("-created_date")`; notes' tags consumed as an array). The
-wire format is snake_case in BOTH directions — requests accept
-`start_time`/`duration_minutes`, responses ship through
-`serializeTask`/`serializeNote` (`src/lib/serialize.ts`, session 8 G-4:
-snake_case fields, tags unwrapped to arrays, clone-internal `isSample`/
-`userId` kept off the wire); Prisma stays camelCase; `mapTask`/`mapNote`
-are the wire→client conversion seams.
+`fn.Note.list("-created_date")`; notes' tags consumed as an array) and,
+since session 12, by the **CAPTURED live wire** (XHR interception of the
+reference's own base44 entity traffic): responses carry
+`created_date`/`updated_date`/`is_sample`/`created_by` (the author's
+email)/`created_by_id` — 14 keys for Task, 9 for Note. The wire format
+is the captured entity shape in BOTH directions — requests accept
+`start_time`/`duration_minutes` and the dialog's client-computed
+`end_time` (its decompiled f function: end = start + duration*60000)
+with the description VERBATIM ("" stays ""; null means the field was
+absent, i.e. quick-added); responses ship through
+`serializeTask(task, author)`/`serializeNote(note, author)`
+(`src/lib/serialize.ts`, session 8 G-4 + session 12 W-1..W-4: the
+captured field names, tags unwrapped to arrays, `is_sample`/
+`created_by`/`created_by_id` shipped, clone-internal camelCase
+`isSample`/`userId` kept off the wire); Prisma stays camelCase;
+`mapTask`/`mapNote` are the wire→client conversion seams.
 
 ### 4.2 Persistence Strategy
 
@@ -635,7 +644,7 @@ during the e2e run — both cards rendered their defaults (by design).
 
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
-| Unit (88) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring + the v3 repo-.env authority rule), `db-cli-scripts.test.ts` (the prisma-CLI wrapper contract), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation), `wire-format.test.ts` (serializeTask/serializeNote: snake_case fields, tags as arrays, internal fields off the wire), `ai-defaults.test.ts` (the Mark Twain fallback set) |
+| Unit (89) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring + the v3 repo-.env authority rule), `db-cli-scripts.test.ts` (the prisma-CLI wrapper contract), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation), `wire-format.test.ts` (serializeTask/serializeNote: **the captured reference wire — created_date/updated_date, is_sample/created_by/created_by_id, tags as arrays, the exact 14/9-key shapes**), `ai-defaults.test.ts` (the Mark Twain fallback set) |
 | E2E (67) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill + the "Create Task"/Save-icon submit, the content-sized Refresh button, the decompiled sidebar-card states (status-card locators scoped to the Next Up heading — hour-of-day independent, FS-16), the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, the ALWAYS-VISIBLE CARD structure — CardHeader/CardTitle-div/CardContent, no accordion/heading/chevron, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter with its mr-2 icon margin, the header icon margins + no-hover-gradient Add Task, the createdAt-desc chips/list order, the classic DIV category badges), `dashboard.spec.ts` gains the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers; tooltip wrapper after the svg) + the new-task-first store semantics after a dialog create + the session-8 pins: the dialog's enter animation (computed `animation-name: enter`), the classic DialogTitle `tracking-tight` + SelectTrigger `ring-offset-background`/`data-[placeholder]:` classes, the single `lucide-trash2` class, and the snake_case API response shape; the status-card spec's post-click locator accepts BOTH card states (Next Up OR All caught up! — the state-transition flake, session 7 F-2); the mobile-menu geometry spec settles the enter animation before measuring (session 8, E-C); the session-10 pins: the strict formatDistanceToNowStrict relative times (a 3h-past end_time renders "Ended 3 hours ago", never "about"), and the zero-data-slot DOM contract ([data-slot] count 0 on the idle page AND the open dialog + the title input carries no maxlength); the session-11 pins: the Log Activity top-5 slice with a SATURATED 7-item list (count 5, end_time-desc DOM order, the 6th/7th cross-week items cut, the completed-future "in 2 days" wording) and the Brainstorm empty-save no-op + newest-first multi-note order (asserted within the E2E family — the seed's own notes stay in the list) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
@@ -671,7 +680,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 88/88 unit · build ✓ (self-type-checked) · 67/67 e2e
+# lint clean · tsc clean · 89/89 unit · build ✓ (self-type-checked) · 67/67 e2e
 ```
 
 ### 10.2 Common tasks
@@ -828,3 +837,12 @@ rows re-executed after the sidebar-card/layout-chrome remediation):
 | Mobile + desktop menu re-pins (session 11) | Verified | Live on BOTH apps: mobile 390×844 trigger 338/14/36×36 right 374, menu 182/54/192×164 right 374, items [Profile, Settings, Logout], `enter`, navigation round-trip; desktop 1440×900 trigger 1252/14/76×36, menu 1136/54/192×164 right 1328 — identical; the sticky-header scroll-away behavior probed identical on both (P-2) — **no Tailwind v4 regression** |
 | **Gate after the session-11 pins** | Verified | lint ✓ · typecheck ✓ · 88/88 unit · build (19 routes) · **67/67 e2e × 2 consecutive full runs** · smoke 30/30 |
 | Screenshots (session 11) | Verified | All 20 captures re-run on the remediated codebase via `scripts/capture-screenshots.mjs` |
+| **Full-gate re-run at base (session 12)** | Verified | `git pull` (main d29b480 → c414774, adds docs/session_12.md) · lint ✓ · typecheck ✓ · 88/88 unit · build (19 routes) · **67/67 e2e** in 3.1 m — in the ambient-polluted shell (db-path v3 held: the repo's own seeded `db/custom.db` served, login + CRUD green) |
+| **Quick-added-task surfacing parity (session 12, first-time diff — session 11's suggested surface)** | Verified | "NullSurf S12 Probe" quick-added through the reference's own z1e panel, then EVERY surfacing surface enumerated on the reference: no calendar block, no Planning day-card chip, StatusCard stays "All caught up!", Log Activity excludes it (H1e null guard), the AI Summary prompt lists only TODAY's tasks (read from the intercepted InvokeLLM request). **The task is invisible everywhere on BOTH apps** — the reference's own behavior, mirrored. The intercepted entity GET also confirms the quick-add defaults (work/medium/todo/null-times/null-description) match the clone byte-for-byte |
+| **The reference wire CAPTURED (session 12 — the method upgrade)** | Verified | XHR interception (patched XMLHttpRequest open/send inside the logged-in reference page) captured the live `GET entities/Task` + `GET entities/Note` + `POST InvokeLLM` traffic: the reference's responses carry `created_date`/`updated_date`/`is_sample`/`created_by` (the author's EMAIL)/`created_by_id` — NOT the clone's inferred `created_at`/`updated_at` with stripped internals. The TaskDialog Xne/f decompile: submits 7 fields incl. client-computed `end_time` (`f = start + duration*60000`), description verbatim. Zero-consumer proof: bundle `created_at`×0 / `is_sample`×0 / `created_by`×0; repo-side no `created_at` consumer outside the store mapper/serializer |
+| **Wire contract W-1/W-2 — the captured response shape (session 12)** | Verified | `serializeTask(task, author)`/`serializeNote(note, author)` now ship `created_date`/`updated_date`/`is_sample`/`created_by`/`created_by_id` (the session user as the base44 author equivalent); wire-format.test.ts re-pinned to the exact 14-key Task / 9-key Note sets (4 tests RED against the pre-change build first); the 6 route call sites pass the author; store types/mappers renamed — mutation evidence: reverting to created_at + dropping the author fields fails 3 pins |
+| **Wire contract W-3/W-4 — the dialog's request shape (session 12)** | Verified | The TaskDialog submits `end_time` client-computed (the reference's f function, verbatim) and the description VERBATIM ("" stays "" — captured on the reference's Top5 Parity G); the API accepts an optional validated `end_time` (caller-supplied wins; start+duration derivation remains the fallback for quick-add/completeTask); e2e interception pin (page.route POST-body capture: end_time = start + 45 min, description "") — mutation evidence: dropping end_time + restoring trim→null fails the spec |
+| Mobile + desktop menu re-pins (session 12) | Verified | Pinned green inside every full e2e run of the session (mobile 390×844 trigger 338/14/36×36 right 374, menu 182/54/192×164; desktop trigger 1252/14/76×36, menu 1136/54/192×164) — **no Tailwind v4 regression** (the wire changes touch no CSS) |
+| **Gate after the session-12 wire fixes** | Verified | lint ✓ · typecheck ✓ · **89/89 unit** (88→89: the author/shape pins) · build (19 routes) · **67/67 e2e — one Focus Timer countdown timing flake in run 1 (spec 129, the W1e timer code untouched; machine mid-rebuild), then two consecutive full green runs** · smoke via /api/health |
+| **Live wire re-capture diff (session 12)** | Verified | The clone's `/api/tasks` returns EXACTLY the captured 14-key set and `/api/notes` the 9-key set (curl with the session cookie, post-fix): key sets IDENTICAL to the reference's captured wire — incl. `is_sample: true` on seeded rows, `created_by` = the session user's email, `created_by_id` = the user id. Byte-level wire parity |
+| Screenshots (session 12) | Verified | All 20 captures re-run on the remediated codebase via `scripts/capture-screenshots.mjs` (dev server, 1440×900 + 390×844) |

@@ -121,12 +121,23 @@ function TaskFormBody({
     setError(null);
     const startIso = form.start_time ? new Date(form.start_time).toISOString() : null;
     const duration = form.duration_minutes ? parseInt(form.duration_minutes, 10) : null;
+    // Session 12 (W-3): the reference's dialog submits end_time
+    // CLIENT-COMPUTED — its decompiled f function recomputes
+    // end = start + duration*60000 on every start/duration change and the
+    // save posts the full form state. Mirrored verbatim.
+    const endIso =
+      startIso && duration && !Number.isNaN(duration)
+        ? new Date(new Date(startIso).getTime() + duration * 60_000).toISOString()
+        : null;
     const payload = {
       title,
-      description: form.description.trim() || null,
+      // Session 12 (W-4): the reference submits the form value VERBATIM —
+      // an empty description is "" on the wire (captured live), not null.
+      description: form.description,
       priority: form.priority,
       category: form.category,
       start_time: startIso,
+      end_time: endIso,
       duration_minutes: Number.isNaN(duration) ? null : duration,
     };
     try {

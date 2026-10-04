@@ -779,3 +779,100 @@ Stage Summary:
   FS-21), and the two wrong-test traps (assert from the view where the
   list is mounted; scope order assertions within the test's own title
   family)
+
+---
+Task ID: 28
+Agent: session-12 remediation agent
+Task: Session 12 — audit the two session-11 suggested surfaces (the
+quick-added null-time task's surfacing; the Notes tags round-trip),
+re-pin the mobile/desktop menus, and remediate whatever the audit
+finds (TDD, docs, screenshots, push to main).
+
+Work Log:
+- git pull (main d29b480 → c414774, adds docs/session_12.md);
+  re-read the five root docs + session_11-review +
+  remediation-plan-session11 + worklog; full base gate re-executed:
+  lint ✓ · tsc ✓ · 88/88 unit · build ✓ (19 routes) · 67/67 e2e in
+  3.1 m — the codebase matched its documented state exactly
+- Audit target 1 (quick-added task surfacing): quick-added
+  "NullSurf S12 Probe" through the reference's own z1e panel, then
+  enumerated EVERY surface on the reference — calendar (no block, no
+  start_time), Planning day cards (no chip), StatusCard ("All caught
+  up!" unchanged), Log Activity (H1e null guard), and the AI Summary
+  prompt (read from the intercepted InvokeLLM request: only TODAY's
+  tasks listed) — the task is INVISIBLE everywhere on BOTH apps; the
+  intercepted entity GET confirms the quick-add defaults
+  (work/medium/todo/null-times/null-description) match the clone
+  byte-for-byte. Full parity, no action
+- Audit target 2 (Notes tags): live-captured the reference's
+  GET entities/Note?sort=-created_date response — tags:[] on every
+  note (session 8's array inference confirmed first-hand); K1e
+  create/update only ever sends {content} — parity
+- METHOD UPGRADE — XHR interception on the logged-in reference page
+  (patched XMLHttpRequest open/send): captured the live Task/Note
+  entity JSON and the InvokeLLM request bodies. Found FOUR
+  wire-contract divergences: W-1 the reference ships
+  created_date/updated_date (the clone's created_at/updated_at was
+  session 8's inferred name), W-2 the reference ships is_sample/
+  created_by (author's email)/created_by_id (the clone stripped
+  them), W-3 the reference's TaskDialog submits a client-computed
+  end_time (its decompiled f function; the clone's dialog sent none),
+  W-4 the reference's dialog submits description verbatim ("" stays
+  ""; the clone coerced to null). Zero-consumer proof gathered first
+  (bundle: created_at×0/is_sample×0/created_by×0; repo: no
+  created_at consumer outside the store mapper/serializer)
+- Wrote docs/remediation-plan-session12.md (W-1..W-4 + P-1 the
+  30.0 float + P-2 the app-logs beacon, TDD steps, mutation plan);
+  plan validated against the code (insertion points, locator
+  patterns) before execution
+- R-1 (W-1/W-2) RED-first: wire-format.test.ts re-pinned to the
+  captured shapes (created_date/updated_date, is_sample, created_by/
+  created_by_id, the exact 14-key Task / 9-key Note sets, the author
+  argument) — 4 tests failed against the pre-change build; then
+  serializeTask(task, author)/serializeNote(note, author) + the 6
+  route call sites + the store types/mappers — wire-format 8/8
+- R-2 (W-3/W-4) RED-first: the planning "Add Task dialog" spec
+  gained a page.route POST-body interception pin (end_time =
+  start + 45 min; description "" verbatim); TaskDialog now computes
+  end_time client-side (the reference's f function, verbatim) and
+  submits the description as-is; the API accepts an optional
+  validated end_time (caller-supplied wins; start+duration
+  derivation remains the fallback for quick-add/completeTask);
+  the e2e G-4 spec re-pinned to the captured response shape
+- MUTATION (RED) evidence: M-1+M-2 (serializer reverted to
+  created_at, author/sample fields dropped) → 3 wire-format pins
+  FAIL; M-3+M-4 (dialog drops end_time, description trim→null) →
+  the interception spec FAILS. Mutations reverted, tree verified,
+  rebuilt
+- Gate: lint ✓ · tsc ✓ · 89/89 unit (88→89: the author/shape pins) ·
+  build ✓ (19 routes) · 67/67 e2e — one Focus Timer countdown
+  timing flake in run 1 (spec 129, W1e timer code untouched), then
+  TWO consecutive full green runs; smoke via /api/health (the
+  ambient-polluted shell held: the repo's own db/custom.db served)
+- Live wire re-capture diff: the clone's /api/tasks returns the
+  captured 14-key set, /api/notes the 9-key set — key-for-key
+  IDENTICAL to the reference's wire (is_sample: true on seeded rows,
+  created_by = the session user's email)
+- Mobile + desktop menu pins green inside every full e2e run — no
+  Tailwind v4 regression (the wire changes touch no CSS)
+- All 20 screenshots re-captured; docs realigned: README, AGENTS.md
+  (the session-12 conventions + Reference), CLAUDE.md, PAD (§4.1
+  wire contract + §8 counts + 10 ledger rows), flow-schedule_SKILL.md
+  v2.1.0 (FS-23 + session-12 history), remediation-plan-session12
+  execution record, docs/session_12-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 12 delivered: both suggested surfaces audited at FULL
+  PARITY (the quick-added task is invisible on both apps — the
+  reference's own design; the tags array capture-confirmed) — and the
+  audit's real finding, FOUR wire-contract divergences revealed by
+  the session's live XHR interception of the reference's own base44
+  traffic, all fixed pin-first with mutation evidence and closed out
+  with a key-for-key live wire diff. Unit 88 → 89, e2e 67 (×2
+  consecutive)
+- Key new knowledge: FS-23 (a captured wire beats an inferred wire —
+  decompile shows what the code SENDS, only the wire shows what the
+  server RETURNS; prove zero consumers before renaming; pin exact
+  key sets), and the zero-consumer rename discipline (the cheapest
+  parity win there is)

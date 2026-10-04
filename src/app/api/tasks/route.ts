@@ -1,16 +1,20 @@
 // /api/tasks — GET (list) + POST (create).
-// Task shapes mirror the reference entity: title, description, priority,
-// category, status, start_time, duration_minutes, end_time. Responses go
-// through serializeTask (the snake_case wire seam, session 8 G-4).
+// Task shapes mirror the reference entity (session 12 wire capture):
+// title, description, priority, category, status, start_time,
+// duration_minutes, end_time. Responses go through serializeTask (the
+// snake_case wire seam; created_date/updated_date/is_sample/created_by).
+// The reference's TaskDialog submits end_time client-computed (W-3) and
+// description verbatim (W-4 — "" stays ""); both are accepted here.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
-import { serializeTask } from "@/lib/serialize";
+import { serializeTask, type WireAuthor } from "@/lib/serialize";
 
 export async function GET() {
   const auth = await requireUser();
   if ("response" in auth) return auth.response;
+  const author: WireAuthor = { id: auth.user.id, email: auth.user.email };
   const tasks = await db.task.findMany({
     where: { userId: auth.user.id },
     // The reference's default fn.Task.list() returns tasks createdAt DESC
@@ -21,7 +25,7 @@ export async function GET() {
     // order decides which chips are visible behind "+N more".
     orderBy: { createdAt: "desc" },
   });
-  return ok({ tasks: tasks.map(serializeTask) });
+  return ok({ tasks: tasks.map((t) => serializeTask(t, author)) });
 }
 
 export async function POST(req: Request) {
@@ -37,10 +41,11 @@ export async function POST(req: Request) {
     return fail("VALIDATION", "Task title must be 300 characters or fewer.");
   }
 
+  // W-4 (session 12): the reference's dialog submits the form value
+  // VERBATIM — an empty description is "" (captured on the live wire), and
+  // quick-added tasks leave the field absent → null. Stored as-is.
   const description =
-    typeof body.description === "string" && body.description.trim().length > 0
-      ? body.description.trim()
-      : null;
+    typeof body.description === "string" ? body.description : null;
 
   const priority = isPriority(body.priority) ? body.priority : "medium";
   const category = isCategory(body.category) ? body.category : "work";
@@ -64,10 +69,24 @@ export async function POST(req: Request) {
     durationMinutes = n;
   }
 
-  const endTime =
-    startTime && durationMinutes
-      ? new Date(startTime.getTime() + durationMinutes * 60_000)
-      : null;
+  // W-3 (session 12): the reference's dialog submits end_time
+  // client-computed (start + duration — its decompiled f function). A
+  // caller-supplied end_time wins (validated); otherwise the API derives
+  // it from start+duration (the pre-session-12 behavior — every other
+  // caller, incl. the quick-add panel, relies on it).
+  let endTime: Date | null = null;
+  if (body.end_time !== undefined && body.end_time !== null && body.end_time !== "") {
+    const parsed = new Date(String(body.end_time));
+    if (Number.isNaN(parsed.getTime())) {
+      return fail("VALIDATION", "end_time is not a valid date.");
+    }
+    endTime = parsed;
+  } else {
+    endTime =
+      startTime && durationMinutes
+        ? new Date(startTime.getTime() + durationMinutes * 60_000)
+        : null;
+  }
 
   const task = await db.task.create({
     data: {
@@ -83,5 +102,8 @@ export async function POST(req: Request) {
     },
   });
 
-  return ok({ task: serializeTask(task) }, 201);
+  return ok(
+    { task: serializeTask(task, { id: auth.user.id, email: auth.user.email }) },
+    201,
+  );
 }

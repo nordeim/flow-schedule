@@ -974,10 +974,13 @@ test.describe("dashboard", () => {
     await page.request.delete(`/api/tasks/${id}`);
   });
 
-  test("the tasks API responds in the reference's snake_case entity shape (G-4)", async ({ page }) => {
-    // The documented wire contract (AGENTS.md / PAD §4.1): tasks ship
-    // start_time / end_time / duration_minutes / created_at / updated_at,
-    // and the clone-internal fields (isSample/userId) stay off the wire.
+  test("the tasks API responds in the reference's captured entity shape (G-4 + session 12 W-1/W-2)", async ({ page }) => {
+    // The documented wire contract (AGENTS.md / PAD §4.1), re-pinned in
+    // session 12 against the CAPTURED live reference wire (XHR
+    // interception of the reference's own base44 entity traffic): tasks
+    // ship start_time / end_time / duration_minutes / created_date /
+    // updated_date / is_sample / created_by / created_by_id, and the
+    // clone-internal camelCase fields (isSample/userId) stay off the wire.
     // The request side always spoke snake_case; the responses used to
     // return raw camelCase Prisma objects.
     const residue = await (await page.request.get("/api/tasks")).json();
@@ -998,12 +1001,35 @@ test.describe("dashboard", () => {
     expect(task.start_time).toBeTruthy();
     expect(task.duration_minutes).toBe(45);
     expect(task.end_time).toBeTruthy();
-    expect(task.created_at).toBeTruthy();
-    expect(task.updated_at).toBeTruthy();
+    expect(task.created_date).toBeTruthy();
+    expect(task.updated_date).toBeTruthy();
+    expect(task.is_sample).toBe(false);
+    expect(task.created_by).toBe("demo@flowschedule.app");
+    expect(task.created_by_id).toBeTruthy();
     expect(task.startTime).toBeUndefined();
     expect(task.durationMinutes).toBeUndefined();
     expect(task.isSample).toBeUndefined();
     expect(task.userId).toBeUndefined();
+    expect(task.created_at).toBeUndefined();
+    // The captured 14-key wire shape (session 12, W-1/W-2).
+    expect(Object.keys(task).sort()).toEqual(
+      [
+        "category",
+        "created_by",
+        "created_by_id",
+        "created_date",
+        "description",
+        "duration_minutes",
+        "end_time",
+        "id",
+        "is_sample",
+        "priority",
+        "start_time",
+        "status",
+        "title",
+        "updated_date",
+      ].sort(),
+    );
 
     // The GET list ships the same shape.
     const list = await (await page.request.get("/api/tasks")).json();
@@ -1012,6 +1038,9 @@ test.describe("dashboard", () => {
     );
     expect(listed?.start_time).toBeTruthy();
     expect(listed?.duration_minutes).toBe(45);
+    expect(listed?.created_date).toBeTruthy();
+    expect(listed?.is_sample).toBe(false);
+    expect(listed?.created_by).toBe("demo@flowschedule.app");
 
     await page.request.delete(`/api/tasks/${task.id}`);
   });

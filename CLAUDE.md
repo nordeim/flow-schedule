@@ -65,10 +65,15 @@ equivalents at identical URLs and JSON shapes.
 - Server-side validation of every write (`src/lib/domain.ts` guards:
   `isPriority`, `isCategory`, `isTaskStatus`) — client enums are a
   convenience, never a boundary.
-- `serializeTask`/`serializeNote` (`src/lib/serialize.ts`) are the ONLY
-  Prisma→wire seams (responses ship the reference's snake_case entity
-  shape, tags as arrays, internal fields off the wire); `mapTask`/
-  `mapNote` in the store are the ONLY wire→client conversion seams.
+- `serializeTask(task, author)`/`serializeNote(note, author)`
+  (`src/lib/serialize.ts`) are the ONLY Prisma→wire seams — the wire is
+  the reference's CAPTURED entity shape (session 12 XHR capture:
+  created_date/updated_date/is_sample/created_by/created_by_id, tags as
+  arrays, the 14-key Task / 9-key Note shapes; internal camelCase fields
+  off the wire); `mapTask`/`mapNote` in the store are the ONLY wire→client
+  conversion seams. The TaskDialog submits end_time client-computed and
+  the description verbatim ("" stays ""); the API accepts an optional
+  caller-supplied end_time and derives it from start+duration otherwise.
 
 ### TypeScript / Next.js 16 specifics
 
@@ -132,7 +137,7 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (88 tests) |
+| `bun run test` | Vitest unit (89 tests) |
 | `bun run test:e2e` | Playwright e2e (67 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
@@ -143,8 +148,8 @@ Single e2e: `bun run test:e2e -- -g "mobile account menu"`.
 
 | Level | Tool | Location | Notes |
 |-------|------|----------|-------|
-| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path v3 (incl. the repo-.env authority rule), .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializer, the prisma-CLI wrapper contract |
-| E2E | Playwright (67 specs — the planning pins incl. the createdAt-desc order + the DIV badges + the plain-DIV day cards (session 9, F-2); the dashboard pins incl. the recharts 2.x DOM shape, the new-task-first semantics, the enter-animation pin, the classic dialog/select classes, the single lucide-trash2 class, the snake_case response shape, the strict formatDistanceToNowStrict relative times (session 10, F-2), the zero-data-slot DOM contract + the uncapped title input (session 10, F-1/F-3), the Log Activity top-5 slice + the Brainstorm no-op/order pins (session 11, G-1/G-2/G-3)) | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity (animation-settled), auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon, the clickable-DIV day cards) |
+| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path v3 (incl. the repo-.env authority rule), .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializer (**pinned to the CAPTURED reference wire — created_date/updated_date/is_sample/created_by, the 14/9-key shapes**), the prisma-CLI wrapper contract |
+| E2E | Playwright (67 specs — the planning pins incl. the createdAt-desc order + the DIV badges + the plain-DIV day cards (session 9, F-2) + **the dialog request-body interception pin: end_time client-computed + verbatim description (session 12, W-3/W-4)**; the dashboard pins incl. the recharts 2.x DOM shape, the new-task-first semantics, the enter-animation pin, the classic dialog/select classes, the single lucide-trash2 class, **the captured 14-key response wire shape (session 12, W-1/W-2)**, the strict formatDistanceToNowStrict relative times (session 10, F-2), the zero-data-slot DOM contract + the uncapped title input (session 10, F-1/F-3), the Log Activity top-5 slice + the Brainstorm no-op/order pins (session 11, G-1/G-2/G-3)) | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity (animation-settled), auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon, the clickable-DIV day cards) |
 
 - E2E runs against the **production standalone** on `:3100` with its own
   seeded `db/e2e.db`; the setup project signs in ONCE (login is

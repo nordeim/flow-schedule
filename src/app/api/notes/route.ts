@@ -1,6 +1,7 @@
-// /api/notes — GET (list) + POST (create). Note shapes mirror the reference:
-// title (nullable), content, tags (array on the wire — the storage JSON
-// string is unwrapped by serializeNote, session 8 G-4).
+// /api/notes — GET (list) + POST (create). Note shapes mirror the
+// reference (session 12 wire capture): title (nullable), content, tags
+// (array on the wire — the storage JSON string is unwrapped by
+// serializeNote), plus created_date/updated_date/is_sample/created_by.
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { serializeNote } from "@/lib/serialize";
@@ -8,11 +9,13 @@ import { serializeNote } from "@/lib/serialize";
 export async function GET() {
   const auth = await requireUser();
   if ("response" in auth) return auth.response;
+  const author = { id: auth.user.id, email: auth.user.email };
   const notes = await db.note.findMany({
     where: { userId: auth.user.id },
+    // The reference's fn.Note.list("-created_date") — newest first.
     orderBy: { createdAt: "desc" },
   });
-  return ok({ notes: notes.map(serializeNote) });
+  return ok({ notes: notes.map((n) => serializeNote(n, author)) });
 }
 
 export async function POST(req: Request) {
@@ -48,5 +51,8 @@ export async function POST(req: Request) {
       userId: auth.user.id,
     },
   });
-  return ok({ note: serializeNote(note) }, 201);
+  return ok(
+    { note: serializeNote(note, { id: auth.user.id, email: auth.user.email }) },
+    201,
+  );
 }

@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–11, 2026-10-05).
-version: 2.0.0
+  codebase-verified (sessions 1–12, 2026-10-05).
+version: 2.1.0
 last_updated: 2026-10-05
-project_state: 88/88 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned
+project_state: 89/89 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description)
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -771,6 +771,35 @@ order is the save flow's `refreshNotes()` re-fetch, not the store
 prepend) — that is not a weak pin, it is the pin correctly guarding the
 BEHAVIOR surface while documenting which seam actually enforces it.
 
+### FS-23: A captured wire beats an inferred wire (High — parity process)
+
+**Symptom:** session 8 named the response fields from repo documentation
+("created_at/updated_at — the repo's documented names") and got two of
+them WRONG, plus three fields missing (`is_sample`/`created_by`/
+`created_by_id`), without any test noticing — every consumer was on the
+same side of the seam, so the wrong names round-tripped green for four
+sessions. The clone's TaskDialog also derived `end_time` server-side and
+nulled empty descriptions while the reference's dialog submits a
+client-computed end_time and "" verbatim.
+**Root cause:** decompile tells you what the code SENDS; only the wire
+tells you what the server RETURNS. When a contract's field names ARE
+the deliverable (an API cloning another API), inference from either side
+can silently diverge — and unit tests written against the same inference
+lock the error in.
+**Fix + rules (session 12):** patch the XHR layer inside the logged-in
+reference page (`XMLHttpRequest.prototype.open/send` capture) and read
+the ACTUAL JSON — then pin the captured shape with exact key-set
+assertions (Task 14 / Note 9), field-by-field, and take mutation
+evidence. Before renaming any wire field, PROVE zero consumers on both
+sides (search both bundles AND both codebases) — the proof is what
+turns a scary rename into a mechanical one. The zero-consumer rename is
+the cheapest parity win there is; the wire capture is the cheapest
+evidence upgrade. Request contracts too: the reference's dialog payload
+(7 fields incl. end_time, description verbatim) is now pinned by a
+page.route interception spec, and the API accepts an optional
+caller-supplied end_time with start+duration derivation as the fallback
+for other callers.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -1351,6 +1380,28 @@ parity remediation):
   observation time moved) generalized FS-21's discriminator rule.
   See `docs/session_11-review.md` +
   `docs/remediation-plan-session11.md`.
+- **Session 12 (2026-10-05, v2.1.0):** the two surfaces session 11
+  suggested — the quick-added null-time task's surfacing (answering
+  "where DOES it appear?" — NOWHERE, on either app, every surface
+  enumerated incl. the AI Summary's prompt) and the Notes tags
+  round-trip (capture-confirmed: `"tags":[]` on the reference's live
+  wire; its K1e only ever sends `{content}`) — diffed at FULL parity.
+  The session's method upgrade paid the real dividend: **live XHR
+  interception of the reference's own base44 traffic** revealed FOUR
+  wire-contract divergences session 8's decompile inference had locked
+  in — W-1/W-2 the response field names (`created_date`/`updated_date`,
+  not created_at/updated_at; `is_sample`/`created_by`/`created_by_id`
+  shipped, not stripped) and W-3/W-4 the request payload (the dialog's
+  client-computed `end_time`; the description verbatim, "" stays "").
+  All four fixed with a zero-consumer proof (both bundles + both
+  codebases searched), pin-first (wire-format re-pinned to the exact
+  14/9-key sets, 4 RED; the e2e G-4 spec re-pinned; a page.route
+  interception pin on the dialog's POST body), mutation evidence for
+  every fix, and the live re-capture diff (the clone's wire now matches
+  the captured reference wire key-for-key). Unit 88 → 89, e2e 67
+  (×2 consecutive, one unrelated timer flake in run 1). See
+  `docs/session_12-review.md` +
+  `docs/remediation-plan-session12.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

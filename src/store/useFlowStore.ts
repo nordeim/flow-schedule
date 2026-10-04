@@ -19,8 +19,8 @@ export type Task = {
   start_time: string | null; // ISO
   end_time: string | null; // ISO
   duration_minutes: number | null;
-  created_at: string;
-  updated_at: string;
+  created_date: string;
+  updated_date: string;
 };
 
 export type Note = {
@@ -28,8 +28,8 @@ export type Note = {
   title: string | null;
   content: string;
   tags: string[];
-  created_at: string;
-  updated_at: string;
+  created_date: string;
+  updated_date: string;
 };
 
 export type CurrentUser = {
@@ -83,6 +83,7 @@ type FlowState = {
     category?: Category;
     status?: TaskStatus;
     start_time?: string | null;
+    end_time?: string | null;
     duration_minutes?: number | null;
   }) => Promise<Task>;
   updateTask: (
@@ -94,6 +95,7 @@ type FlowState = {
       category: Category;
       status: TaskStatus;
       start_time: string | null;
+      end_time?: string | null;
       duration_minutes: number | null;
     }>,
   ) => Promise<Task>;
@@ -108,10 +110,13 @@ type FlowState = {
 };
 
 // Server → client mappers. The API wire IS the reference's snake_case
-// entity shape (serializeTask/serializeNote, session 8 G-4): start_time /
-// end_time / duration_minutes / created_at / updated_at, notes' tags as
-// an ARRAY. mapTask/mapNote remain the single conversion seam — they
-// validate/cast the wire fields into the client's typed shape.
+// entity shape (serializeTask/serializeNote; session 8 G-4, re-pinned
+// session 12 against the CAPTURED live wire): start_time / end_time /
+// duration_minutes / created_date / updated_date / is_sample /
+// created_by / created_by_id, notes' tags as an ARRAY. mapTask/mapNote
+// remain the single conversion seam — they validate/cast the wire fields
+// into the client's typed shape (the author/sample fields pass through
+// unmapped: no UI consumes them).
 type RawTask = {
   id: string;
   title: string;
@@ -122,8 +127,8 @@ type RawTask = {
   start_time: string | null;
   end_time: string | null;
   duration_minutes: number | null;
-  created_at: string;
-  updated_at: string;
+  created_date: string;
+  updated_date: string;
 };
 
 function mapTask(t: RawTask): Task {
@@ -137,8 +142,8 @@ function mapTask(t: RawTask): Task {
     start_time: t.start_time,
     end_time: t.end_time,
     duration_minutes: t.duration_minutes,
-    created_at: t.created_at,
-    updated_at: t.updated_at,
+    created_date: t.created_date,
+    updated_date: t.updated_date,
   };
 }
 
@@ -147,8 +152,8 @@ type RawNote = {
   title: string | null;
   content: string;
   tags: string[];
-  created_at: string;
-  updated_at: string;
+  created_date: string;
+  updated_date: string;
 };
 
 function mapNote(n: RawNote): Note {
@@ -157,8 +162,8 @@ function mapNote(n: RawNote): Note {
     title: n.title,
     content: n.content,
     tags: Array.isArray(n.tags) ? n.tags.filter((t) => typeof t === "string") : [],
-    created_at: n.created_at,
-    updated_at: n.updated_at,
+    created_date: n.created_date,
+    updated_date: n.updated_date,
   };
 }
 

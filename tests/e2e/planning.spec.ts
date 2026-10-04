@@ -92,10 +92,23 @@ test.describe("planning page", () => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const isoLocal = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T15:00`;
 
+    // Session 12 (W-3/W-4) request-contract interception: the reference's
+    // dialog submits end_time CLIENT-COMPUTED (its decompiled f function:
+    // end = start + duration*60000) and description VERBATIM ("" stays "",
+    // captured on the live wire). The POST body is pinned here.
+    const posts: Record<string, unknown>[] = [];
+    await page.route("/api/tasks", async (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON() as Record<string, unknown>);
+      }
+      await route.continue();
+    });
+
     await page.getByRole("button", { name: "Add Task" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await dialog.getByLabel("Task Title").fill("E2E planned task");
+    // Description left EMPTY on purpose — the W-4 pin: it must ship "".
     await dialog.locator("#start_time").fill(isoLocal);
     await dialog.locator("#duration").fill("45");
     // The reference's submit label is "Create Task" (decompiled r?"Update":
@@ -105,6 +118,16 @@ test.describe("planning page", () => {
     await expect(submit.locator("svg")).toHaveClass(/mr-2/);
     await submit.click();
     await expect(dialog).toBeHidden();
+
+    // W-3/W-4: the intercepted request ships end_time (start + 45 min) and
+    // the description verbatim as "".
+    expect(posts.length).toBeGreaterThanOrEqual(1);
+    const body = posts[posts.length - 1];
+    expect(body.description).toBe("");
+    expect(typeof body.end_time).toBe("string");
+    expect(new Date(body.end_time as string).getTime()).toBe(
+      new Date(isoLocal).getTime() + 45 * 60_000,
+    );
 
     // The chip appears on today's day column.
     await expect(page.locator("div", { hasText: "E2E planned task" }).first()).toBeVisible();

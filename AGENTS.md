@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (88 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers, the prisma-CLI wrapper contract) |
+| `bun run test` | Vitest unit suites (89 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes**, the prisma-CLI wrapper contract) |
 | `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -284,15 +284,32 @@ never page-element COUNTs, for data that legitimately persists elsewhere
 
 ## Conventions that differ from defaults
 
-- **The task/note wire format is snake_case in BOTH directions** (session
-  8, G-4): requests accept `start_time`/`duration_minutes`; responses
-  ship `start_time`/`end_time`/`duration_minutes`/`created_at`/
-  `updated_at` via `serializeTask`/`serializeNote`
-  (`src/lib/serialize.ts`) — and notes' `tags` are an ARRAY on the wire
-  (the storage JSON string is unwrapped). The clone-internal `isSample`/
-  `userId` fields NEVER cross to the wire. The store's `mapTask`/
-  `mapNote` consume the snake_case shape directly — they remain the only
-  conversion seam (wire → typed client).
+- **The task/note wire format is the reference's CAPTURED entity shape in
+  BOTH directions** (session 12, W-1..W-4 — XHR-intercepted from the live
+  reference's own base44 traffic): responses ship
+  `created_date`/`updated_date` (NOT created_at/updated_at — session 8's
+  inferred names were wrong and got renamed), plus `is_sample`,
+  `created_by` (the session user's email) and `created_by_id`
+  (`serializeTask(task, author)`/`serializeNote(note, author)` in
+  `src/lib/serialize.ts` — the 14-key Task / 9-key Note shapes are
+  unit-pinned with exact key sets). Requests: the TaskDialog submits
+  `end_time` CLIENT-COMPUTED (the reference's decompiled f function:
+  end = start + duration*60000) and the description VERBATIM ("" stays
+  "" — a null description means the field was absent, i.e. quick-added);
+  the API accepts an optional caller-supplied `end_time` (validated —
+  invalid dates fail) and falls back to deriving it from start+duration
+  for callers that send none. Notes' `tags` are an ARRAY on the wire
+  (capture-confirmed: the reference's responses carry `"tags":[]`);
+  the storage JSON string is unwrapped by `serializeNote`. The
+  clone-internal camelCase fields (isSample/userId) NEVER cross to the
+  wire. The store's `mapTask`/`mapNote` consume the wire shape directly
+  — they remain the only conversion seam (wire → typed client).
+- **A captured wire beats an inferred wire (FS-23)**: when a contract's
+  field NAMES are the deliverable, patch the XHR layer inside the
+  logged-in reference page and read the actual JSON — decompile tells
+  you what the code SENDS; only the wire tells you what the server
+  RETURNS. The proof of zero consumers (bundle + repo searched) is
+  what makes a field rename safe.
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -488,6 +505,13 @@ deliberately if the reference re-measures differently.
   the H1e null-guard decompile; the Brainstorm deeper-state diffs; the
   three pin specs G-1/G-2/G-3 with mutation evidence; the enforcement-
   layer lesson; the 24 h band-boundary lesson).
+- `docs/session_12-review.md` + `docs/remediation-plan-session12.md` —
+  the session-12 record (the quick-added-task surfacing parity — the
+  probe is invisible on BOTH apps, every surface enumerated; the
+  capture-verified tags array; the four wire-contract fixes W-1..W-4
+  from the live XHR interception: created_date/updated_date,
+  is_sample/created_by/created_by_id, the dialog's client-computed
+  end_time, the verbatim description; FS-23).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

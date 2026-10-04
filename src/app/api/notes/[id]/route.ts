@@ -9,6 +9,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const auth = await requireUser();
   if ("response" in auth) return auth.response;
   const { id } = await ctx.params;
+  const author = { id: auth.user.id, email: auth.user.email };
 
   const existing = await db.note.findFirst({
     where: { id, userId: auth.user.id },
@@ -43,7 +44,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const note = await db.note.update({ where: { id }, data });
-  return ok({ note: serializeNote(note) });
+  return ok({ note: serializeNote(note, author) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
