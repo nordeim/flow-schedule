@@ -611,3 +611,83 @@ Stage Summary:
   discriminators silently retarget on tag conversions — discriminate on
   a class the reference's DOM guarantees), and LLM-content-vs-fallback
   evidence discipline (live output is not the fallback)
+
+---
+Task ID: 26
+Agent: main agent
+Task: Session 10 — Focus Timer running-state + populated Log Activity audit, attribute-inventory method, strict-formatter + data-slot remediation
+
+Work Log:
+- Workspace refreshed via git pull (main 7c26edd → be137a4, docs only);
+  five root docs + session_9-review + remediation-plan-session9 +
+  worklog + session_10 re-read and validated against the tree; full
+  gates green at base (lint · tsc · 88/88 unit · build 19 routes ·
+  64/64 e2e · smoke 30/30); dev server re-verified on the repo's own
+  seeded db/custom.db (the session-9 F-1 acceptance)
+- skills/ exclusions verified (eslint/tsconfig/vitest — unchanged);
+  read skills/skills-catalog.md; used: agent-browser (live diffing on
+  BOTH apps), clone-app-pat-pro (parity method), tdd/tdd-workflow,
+  verification-and-review-protocol; scandihaven's vitest/playwright
+  configs re-checked as the family pattern
+- Logged into the reference (sepnetflix2023@outlook.com); the account
+  still at the 0-task baseline; created 3 tasks through its own dialog
+  (2 past-todo + 1 future completed via Mark Complete) and the same 3
+  instants on the clone (parity-s10@flowschedule.app)
+- Focus Timer (session 9's suggested surface): started the timer on
+  BOTH apps — the running-state AND paused-state panel class trees are
+  byte-identical; minutes input hidden while running on both; pause
+  snaps the display back to 25:00 on both; W1e re-decompiled from the
+  live bundle; the completion alert LIVE-verified on the reference
+  (alert hooked, minutes=1: 01:00 → 00:00 → "Focus session complete!"
+  → snap back) — previously only decompile + one-off evidence
+- Log Activity (session 9's suggested surface): populated panel
+  structure byte-identical (items, labels, order, top-5 slice) — but
+  F-2: the relative-time WORDS diverged ("about 3 hours ago"/"in 1
+  day" vs "3 hours ago"/"in 2 days"); bundle decompile identified the
+  reference's GJ = formatDistanceToNowStrict (plain xHours/xDays +
+  Math.round; both apps bundle the same enUS locale)
+- NEW audit method — the attribute-inventory diff (all attribute NAMES
+  on both DOMs): F-1 found (the clone's 24 data-slot sites across 9
+  shadcn primitives vs the reference's zero in every state — invisible
+  to class-tree diffs, which extract only class); F-3 found during
+  F-1's verification (the title input's maxLength={300} the reference
+  does not carry); the remaining extras confirmed as the documented
+  a11y floor + dev-mode artifacts
+- Wrote docs/remediation-plan-session10.md (F-1/F-2/F-3 + P-1); plan
+  validated against the code (call sites, attribute sites, e2e
+  insertion points, drift-stable discriminator) before execution
+- TDD RED: 2 new e2e specs failed on the base build (the strict
+  wording + the data-slot counts) + the maxlength pin RED-verified
+  separately
+- TDD GREEN: formatDistanceToNowStrict (one import + one call site in
+  QuickActions.tsx); 24 data-slot deletions across the 9 primitives;
+  the maxLength removal (server 300-char guard kept)
+- Gate: lint clean · tsc clean · 88/88 unit · build green · 66/66 e2e
+  × 2 consecutive full runs (64 → 66) · smoke 30/30
+- Live parity re-verified on BOTH apps: the populated Log Activity
+  panel diffs IDENTICAL post-fix; [data-slot] count 0 idle + dialog;
+  mobile menu re-pinned POST-fix (338/14/36×36 + 182/54/192×164,
+  right 374, enter, navigation round-trip); desktop avatar menu
+  re-pinned POST-fix (1252/14/76×36 + 1136/54/192, right 1328)
+- Screenshots: all 20 captures re-run; .env/.env.example contract
+  unchanged (its test green); docs realigned: README, AGENTS.md,
+  CLAUDE.md, PAD (§8 counts + §12 ledger + date),
+  flow-schedule_SKILL.md v1.9.0 (FS-20 + FS-21 + conventions +
+  history), remediation-plan-session10 execution record,
+  docs/session_10-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 10 delivered: the Focus Timer verified at FULL parity in
+  every state (incl. the live-verified completion alert); the
+  populated Log Activity at full parity after F-2 (the strict
+  formatter); the DOM attribute class cleaned after F-1 (zero
+  data-slot) and F-3 (the uncapped title input) — with the new
+  attribute-inventory audit method (FS-20) and the formatter-variant
+  lesson (FS-21) recorded. Unit 88, e2e 64 → 66 (×2)
+- Key new knowledge: FS-20 (a parity method built on ONE attribute has
+  a blind spot — inventory-diff all attribute names periodically;
+  generator conventions are not the reference's conventions), FS-21
+  ("uses date-fns" is a family claim — pin the VARIANT; band-stable
+  discriminators), and the populated-diff discipline (same data on
+  both apps through their own UIs before blaming code)

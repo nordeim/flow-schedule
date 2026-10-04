@@ -7,9 +7,9 @@ description: >
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
   codebase-verified (sessions 1–8, 2026-10-04).
-version: 1.8.0
+version: 1.9.0
 last_updated: 2026-10-05
-project_state: 88/88 unit tests, 64/64 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative)
+project_state: 88/88 unit tests, 66/66 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -685,6 +685,62 @@ are buttons"), converting the tag silently retargets the locator —
 discriminate on a class the reference's own DOM guarantees (the day
 cards carry `cursor-pointer`; task items never do).
 
+### FS-20: Class-tree parity has a blind spot — diff the ATTRIBUTE inventory too (Critical — parity)
+
+**Symptom:** after nine sessions of class-tree diffs reading
+"identical," a fresh attribute-inventory scan found the clone's DOM
+carrying `data-slot="button"`/`"input"`/… on every shadcn primitive —
+6 elements on the idle dashboard, 24 in the open TaskDialog — while
+the reference renders ZERO `data-slot` attributes in ANY state. The
+divergence had been there since session 1, invisible to every audit.
+**Root cause:** the class-tree dump extracts `el.className` (and maybe
+`style`) — it cannot see any OTHER attribute. The shadcn generator's
+data-slot markers are attribute-only: they change no class, fire no
+rule, appear in no snapshot the method captures. A diff method that
+only compares one attribute is a method with a blind spot — and
+"identical" claims inherit it.
+**Fix + rules:** remove the attributes (F-1: 24 sites across 9
+primitives, nothing depended on them — repo-wide search for selectors
+came back empty) and pin with an attribute-count locator
+(`[data-slot]` → 0, idle AND dialog). Rules: (a) when a parity method
+is built on ONE attribute, periodically run an inventory diff of ALL
+attribute NAMES (`new Set([...el.attributes].map(a => a.name)]` on both
+DOMs) — the difference set instantly separates framework markers
+(remove) from the documented a11y floor (keep: invisible
+role/tabindex/aria-label on the calendar cells, icon-button
+aria-labels, decorative aria-hidden) and dev-mode artifacts (absent in
+the production standalone); (b) third-party generator conventions are
+NOT the reference's conventions — the session-7/8 "classic form"
+conversions (Badge div, DialogTitle tracking-tight) were the same
+lesson in class-space; data-slot was the attribute-space repeat; (c)
+the same scan caught F-3 (a `maxLength={300}` the reference's title
+input does not carry) — one method, three findings.
+
+### FS-21: "Uses date-fns" is not a formatter contract — pin the VARIANT (High — parity)
+
+**Symptom:** the populated Log Activity diff read "Ended about 3
+hours ago" on the clone vs "Ended 3 hours ago" on the reference, and
+"Completed in 1 day" vs "in 2 days" — same end_time instants, same
+locale, same bundled token set.
+**Root cause:** both apps bundle the SAME v3/v4 enUS locale object
+(`aboutXHours` AND `xHours` tokens), but the reference calls
+`formatDistanceToNowStrict` while the clone called `formatDistanceToNow`.
+The non-strict variant picks `aboutXHours` for hour distances ≥ 90 min
+and rounds day distances down (1.7 days → "1 day"); the strict variant
+picks plain `xHours`/`xDays` and Math.rounds (1.7 days → "2 days").
+"Uses date-fns" (or "renders relative times") is a FAMILY claim — the
+variant is the contract.
+**Fix + rules:** one import + one call site (QuickActions.tsx); pinned
+by an e2e spec that seeds a 3h-past end_time and asserts "Ended 3
+hours ago" + zero "about" in the panel (the strict variant's invariant
+— the distance band is drift-stable). Rules: (a) when a dependency
+exposes near-identical variants (strict/non-strict, precise/loose,
+UTC/local), decompile which one the reference actually calls — the
+minified call site answers it (`GJ(Wc(end_time), {addSuffix: !0})` +
+GJ's token table); (b) discriminators for the pin must be
+band-stable under test-time drift (3h ± seconds stays "3 hours" in
+both variants; 90 min would flap).
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -697,6 +753,8 @@ cards carry `cursor-pointer`; task items never do).
 | Login rejected in tests | Rate limiter (10/IP/60s) after repeated runs | The setup project signs in ONCE and shares storageState; per-test logins are forbidden |
 | `db:push`/`db:seed` target a file OUTSIDE the repo | FS-19 — an ambient (parent `.env` or shell-exported) `DATABASE_URL` | db-path v3 makes the repo's own `.env` authoritative; verify with `bun -e 'import("./src/lib/db-path").then(m=>console.log(m.resolveProcessDatabaseUrl()))'` |
 | Tasks created in e2e pollute totals | FS-9 | Spec cleanup blocks (already in place) |
+| Relative times read "about 3 hours ago" | FS-21 territory — the non-strict formatter | The reference uses `formatDistanceToNowStrict` (plain xHours/xDays, Math.round); swap the import and call site in QuickActions.tsx |
+| A DOM attribute the reference lacks appears (data-slot, maxlength, …) | FS-20 — class-tree diffs cannot see attributes | Attribute-inventory diff on both DOMs; remove generator leftovers; pin with an attribute-count locator |
 | AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
 | Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
 | Text assertion matches the form, not the list (flaky under load) | FS-13 — getByText matched the textarea's default-value text node | Scope by role: `getByRole("paragraph").filter({ hasText: … })` |
@@ -1222,6 +1280,28 @@ parity remediation):
   Unit 66 → 88, e2e 63 → 64 (×2 consecutive). FS-19 recorded. See
   `docs/session_9-review.md` + `docs/remediation-plan-session9.md`
   (the operator's narrative lives in `docs/session_9.md`).
+
+- **Session 10 (2026-10-04/05, this skill revision):** the Focus
+  Timer's RUNNING state + the POPULATED Log Activity (session 9's two
+  suggested never-diffed surfaces) + a NEW audit method. The timer:
+  byte-identical class trees running AND paused, pause-snap-to-full
+  semantics matched, and the completion alert LIVE-verified on the
+  reference (alert hooked, minutes=1, 01:00 → 00:00 → alert → snap).
+  The populated Log Activity: structure byte-identical, but the
+  relative-time WORDS diverged — **F-2**: the reference calls
+  `formatDistanceToNowStrict` (bundle decompile: plain xHours/xDays +
+  Math.round) while the clone used the non-strict variant ("about 3
+  hours ago"/"in 1 day" vs "3 hours ago"/"in 2 days") — one import +
+  one call site fixed it (FS-21). The new method — the
+  **attribute-inventory diff** (all attribute NAMES on both DOMs) —
+  found what nine sessions of class-tree diffs could not see:
+  **F-1** the shadcn `data-slot` markers (24 sites across 9 primitives;
+  the reference emits zero; removed + pinned by an attribute-count
+  locator — FS-20) and **F-3** the title input's `maxLength={300}`
+  (removed client-side; the 300-char write guard stays in the API
+  routes). Unit 88 (unchanged), e2e 64 → 66 (×2 consecutive). See
+  `docs/session_10-review.md` + `docs/remediation-plan-session10.md`
+  (the operator's narrative lives in `docs/session_10.md`).
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

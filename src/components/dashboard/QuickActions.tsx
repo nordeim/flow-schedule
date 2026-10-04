@@ -24,7 +24,7 @@
 
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
 import {
   ArrowLeft,
   BookOpen,
@@ -445,7 +445,7 @@ function LogActivityPanel({ onCancel, formColor }: PanelProps) {
             <p className="text-sm font-medium text-slate-800">{t.title}</p>
             <p className="text-xs text-slate-500">
               {t.status === "completed" ? "Completed" : "Ended"}{" "}
-              {t.end_time ? formatDistanceToNow(new Date(t.end_time), { addSuffix: true }) : "N/A"}
+              {t.end_time ? formatDistanceToNowStrict(new Date(t.end_time), { addSuffix: true }) : "N/A"}
             </p>
           </div>
         ))}

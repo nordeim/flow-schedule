@@ -208,6 +208,65 @@ test.describe("dashboard", () => {
     await page.request.delete(`/api/tasks/${id}`);
   });
 
+  test("Log Activity relative times use the reference's strict formatter (F-2)", async ({ page }) => {
+    // Converging cleanup: crashed earlier runs leave residue (FS-9).
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title === "E2E strict time task") await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // A task whose end_time is exactly 3h in the past: the reference calls
+    // date-fns formatDistanceToNowStrict (live bundle decompile, session 10
+    // F-2) which renders "3 hours ago" — the non-strict formatDistanceToNow
+    // renders "about 3 hours ago". The 3h distance is drift-stable for both
+    // formatters (±seconds of test time cannot leave either band).
+    const start = new Date(Date.now() - 182 * 60_000).toISOString();
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E strict time task",
+          start_time: start,
+          duration_minutes: 2,
+          status: "todo",
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+
+    await page.getByRole("button", { name: "Log Activity", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recently Completed / Past" })).toBeVisible();
+    const panel = page.locator("div.max-h-80");
+    await expect(panel.getByText(/3 hours ago/)).toBeVisible();
+    // The item meta must read "Ended 3 hours ago" — the strict form.
+    await expect(panel.getByText(/Ended 3 hours ago/)).toBeVisible();
+    // The strict formatter NEVER emits the non-strict "about" softener.
+    await expect(panel.getByText(/about/)).toHaveCount(0);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.request.delete(`/api/tasks/${id}`);
+  });
+
+  test("no data-slot attributes on the rendered surfaces (F-1)", async ({ page }) => {
+    // The reference's DOM never carries data-slot (attribute-inventory
+    // diff, session 10 F-1): the shadcn generator marker is invisible to
+    // the class-tree diffs (they extract only class), so it is pinned by
+    // attribute count instead — on the idle dashboard (6 pre-fix) AND on
+    // the open TaskDialog (the heaviest surface, 24 pre-fix).
+    await expect(page.locator("[data-slot]")).toHaveCount(0);
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(page.locator("[data-slot]")).toHaveCount(0);
+    // Same evidence class, same pin: the reference's title input carries
+    // NO maxlength (live-verified on its open dialog — F-3); the clone's
+    // 300-char write guard lives server-side, invisible to the UI surface.
+    await expect(dialog.locator("#title")).not.toHaveAttribute("maxlength");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+  });
+
   test("Brainstorm panel supports create, edit, and confirm-delete", async ({ page }) => {
     // Converging cleanup: remove residue from crashed earlier runs.
     const residue = await (await page.request.get("/api/notes")).json();

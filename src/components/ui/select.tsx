@@ -16,7 +16,6 @@ function SelectTrigger({
 }: React.ComponentProps<typeof SelectPrimitive.Trigger>) {
   return (
     <SelectPrimitive.Trigger
-      data-slot="select-trigger"
       // The CLASSIC shadcn SelectTrigger placeholder/ring classes (session
       // 8, G-3 — live-measured on the reference's dialog):
       // `ring-offset-background data-[placeholder]:text-muted-foreground`,
@@ -44,7 +43,6 @@ function SelectContent({
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
-        data-slot="select-content"
         className={cn(
           // The classic SelectContent (session 8, G-3): the side
           // slide-in-from-* classes match the reference's live listbox
@@ -84,7 +82,6 @@ function SelectItem({
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
     <SelectPrimitive.Item
-      data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
@@ -107,7 +104,6 @@ function SelectLabel({
 }: React.ComponentProps<typeof SelectPrimitive.Label>) {
   return (
     <SelectPrimitive.Label
-      data-slot="select-label"
       className={cn("px-2 py-1.5 text-sm font-semibold", className)}
       {...props}
     />

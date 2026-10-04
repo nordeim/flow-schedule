@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (88 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers, the prisma-CLI wrapper contract) |
-| `bun run test:e2e` | Playwright (64 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (66 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -170,6 +170,29 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   + Radix require there (the reference app's menu opened via eval — that
   made it look like a clone regression; it is not). The e2e spec
   (Playwright trusted clicks on the production standalone) is the pin.
+- **The ui primitives carry NO `data-slot` attributes** (session 10,
+  F-1): the reference's DOM never emits them (attribute-inventory-
+  verified on its idle dashboard, open TaskDialog, and open menus) — the
+  shadcn generator's data-slot markers are inert leftovers of the modern
+  generator and were removed from all 9 primitives (24 sites; the badge
+  was already the classic form). A dashboard e2e spec pins
+  `[data-slot]` count 0 on the idle page AND the open dialog. Do not
+  re-add them when pulling new shadcn components — and note the
+  evidence method: the class-tree diffs extract only `class`, so
+  ATTRIBUTE-level divergences need attribute-inventory diffs
+  (FS-20).
+- **Log Activity's relative times use `formatDistanceToNowStrict`**
+  (session 10, F-2): the reference's H1e calls the STRICT date-fns
+  variant (decompile: its token table picks plain `xHours`/`xDays` with
+  Math.round) — "3 hours ago"/"in 2 days", never the non-strict
+  "about 3 hours ago"/"in 1 day". Same evidence discipline as the
+  session-4 format-string bug: the reference's exact formatter IS the
+  contract; an e2e spec pins the strict wording (a 3h-past end_time).
+- **The TaskDialog title input carries NO `maxLength`** (session 10,
+  F-3): the reference's inputs are uncapped client-side; the clone's
+  300-char title guard lives ONLY in the API routes (self-hosted write
+  validation — the login-rate-limiter evidence class). The e2e pins
+  `#title` has no maxlength attribute.
 - **recharts is PINNED to 2.15.x** (session 7, G-3): the reference's
   SkillsMap DOM is the recharts 2.x shape (its bundle contains ZERO
   `recharts-zIndex` strings; the tooltip wrapper is a sibling AFTER the
@@ -285,7 +308,8 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   "Focus session complete!" alert at 0, start disabled at minutes=0 —
   the reference's duration alert is unreachable dead code, mirrored);
   Log Activity is a READ-ONLY top-5 completed/past list (relative
-  end_time, no action buttons); Brainstorm supports note EDITING with
+  end_time via `formatDistanceToNowStrict` — session 10 F-2 — no
+  action buttons); Brainstorm supports note EDITING with
   30-char truncated clickable previews and window.confirm deletes.
   `tests/e2e/dashboard.spec.ts` pins all of it.
 - **The dashboard SIDEBAR CARDS are decompiled reference behavior, not
@@ -431,6 +455,12 @@ deliberately if the reference re-measures differently.
   prisma-CLI wrapper; the day-card div conversion — Planning is now
   100% class-tree identical; the open-Select-listbox item-state diff;
   both LLMs observed live).
+- `docs/session_10-review.md` + `docs/remediation-plan-session10.md` —
+  the session-10 record (the Focus Timer running-state + populated Log
+  Activity diffs; F-1 the data-slot removal + the FS-20
+  attribute-inventory method; F-2 the strict relative-time formatter;
+  F-3 the title-input maxLength removal; the completion alert
+  live-verified on the reference).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

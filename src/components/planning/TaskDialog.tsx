@@ -170,7 +170,6 @@ function TaskFormBody({
               onChange={(e) => set("title", e.target.value)}
               placeholder="Enter task title..."
               className="rounded-2xl border-slate-200"
-              maxLength={300}
               required
             />
           </div>
