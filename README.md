@@ -38,9 +38,10 @@ brainstorm pad.
 | 🎯 **Skills Map** | Recharts pie of the day's scheduled minutes by category with an integer-hours center total, a custom glass tooltip ("Xh Ym" / "Z% of day"), an Award live indicator, and a per-category legend with the reference's exact slice hexes |
 | 📶 **Status card** | The reference's decompiled state machine (session 4): a loading skeleton, the rich "Next Up" card — priority badge, title, description, relative time ("Today at HH:mm" … including the reference's own date-fns format-string bug, mirrored), a 75% progress bar + "Ready", a **functional Mark Complete** button (PATCH → completed → card re-renders) and a decorative outline button — or the raw-icon "All caught up!" empty state |
 | ✅ **Task lifecycle** | 4 priorities (low/medium/high/urgent), 7 categories, 3 statuses (todo/in_progress/completed); create/edit/delete through a shadcn Dialog with datetime-local start + 15-minute-step duration and a delete confirmation |
-| 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in |
+| 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in | 
+| 🔒 **Route guards + 404** | The (app) routes are session-guarded server-side — unauthenticated visits redirect to `/login` exactly like the reference; the authenticated root `/` renders the Dashboard directly (the reference's post-login landing), and unknown paths render the reference's custom 404 (text-7xl slate numeral, echoed path, "Go Home") |
 | 📱 **Mobile navigation** | The reference's exact pattern: a ghost user-icon button opening a Radix DropdownMenu aligned `end` — menu right edge anchored to the trigger's right edge (measured parity: right 374 = trigger 374 @ 390px viewport); no bottom tab bar (the reference ships an empty nav-items array) |
-| 🧪 **Test pyramid** | 59 Vitest unit tests (auth crypto, domain constants incl. the skills color map, AI fallback content contract, db-path, .env.example contract, site URL helper, next.config contract, rate-limit fixed window + eviction) + 43 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard — incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: the Next Up card with a functional Mark Complete, the skills-map legend/tooltip, the AI cards' icons and chips — planning incl. its decompiled reference behaviors, the full-bleed dashboard container, the task-dialog delete confirmation) + curl smoke checks |
+| 🧪 **Test pyramid** | 59 Vitest unit tests (auth crypto, domain constants incl. the skills color map, AI fallback content contract, db-path, .env.example contract, site URL helper, next.config contract, rate-limit fixed window + eviction) + 51 Playwright e2e tests (mobile menu geometry parity, auth flows — incl. the reference's separate sign-up / forgot-password views and the alert cards, route guards, the custom 404, dashboard — incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: the Next Up card with a functional Mark Complete, the skills-map legend/tooltip, the AI cards' icons and chips — planning incl. its decompiled reference behaviors, the full-bleed dashboard container, the task-dialog delete confirmation) + curl smoke checks |
 
 ## Screenshots
 
@@ -52,7 +53,7 @@ brainstorm pad.
 |---|---|
 | ![Planning](docs/screenshots/03-planning.png) | ![Mobile menu](docs/screenshots/08-mobile-menu.png) |
 
-More captures in [`docs/screenshots/`](docs/screenshots/) (profile, settings, focus timer, quick-action open panels, the Next Up status card, the task dialog, mobile dashboard, mobile planning, mobile menu).
+More captures in [`docs/screenshots/`](docs/screenshots/) (profile, settings, focus timer, quick-action open panels, the Next Up status card, the task dialog, the sign-up / forgot-password / reset-sent views, the 404 page, mobile dashboard, mobile planning, mobile menu, mobile login).
 
 ## Tech Stack
 
@@ -113,16 +114,16 @@ menu). `/login` is a standalone route with the auth card.
 ├── 📂 src/
 │   ├── 📂 app/
 │   │   ├── 📂 api/                # 11 route handlers (auth, tasks, notes, ai, health)
-│   │   ├── 📂 (app)/              # Authenticated group: Dashboard, Planning, Profile, Settings
-│   │   ├── 📂 login/              # Auth card (Suspense-wrapped useSearchParams)
+│   │   ├── 📂 (app)/              # Session-guarded group: / (dashboard root), Dashboard, Planning, Profile, Settings
+│   │   ├── 📂 login/              # Auth views — sign-in / sign-up / forgot-password (Suspense-wrapped useSearchParams)
 │   │   ├── layout.tsx             # Root layout + metadataBase
-│   │   ├── page.tsx               # / → /Dashboard redirect
+│   │   ├── not-found.tsx          # The reference's custom 404 (session 5)
 │   │   ├── sitemap.ts / robots.ts # /sitemap.xml + /robots.txt (src/lib/site.ts)
 │   │   └── globals.css            # Tailwind v4 @theme + the 5 trap mitigations
 │   ├── 📂 components/
 │   │   ├── 📂 ui/                 # shadcn primitives (button, dialog, select, …)
 │   │   ├── 📂 layout/             # AppShell, Header (the mobile menu), BackgroundBlobs
-│   │   ├── 📂 dashboard/          # WeeklySchedule, QuickActions, SkillsMap, StatusCard, DailyFocus, AISummary
+│   │   ├── 📂 dashboard/          # WeeklySchedule, QuickActions, SkillsMap, StatusCard, DailyFocus, AISummary, DashboardView (the / + /Dashboard island)
 │   │   └── 📂 planning/           # TaskDialog
 │   ├── 📂 lib/                    # auth, api envelope, domain constants, ai + ai-defaults (shared fallbacks), db, db-path, site
 │   └── 📂 store/                  # useFlowStore (Zustand; taskVersion refresh counter)
@@ -170,7 +171,7 @@ bun run lint && bun run typecheck && bun run test
 # ESLint clean · tsc clean · 59/59 unit tests
 
 bun run build && bun run test:e2e
-# Build succeeds (type-checked by the build itself) · 43/43 e2e tests (production standalone on :3100)
+# Build succeeds (type-checked by the build itself) · 51/51 e2e tests (production standalone on :3100)
 ```
 
 ### Production

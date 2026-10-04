@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (59 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
-| `bun run test:e2e` | Playwright (43 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (51 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -32,9 +32,14 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
 
 - **Real routes, not rewrites**: the pages live at `/Dashboard`, `/Planning`,
   `/Profile`, `/Settings` (capitalized — the reference app's exact paths)
-  inside the `(app)` route group, plus a standalone `/login`. The root `/`
-  redirects to `/Dashboard`. Do not "fix" the casing and do not collapse
-  them into one SPA page.
+  inside the `(app)` route group, plus a standalone `/login`. The group
+  ALSO serves the dashboard at `/` (`(app)/page.tsx` — the reference's
+  authenticated root and post-login landing; the old root redirect was
+  removed in session 5). The `(app)` layout is a **server-side session
+  guard**: no valid `fs_session` cookie → `redirect("/login")`, exactly
+  like the reference. Unknown paths render the custom `not-found.tsx`
+  (the reference's 404 design). Do not "fix" the casing, do not collapse
+  the pages into one SPA, and do not remove the guard or the root route.
 - **Data flow**: client components read the Zustand store
   (`src/store/useFlowStore.ts`); the store is the ONLY fetcher of `/api/*`
   and unwraps the `{ ok, data } | { ok, error }` envelope. Server
@@ -128,6 +133,14 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
   + Radix require there (the reference app's menu opened via eval — that
   made it look like a clone regression; it is not). The e2e spec
   (Playwright trusted clicks on the production standalone) is the pin.
+- **Next's route announcer carries `role="alert"`** (session 5): every
+  App-Router page ships an (always empty) `#__next-route-announcer__`
+  div, so `getByRole("alert")` resolves to TWO elements on the clone
+  while the reference (a Vite SPA) has only the card's alert. Scope
+  alert locators with `:not(#__next-route-announcer__)`.
+- **`getByLabel("Password")` substring-matches "Confirm Password"**
+  (session 5): the sign-up view renders both fields; use
+  `{ exact: true }` on label lookups when sibling labels overlap.
 
 ## Conventions that differ from defaults
 
@@ -194,6 +207,31 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
   effective values (height 5px, width 3px, radius-2 track/thumb,
   hover rgba(0,0,0,0.3)) — its three styled-jsx blocks resolve last-rule
   per property.
+- **The LOGIN page is live-measured reference behavior, not inferred
+  design** (session 5 — the base44 platform screen, all four view states
+  DOM-extracted + corroborated): the page canvas is `from-slate-50
+  to-slate-100` (NOT the app canvas gradient); the card is `rounded-2xl`
+  with a slate top gradient bar (`h-1 from-slate-200 via-slate-300
+  to-slate-200`), `backdrop-blur-sm`, `border-0`, and responsive padding
+  `p-8 sm:p-10 md:pt-12 md:pb-10 md:px-10`; the logo is the reference's
+  real PNG (`public/logo.png`) in a `rounded-full h-20 w-20 sm:h-24
+  sm:w-24 ring-4 ring-white/50` circle with a blur halo; the Google
+  button is a custom `gap-3 px-5 py-3.5 rounded-xl text-[16px]` button
+  (click → self-hosted notice, ADR-002); inputs are `h-11 sm:h-12
+  bg-slate-50/50 rounded-xl` with `you@example.com` / `••••••••`
+  placeholders; the submit is **`bg-slate-900`** (dark — NOT a sky
+  gradient); the footer stacks `flex-col sm:flex-row`; sign-up and
+  forgot-password are SEPARATE VIEW states (Back-to-sign-in + h2 +
+  smaller `h-10 sm:h-11` inputs, Confirm Password field, "Create
+  account" / "Send reset link" / "Check your email" + green alert); all
+  errors render the shadcn-style `[role=alert]` card (`bg-red-50/70
+  border-red-200 rounded-xl` + `text-red-700`), "Invalid email or
+  password" with NO trailing period; below the card sits an empty
+  mobile-only spacer. `tests/e2e/auth.spec.ts` pins all of it. Post-login
+  lands at `/` (the reference's root dashboard); the reference's email-OTP
+  verification view after sign-up is platform email infrastructure and is
+  deliberately NOT mirrored (self-hosted: registration completes
+  directly).
 - **The store carries a `taskVersion` counter** (session 4, mirrors the
   reference's X1e refresh design): bumped by createTask/updateTask/
   deleteTask so the AI sidebar cards re-fetch on mutations; deliberately
@@ -247,6 +285,9 @@ deliberately if the reference re-measures differently.
   `docs/session_4.md` — the session-4 record (the sidebar-card decompile:
   FS-14, the Mark Twain fallback fix, the format-string bug mirroring,
   the full-bleed container, the residue-cascade lesson).
+- `docs/session_5-review.md` + `docs/remediation-plan-session5.md` — the
+  session-5 record (the login-page decompile: FS-15, the route guard, the
+  root-dashboard route, the 404 page).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

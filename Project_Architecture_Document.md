@@ -234,9 +234,11 @@ flowchart TB
 Classify every request by exactly ONE layer before writing code:
 
 ```
-Layer 0: Pages/Routes — src/app/**. Real route folders ((app)/Dashboard,
-         Planning, Profile, Settings; login; root redirect). Rule: pages
-         render shells + client islands; no entity fetching here.
+Layer 0: Pages/Routes — src/app/**. Real route folders ((app)/ root
+         dashboard, Dashboard, Planning, Profile, Settings; login;
+         not-found) — the (app) layout is a server-side session guard
+         (no valid cookie → redirect /login). Rule: pages render shells
+         + client islands; no entity fetching here.
 Layer 1: Client islands — "use client" components (layout/, dashboard/,
          planning/) + the Zustand store. Rule: ALL entity data flows
          through the store's envelope-unwrap; components never fetch
@@ -259,15 +261,17 @@ values in components is a defect.
 src/
 ├── app/
 │   ├── layout.tsx                  # Root: metadata, viewport, body
-│   ├── page.tsx                    # / → /Dashboard redirect
+│   ├── not-found.tsx               # The reference's custom 404 (session 5)
 │   ├── globals.css                 # Tailwind v4 @theme + 5 trap pins (§5.4)
-│   ├── (app)/                      # Shared client chrome group
-│   │   ├── layout.tsx              # Wraps AppShell (store bootstrap)
-│   │   ├── Dashboard/page.tsx      # 12-col grid: calendar + sidebar cards
+│   ├── (app)/                      # Session-guarded group (server guard in layout)
+│   │   ├── layout.tsx              # getSessionUser() → redirect(/login) + AppShell
+│   │   ├── page.tsx                # "/" — the dashboard root (the reference's landing)
+│   │   ├── Dashboard/page.tsx      # "/Dashboard" — thin wrapper over DashboardView
 │   │   ├── Planning/page.tsx       # Week cards + click-to-select day panel (decompiled reference behavior: selectedDay starts null, static Day Statistics placeholder, decorative Filter)
 │   │   ├── Profile/page.tsx        # Static preference cards
 │   │   └── Settings/page.tsx       # Theme/Dark/Language/Performance cards
-│   ├── login/page.tsx              # Suspense-wrapped LoginCard
+│   ├── login/page.tsx              # Suspense-wrapped auth views: sign-in /
+│   │                               # sign-up / forgot / reset-sent (session 5)
 │   └── api/
 │       ├── auth/login|register|me  # Cookie-session endpoints
 │       ├── logout/                 # Cookie clear
@@ -584,8 +588,8 @@ during the e2e run — both cards rendered their defaults (by design).
 
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
-| Unit (53) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation) |
-| E2E (38) | Playwright (production standalone :3100) | The four user surfaces | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (login/register/error/Google-notice), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter) |
+| Unit (59) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation) |
+| E2E (51) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill, the decompiled sidebar-card states, the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
 `auth.setup.ts` signs in ONCE (rate-limiter budget) and shares
@@ -620,7 +624,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 53/53 unit · build ✓ (self-type-checked) · 38/38 e2e
+# lint clean · tsc clean · 59/59 unit · build ✓ (self-type-checked) · 51/51 e2e
 ```
 
 ### 10.2 Common tasks
@@ -669,7 +673,9 @@ bun run lint && bun run typecheck && bun run test && bun run build && bun run te
   it is architecturally incoherent before a Postgres migration (SQLite is
   single-writer — scaling the limiter without scaling the DB buys nothing).
 - `POST /api/auth/register` has no email verification (single-workspace
-  self-hosting assumption — the reference's platform handles it).
+  self-hosting assumption — the reference's platform handles it with a
+  6-digit OTP "Verify your email" view that the clone deliberately does
+  not mirror; session 5 live-measured and documented).
 - The `/Planning` "Filter" button is decorative — exactly like the
   reference's (no handler in its bundle); a filter drawer was never
   measured and does not exist.
@@ -721,3 +727,8 @@ rows re-executed after the sidebar-card/layout-chrome remediation):
 | SQLite path seam | Verified | `tests/db-path.test.ts` (15 cases) + dev/e2e/prod all open the same file per environment |
 | Screenshots | Verified | 15 captures in `docs/screenshots/` from the running dev server (remediated codebase; incl. the three quick-action open panels, the Next Up card and the task dialog — the Radix/dialog states via `scripts/capture-screenshots.mjs`) |
 | Rate-limiter eviction (D-2) | Verified | `tests/rate-limit.test.ts`: 5,000-key spray keeps the map bounded; expired buckets fully evicted on the next window; live keys preserved through a sweep |
+| **Login-page parity (session 5)** | Verified | All four view states (sign-in, sign-up, forgot, reset-sent) + the error/mismatch alerts + the guard behavior + the 404 page live-measured on the reference; 13/13 key class strings byte-identical between the apps (JSON diff); 12 new e2e specs pin the chrome, the view transitions, the alerts, the post-login "/" landing, and the guards — 51/51 × 2 |
+| **Route guards + root dashboard (session 5)** | Verified | Unauth `/Dashboard`, `/Planning`, `/` → 307 `/login` (curl + e2e); authed `/` renders the dashboard at the root URL (agent-browser live check: pathname stays `/`, "Weekly Schedule" visible — identical to the reference) |
+| **Mobile menu re-pin (session 5)** | Verified | Live re-measurement on BOTH apps (390×844): trigger 374/50/36 on both; reference menu 374/54/192 with [Profile, Settings, Logout]; the clone's menu geometry pinned by the e2e spec (51/51 ×2) — no Tailwind v4 regression |
+| Screenshots (session 5) | Verified | 20 captures in `docs/screenshots/` — 01-login re-captured (new card design) + new 16-login-signup, 17-login-forgot, 18-login-reset-sent, 19-404, 20-login-mobile (all state-gated via `scripts/capture-screenshots.mjs`) |
+| Smoke suite (session 5) | Verified | `scripts/smoke-test.sh` → 30/30 (authed page renders + the unauth guard redirects, incl. "/") |

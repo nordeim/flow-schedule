@@ -1,0 +1,97 @@
+"use client";
+
+// The Dashboard island (the reference app's main page view) — shared by the
+// "/" route (the reference's post-login landing, session 5 R-1) and the
+// "/Dashboard" route (the reference's header-link path).
+// lg: 12-col grid — calendar (col-span-9) + sidebar stack (col-span-3);
+// below lg the sidebar stacks under. Clicking a calendar hour cell opens
+// the task dialog prefilled with that day/hour; clicking a task block
+// opens it for editing.
+
+import * as React from "react";
+import { format, set } from "date-fns";
+import { WeeklySchedule, useWeekStart } from "@/components/dashboard/WeeklySchedule";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { SkillsMap } from "@/components/dashboard/SkillsMap";
+import { StatusCard } from "@/components/dashboard/StatusCard";
+import { DailyFocusCard } from "@/components/dashboard/DailyFocusCard";
+import { AISummaryCard } from "@/components/dashboard/AISummaryCard";
+import { TaskDialog, emptyTaskForm } from "@/components/planning/TaskDialog";
+import { useFlowStore, type Task } from "@/store/useFlowStore";
+
+export function DashboardView() {
+  const tasks = useFlowStore((s) => s.tasks);
+  const refreshTasks = useFlowStore((s) => s.refreshTasks);
+  // Mirrors the reference's X1e refresh counter: bumps on task mutations
+  // (create/update/delete) so the AI sidebar cards re-run their fetches.
+  const taskVersion = useFlowStore((s) => s.taskVersion);
+  const { weekStart, prev, next } = useWeekStart();
+
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editingTask, setEditingTask] = React.useState<Task | null>(null);
+  const [initialForm, setInitialForm] = React.useState(emptyTaskForm());
+
+  const today = React.useMemo(() => new Date(), []);
+
+  const openCreate = (day: Date, hour: number) => {
+    const start = set(day, { hours: hour, minutes: 0, seconds: 0, milliseconds: 0 });
+    setEditingTask(null);
+    setInitialForm({
+      ...emptyTaskForm(),
+      start_time: format(start, "yyyy-MM-dd'T'HH:mm"),
+      duration_minutes: "60",
+    });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (task: Task) => {
+    setEditingTask(task);
+    setInitialForm({
+      title: task.title,
+      description: task.description ?? "",
+      priority: task.priority,
+      category: task.category,
+      start_time: task.start_time ? format(new Date(task.start_time), "yyyy-MM-dd'T'HH:mm") : "",
+      duration_minutes: task.duration_minutes ? String(task.duration_minutes) : "",
+    });
+    setDialogOpen(true);
+  };
+
+  return (
+    // The reference's X1e container: full-bleed at lg (NO max-w — the
+    // max-w-7xl was a session-0 guess, decompile + live-measured 1440px,
+    // session 4, D-1).
+    <div className="p-4 md:p-6 lg:p-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-9 space-y-6">
+          <WeeklySchedule
+            tasks={tasks}
+            weekStart={weekStart}
+            onPrevWeek={prev}
+            onNextWeek={next}
+            onRefresh={() => void refreshTasks()}
+            onCellClick={openCreate}
+            onTaskClick={openEdit}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <QuickActions />
+            <SkillsMap tasks={tasks} day={today} />
+          </div>
+        </div>
+        <div className="lg:col-span-3 space-y-6">
+          <StatusCard tasks={tasks} />
+          <DailyFocusCard refreshTrigger={taskVersion} />
+          <AISummaryCard day={today} refreshTrigger={taskVersion} />
+        </div>
+      </div>
+
+      <TaskDialog
+        key={editingTask?.id ?? "new-task"}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editing={editingTask}
+        initial={initialForm}
+      />
+    </div>
+  );
+}

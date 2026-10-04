@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–4, 2026-10-04).
-version: 1.3.0
+  codebase-verified (sessions 1–5, 2026-10-04).
+version: 1.4.0
 last_updated: 2026-10-04
-project_state: 59/59 unit tests, 43/43 e2e tests, all gates green, build self-type-checks
+project_state: 59/59 unit tests, 51/51 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -512,6 +512,39 @@ the chrome with e2e evaluates. The reference's own format-string bugs
 are part of the contract (date-fns "MMM d at HH:mm" renders "Oct 6
 AM1791284400 11:00" — mirrored byte-identically).
 
+### FS-15: The logged-out surface is a parity surface too (Critical — parity)
+
+**Symptom:** the login page was "verified" for four sessions while its
+ENTIRE design diverged from the reference (the base44 platform screen):
+the clone shipped an app-canvas gradient page (the reference is
+`from-slate-50 to-slate-100`), a `rounded-3xl border-white/20` card (the
+reference is `rounded-2xl border-0` + a slate top gradient bar), an
+Activity-icon logo box (the reference ships its real PNG in a ringed
+circle), a sky-blue gradient submit (the reference's is **solid
+slate-900**), transparent rounded-2xl inputs (the reference:
+`bg-slate-50/50 rounded-xl` with `you@example.com` / `••••••••`
+placeholders), an inline sign-up toggle with a Name field (the reference
+swaps to a SEPARATE view: Back-to-sign-in + Email/Password/Confirm, no
+Name), a notice-string forgot-password (the reference has a full
+reset-request view + a check-your-email confirmation with a GREEN
+alert), a plain red `<p>` error (the reference: the shadcn `[role=alert]`
+card), and a "← Back to FlowSchedule" link the reference never shipped.
+Also: no auth guard on the (app) routes (the reference redirects to
+/login), no `/` dashboard route (the reference renders the dashboard AT
+the root and lands there post-login), and Next's default 404 (the
+reference ships a custom page).
+**Root cause:** sessions 0–4 decompiled every AUTHENTICATED surface and
+treated /login as "just the auth card" — a session-0 "reasonable design"
+that was never measured, exactly the FS-11/12/14 blind-spot pattern one
+surface further: the LOGGED-OUT surface.
+**Fix + rule:** parity sweeps must enumerate EVERY route state an
+anonymous visitor can see (login views, guards, 404, root) — not just
+the authenticated app. Every state of the login card (sign-in, sign-up,
+forgot, reset-sent, error, mismatch) is a view to measure; the guard
+redirects and the landing URL are functional parity. Pin with
+`tests/e2e/auth.spec.ts` + `not-found.spec.ts` (12 specs, session 5;
+13/13 class strings byte-identical on the live apps).
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -530,6 +563,8 @@ AM1791284400 11:00" — mirrored byte-identically).
 | Heading locator resolves to 2 elements (strict mode) | FS-14 corollary — role queries SUBSTRING-match; the Next Up h4 task title matches "Skills Map" | `exact: true` on heading lookups near data-driven titles |
 | A passing spec fails after another spec failed earlier | e2e residue cascades CROSS-SPEC — leftover tasks shift the planning top-3 chips and the Next Up selection | Wipe the whole `E2E *` family at spec start (converging cleanup, FS-9 extended) |
 | agent-browser can't open the clone's Radix menu (but the reference's opens) | React 19 + Radix require trusted pointer events on the dev build; the reference's menu is not Radix | The e2e spec is the pin; screenshots via `scripts/capture-screenshots.mjs` |
+| `getByRole("alert")` resolves to 2 elements (strict mode) | Next's route announcer `#__next-route-announcer__` carries role=alert (empty) | Scope with `:not(#__next-route-announcer__)` (FS-15 corollary) |
+| `getByLabel("Password")` resolves to 2 elements | Label queries substring-match "Confirm Password" on the sign-up view | `{ exact: true }` on label lookups (FS-15 corollary) |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -542,8 +577,8 @@ bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
 bun run test          # 59/59
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 43/43 on the production standalone :3100
-scripts/smoke-test.sh # 25/25 curl checks (auth, CRUD, AI envelopes, pages)
+bun run test:e2e      # 51/51 on the production standalone :3100
+scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
 Verification categories:
@@ -865,8 +900,8 @@ parity remediation):
 | `bun run typecheck` | clean |
 | `bun run test` (Vitest) | **59/59** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **43/43** × 2 consecutive full runs (was 38; +5 sidebar-card/layout/dialog specs — see FS-14) |
-| `scripts/smoke-test.sh` | 25/25 |
+| `bun run test:e2e` (Playwright) | **51/51** × 2 consecutive full runs (was 43; +8 login-view/guard/404 specs — see FS-15) |
+| `scripts/smoke-test.sh` | 30/30 (incl. authed page renders + unauth guard redirects) |
 | Reference parity (mobile menu) | re-measured live on BOTH apps in session 4: 374/54/192; trigger 374/50/36 — byte-identical, geometry pin held |
 | Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
 | Reference parity (layout chrome) | full-bleed `p-4 md:p-6 lg:p-8` (1440px on both), day rows `space-y-1.5` (6px gap), default-cursor cells, minute-stacked blocks, dialog delete confirm, scrollbar cascade values |
@@ -896,7 +931,24 @@ parity remediation):
   FS-11 lesson recorded. See `docs/session_2-review.md` +
   `docs/remediation-plan-session2.md` (the operator's narrative lives
   in `docs/session_2.md`).
-- **Session 4 (2026-10-04, this skill revision):** audit + sidebar-card
+- **Session 5 (2026-10-04, this skill revision):** audit + login-page/
+  routing parity — the last unexamined surface (session_5.md's forward
+  pointer). Live-measured the reference's base44 login screen in ALL
+  FOUR view states + the error/mismatch alerts + the guards + the 404 +
+  the root route, and fixed 21 gaps (L-1…L-22, N-1, G-1, R-1, E-1): the
+  slate-50/100 page gradient, the rounded-2xl card with its slate top
+  gradient bar, the REAL logo PNG in a ringed circle, the reference's
+  Google button classes, `bg-slate-50/50` inputs with `you@example.com`
+  / `••••••••` placeholders, the solid **slate-900** submit, the stacked
+  footer, the separate sign-up view (Confirm Password, "Create
+  account"), the forgot-password + check-your-email views with the
+  green alert, the shadcn `[role=alert]` error card ("Invalid email or
+  password" — no period), the server-side session guard on the (app)
+  group (unauth → /login), the dashboard served at `/` (the reference's
+  post-login landing; the root redirect removed), and the custom 404
+  page. e2e 43 → 51 specs; FS-15 lesson recorded. See
+  `docs/session_5-review.md` + `docs/remediation-plan-session5.md`.
+- **Session 4 (2026-10-04):** audit + sidebar-card
   and layout-chrome parity — decompiled `ure`/`Y1e`/`fre`/`g0e`/`X1e`/
   `are`/`rre`/`Xne` from the reference bundle and fixed 26 gaps across 8
   surfaces (S/F/A/K/W/D/T/C/X): the StatusCard's full "Next Up" state

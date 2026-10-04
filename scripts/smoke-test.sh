@@ -95,17 +95,28 @@ NOTE_ID=$(python3 -c "import json;print(json.load(open('/tmp/smoke-note.json'))[
 curl -sf -b "$CJ" "$BASE/api/ai/daily-focus" | grep -q '"ok":true' && ok "daily-focus envelope" || bad "daily-focus"
 curl -sf -b "$CJ" "$BASE/api/ai/summary" | grep -q '"ok":true' && ok "ai summary envelope" || bad "ai summary"
 
+# ---- 6b. pages render (authed) ----
+# Session 5: the reference serves the dashboard at BOTH "/" (its post-login
+# landing) and "/Dashboard" (the header link) — authed requests must get 200
+# on all app pages.
+for path in /Dashboard /Planning /Profile /Settings /; do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$CJ" "$BASE$path")
+  [ "$CODE" = "200" ] && ok "page $path (authed)" || bad "page $path authed ($CODE)"
+done
+CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/login")
+[ "$CODE" = "200" ] && ok "page /login" || bad "page /login ($CODE)"
+
 # ---- 7. logout ----
 curl -sf -b "$CJ" -c "$CJ" -X POST "$BASE/api/logout" | grep -q '"ok":true' && ok "logout" || bad "logout"
 curl -sf -b "$CJ" "$BASE/api/auth/me" | grep -q '"user":null' && ok "session cleared" || bad "session cleared"
 
-# ---- 8. pages render ----
-for path in /login /Dashboard /Planning /Profile /Settings; do
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$path")
-  [ "$CODE" = "200" ] && ok "page $path" || bad "page $path ($CODE)"
+# ---- 8. guarded routes redirect unauthenticated visitors ----
+# Session 5: the (app) routes are session-guarded like the reference — an
+# unauthenticated GET must 307 to /login (not render the shell).
+for path in /Dashboard /Planning /Profile /Settings /; do
+  LOCATION=$(curl -s -o /dev/null -w "%{redirect_url}" "$BASE$path")
+  echo "$LOCATION" | grep -q "/login" && ok "guard $path (redirects to /login)" || bad "guard $path ($LOCATION)"
 done
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$BASE/")
-[ "$CODE" = "200" ] && ok "root redirect" || bad "root redirect ($CODE)"
 
 # ---- cleanup ----
 pkill -f "standalone/server.js" 2>/dev/null

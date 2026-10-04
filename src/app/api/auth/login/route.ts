@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !verifyPassword(password, user.passwordHash)) {
-    return fail("AUTH", "Invalid email or password.", 401);
+    return fail("AUTH", "Invalid email or password", 401);
   }
 
   const res = ok({ id: user.id, email: user.email, fullName: user.fullName });

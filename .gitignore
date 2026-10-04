@@ -52,3 +52,6 @@ playwright-report/
 
 # survey scratch (probe screenshots/json — session artifacts, not docs)
 research/
+
+# reference-app scratch (downloaded bundle chunks for decompile analysis)
+reference/

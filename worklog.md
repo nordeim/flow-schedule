@@ -208,3 +208,65 @@ Stage Summary:
   format-string bug), residue cascades are cross-spec (wipe the E2E
   family), agent-browser vs Radix on the dev build (the e2e spec is the
   pin)
+
+---
+Task ID: 21
+Agent: main agent
+Task: Session 5 — audit the login/routing surface (the last unexamined
+surface per docs/session_5.md's forward pointer) + remediation
+
+Work Log:
+- git pull (fast-forward: docs/session_5.md — the operator's session-4
+  narrative); base main @ 8ae844d; fast gates green at base
+  (lint/tsc/59 unit); env/db/screenshots/.env.example verified intact
+- Audit: live-measured the reference's base44 login screen in ALL FOUR
+  view states (sign-in, sign-up, forgot-password, reset-sent) + the
+  error/mismatch alert cards + the unauth guard redirects + the
+  authenticated root route + the custom 404; found 21 gaps
+  (L-1…L-22, N-1, G-1, R-1, E-1) — the login page was a session-0
+  "reasonable design" never measured (FS-15 blind-spot class)
+- Plan saved to docs/remediation-plan-session5.md; validated against
+  the codebase (getSessionUser exists for the guard; URL assertions
+  inventoried; sitemap has no test pin; smoke-test page-check flow)
+- RED: reworked tests/e2e/auth.spec.ts (13 specs) + new
+  tests/e2e/not-found.spec.ts — 12 failed as predicted against the
+  pre-fix build
+- GREEN: login/page.tsx rewritten as a four-view state machine with the
+  reference's exact chrome (public/logo.png from the reference's own
+  asset; rounded-2xl card + slate top bar; bg-slate-50/50 inputs;
+  slate-900 solid submit; separate sign-up [Confirm Password, no Name]
+  + forgot + reset-sent views; shadcn-style red/green [role=alert]
+  cards; "Invalid email or password" — no period); (app)/layout.tsx
+  server-side session guard (getSessionUser → redirect /login);
+  DashboardView island served at BOTH "/" (new (app)/page.tsx) and
+  "/Dashboard" (root redirect page deleted); not-found.tsx (the
+  reference's 404); sitemap gains "/"; smoke restructured (30 checks);
+  .gitignore/eslint ignores gain reference/ (scratch bundle chunks)
+- Flakes fixed: Next route announcer role=alert strict-mode collision →
+  :not(#__next-route-announcer__); getByLabel("Password") substring →
+  exact: true
+- Gate: lint clean · tsc clean · 59/59 unit · build green ((app) routes
+  now dynamic — guard reads cookies; /_not-found static) · 51/51 e2e × 2
+  consecutive full runs (43 → 51) · smoke 30/30
+- Live parity re-verified on BOTH apps (agent-browser): 13/13 key login
+  class strings byte-identical (JSON diff); error alert + views + guard
+  redirects + post-login "/" landing identical; 404 + Go Home verified;
+  mobile trigger 374/50/36 on both, reference menu re-measured
+  374/54/192 — no Tailwind v4 regression
+- 20 screenshots (01 re-captured + new 16-20) via the state-gated
+  capture script
+- Docs realigned: README, AGENTS.md (login convention + root/guard
+  invariant + 2 quirks), CLAUDE.md, PAD (§3/§8/§11/§12),
+  flow-schedule_SKILL.md v1.4.0 (FS-15), remediation-plan-session5.md
+  execution record, docs/session_5-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 5 delivered: the logged-out surface (login views, guards,
+  root route, 404) is now live-measure-pinned like every authenticated
+  surface; e2e 43 → 51 specs; smoke 25 → 30 checks
+- Key new knowledge: FS-15 (the logged-out surface is a parity surface
+  too), routing IS parity (landing URL, guards, 404), Next's route
+  announcer carries role=alert, the reference's login is the base44
+  platform screen (design language: slate-900 submits, rounded-xl,
+  bg-slate-50/50 inputs)
