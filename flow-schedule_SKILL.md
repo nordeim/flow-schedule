@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–5, 2026-10-04).
-version: 1.4.0
+  codebase-verified (sessions 1–6, 2026-10-04).
+version: 1.5.0
 last_updated: 2026-10-04
-project_state: 59/59 unit tests, 51/51 e2e tests, all gates green, build self-type-checks
+project_state: 59/59 unit tests, 54/54 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -545,6 +545,33 @@ redirects and the landing URL are functional parity. Pin with
 `tests/e2e/auth.spec.ts` + `not-found.spec.ts` (12 specs, session 5;
 13/13 class strings byte-identical on the live apps).
 
+### FS-16: Time-of-day-dependent e2e locators (Critical — e2e flake)
+
+**Symptom:** the status-card spec failed at 09:0x UTC in session 6
+(50/51) after two consecutive green runs in session 5. The spec created a
+task at `now+5min` and asserted the PAGE-WIDE locator
+`div.rounded-3xl` + hasText(task-title) — which resolves to BOTH the
+WeeklySchedule card (the calendar renders the task block with its title;
+there is NO status filter on either app — completed tasks stay on the
+grid) AND the StatusCard. Strict-mode violation — but only when
+`now+5min` lands inside the 07:00–22:00 calendar grid. Session 4/5's
+runs happened pre-07:00 UTC: the task fell before the grid start, the
+block was hidden (the pre-07:00 branch returns null), and the locator
+resolved to exactly one element. Two consecutive green runs proved
+nothing about the other 22 hours of the day.
+**Root cause:** a locator whose match SET depends on the wall clock,
+plus an assertion (`toHaveCount(0)`) that encodes a fact about the whole
+page instead of the component under test.
+**Fix + rule:** (1) scope locators to the component under test — the
+StatusCard via `.filter({ has: page.getByRole("heading", { name: "Next
+Up", exact: true }) })`; (2) assert component CONTENT
+(`toContainText` / `not.toContainText`), never page-element COUNTs, for
+data that legitimately persists elsewhere; (3) icon-level locators
+(`svg.lucide-chevron-down`) must be scoped to `main` — the header ships
+its own chevron (the desktop avatar trigger); (4) when a spec creates
+time-relative data, ask WHICH rendering windows can contain it at every
+hour of the day.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -565,6 +592,9 @@ redirects and the landing URL are functional parity. Pin with
 | agent-browser can't open the clone's Radix menu (but the reference's opens) | React 19 + Radix require trusted pointer events on the dev build; the reference's menu is not Radix | The e2e spec is the pin; screenshots via `scripts/capture-screenshots.mjs` |
 | `getByRole("alert")` resolves to 2 elements (strict mode) | Next's route announcer `#__next-route-announcer__` carries role=alert (empty) | Scope with `:not(#__next-route-announcer__)` (FS-15 corollary) |
 | `getByLabel("Password")` resolves to 2 elements | Label queries substring-match "Confirm Password" on the sign-up view | `{ exact: true }` on label lookups (FS-15 corollary) |
+| A spec passes twice, then fails at a different hour of the day | FS-16 — a page-wide text/class locator whose match set depends on the wall clock (the calendar grid renders the task 07:00–22:00) | Scope to the component (the StatusCard's heading filter); assert content, not page counts |
+| An `svg.lucide-chevron-down` count assertion fails on Planning | The HEADER's desktop avatar trigger also ships a chevron-down | Scope icon locators to `main` (FS-16 corollary) |
+| A button/label "feels right" but the decompile says otherwise | FS-11 at the string level — "Add Task"/"Save Changes" were session-0 inferences; the reference says "Create Task"/"Update Task" | The decompile wins, including over existing e2e pins — rewrite the spec |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -577,7 +607,7 @@ bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
 bun run test          # 59/59
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 51/51 on the production standalone :3100
+bun run test:e2e      # 54/54 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -900,7 +930,7 @@ parity remediation):
 | `bun run typecheck` | clean |
 | `bun run test` (Vitest) | **59/59** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **51/51** × 2 consecutive full runs (was 43; +8 login-view/guard/404 specs — see FS-15) |
+| `bun run test:e2e` (Playwright) | **54/54** × 2 consecutive full runs (was 51; +3 session-6 pins — the Planning card structure, the header icon margins, the content-sized Refresh button — see FS-16) |
 | `scripts/smoke-test.sh` | 30/30 (incl. authed page renders + unauth guard redirects) |
 | Reference parity (mobile menu) | re-measured live on BOTH apps in session 4: 374/54/192; trigger 374/50/36 — byte-identical, geometry pin held |
 | Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
@@ -912,6 +942,27 @@ parity remediation):
 
 ## Appendix C: Session History
 
+- **Session 6 (2026-10-04, this skill revision):** audit + exhaustive
+  state-matched class-tree parity — the reference account turned out to
+  hold 0 tasks / 0 notes, so an empty user was registered in the clone and
+  the FULL `<main>` class tree was dumped and element-wise diffed on both
+  apps (dashboard 761/761, Planning day-selected 98/98 after the fix).
+  Fixed 8 gaps: the Planning selected-day sections were Radix Accordions
+  (the reference ships always-visible Cards — CardTitle is a div, no
+  heading role; P-1), the dialog submit label ("Create Task"/"Update
+  Task", a session-0 inference that had crept into the e2e pin; P-2),
+  the dialog footer family (Save icon mr-2, no text-white, Delete mr-2,
+  `flex gap-3 ml-auto`; P-3/P-4), the Planning header icon margins
+  (mr-2 on Filter/Plus; P-5) + the Add Task button's clone-only hover
+  gradient/text-white (P-6), the content-sized Refresh Calendar button
+  (the reference's `icon_sm` is a dead variant — 30×30 vs the clone's
+  invented 36×36; P-7), and the status-card e2e time-of-day flake
+  (FS-16: page-wide locators that match BOTH the calendar card and the
+  StatusCard whenever now+5min is inside the 07:00–22:00 grid; sessions
+  4/5 passed only because they ran pre-07:00 UTC; F-1). e2e 51 → 54
+  specs. See `docs/session_6-review.md` +
+  `docs/remediation-plan-session6.md` (the operator's narrative lives
+  in `docs/session_6.md`).
 - **Session 0 (2026-10-03/04, commit `96d2dda`):** initial clone build —
   full app (11 API routes, 4 pages, store, auth, AI fallbacks), the 5
   Tailwind v4 trap mitigations, 36 unit + 29 e2e tests, 4 root docs,

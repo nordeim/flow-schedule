@@ -270,3 +270,76 @@ Stage Summary:
   announcer carries role=alert, the reference's login is the base44
   platform screen (design language: slate-900 submits, rounded-xl,
   bg-slate-50/50 inputs)
+
+---
+Task ID: 22
+Agent: main agent
+Task: Session 6 — audit the state-matched surfaces (full class-tree diff)
++ remediation of the small-gap family + the structural Planning finding
+
+Work Log:
+- git pull (fast-forward: docs/session_6.md — the operator's session-5
+  narrative); base main @ d99d8ae; fast gates green at base
+  (lint/tsc/59 unit); env/db/screenshots/.env.example verified intact
+- Audit method upgrade: the reference account holds 0 tasks + 0 notes
+  (verified via its entity API — the entity is "Note"), so an empty user
+  was registered in the clone and the FULL <main> DOM class tree was
+  dumped and element-wise diffed on both apps (dashboard 761 elements,
+  Planning unselected 63, day-selected 98/106)
+- 8 gaps found: P-1 the Planning selected-day sections were Radix
+  Accordions (the reference ships always-visible Cards — CardTitle a
+  div, no heading role, no collapse), P-2 dialog submit "Add Task"/
+  "Save Changes" → reference "Create Task"/"Update Task" (a session-0
+  inference that had crept into the e2e pin), P-3/P-4 dialog footer
+  (Save icon mr-2, no text-white, Delete mr-2, flex gap-3 ml-auto),
+  P-5 Planning header icons missing mr-2 (measured 89.1px vs 100.7px),
+  P-6 Add Task button clone-only hover gradient + text-white, P-7 the
+  Refresh Calendar button (invented icon_sm h-9 w-9 = 36px vs the
+  reference's dead-variant content-size 30px), F-1 the status-card e2e
+  spec's page-wide locators are TIME-OF-DAY dependent (strict-mode
+  violation + impossible count(0) whenever now+5min is inside the
+  07:00–22:00 grid; sessions 4/5 passed only pre-07:00 UTC; this
+  session's 09:0x run exposed it — 50/51 at base)
+- Profile/Settings suspected as the last unverified surface: full bundle
+  decompile — already byte-identical (the session-4 claim holds)
+- Plan saved to docs/remediation-plan-session6.md; validated against the
+  codebase (Card imports, Save icon, cn/twMerge output, spec lines)
+  before executing
+- RED: 10 spec failures predicted and confirmed against the pre-fix
+  build (8 planning + 2 dashboard)
+- GREEN: Planning Accordions → Card/CardHeader/CardTitle/CardContent;
+  TaskDialog footer rebuilt to the decompile; header icons mr-2;
+  button.tsx icon_sm "" (dead-variant mirror); status-card spec
+  re-scoped to the StatusCard via its Next Up heading (de-flaked);
+  mid-GREEN fix: the chevron-count assertion scoped to main (the
+  header avatar ships its own chevron)
+- Gate: lint clean · tsc clean · 59/59 unit · build green (19 routes) ·
+  54/54 e2e × 2 consecutive full runs (51 → 54; the de-flaked spec
+  verified INSIDE the previously failing 09:0x UTC window) · smoke
+  30/30
+- Live parity re-verified on BOTH apps (agent-browser): Planning
+  day-selected class tree 98/98 (was 98/106); dashboard 761/761 (only
+  the 2 documented lucide polyline/path internals); dialog verified in
+  both create ("Create Task" + Save icon) and edit ("Update Task",
+  Delete mr-2) modes; Refresh button 30×30 on both; mobile menu
+  re-pinned 374/54/192 after the changes — no Tailwind v4 regression
+- Screenshots: 02-dashboard, 03-planning, 10-planning-selected,
+  15-taskdialog re-captured (the changed surfaces) via the extended
+  capture script (gained the desktop 02/03/10 captures)
+- Docs realigned: README, AGENTS.md (card convention, TaskDialog footer
+  + icon_sm dead-variant quirks, FS-16, session-6 references), CLAUDE.md,
+  PAD (§8/§10.1/§12 ledger — 8 new session-6 rows),
+  flow-schedule_SKILL.md v1.5.0 (FS-16, 4 debugging rows, session
+  history), remediation-plan-session6.md execution record,
+  docs/session_6-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 6 delivered: the exhaustive state-matched class-tree diff
+  closed the small-gap family (icon margins, button sizes, class
+  extras) that selected-element checks had skipped, plus one
+  structural fix (Accordion → Card) and one de-flake (FS-16);
+  e2e 51 → 54 specs; both apps now diff at 761/761 and 98/98 elements
+- Key new knowledge: FS-16 (time-of-day locators — two green runs
+  prove nothing about the other 22 hours), dead config is parity data
+  (icon_sm), specs can inherit wrong inferences (the dialog label pin)

@@ -90,6 +90,26 @@ await page2.getByLabel("Email").fill("demo@flowschedule.app");
 await page2.getByLabel("Password").fill("demo1234");
 await page2.getByRole("button", { name: "Sign in" }).click();
 await page2.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+
+// 02-dashboard (desktop — the Refresh Calendar button is content-sized
+// since session 6, P-7).
+await page2.waitForTimeout(800);
+await page2.screenshot({ path: `${OUT}/02-dashboard.png` });
+
+// 03-planning (unselected — the header icons carry mr-2 since session 6, P-5).
+await page2.goto(`${BASE}/Planning`);
+await page2.getByRole("heading", { name: "Weekly Planning" }).waitFor();
+await page2.waitForTimeout(800);
+await page2.screenshot({ path: `${OUT}/03-planning.png` });
+
+// 10-planning-selected (the reference's always-visible Card structure —
+// session 6, P-1; NOT an accordion).
+await page2.locator("button.p-4", { hasText: "Mon" }).first().click();
+await page2.getByText(/^Monday, /).waitFor();
+await page2.waitForTimeout(600);
+await page2.screenshot({ path: `${OUT}/10-planning-selected.png` });
+await page2.goto(`${BASE}/`);
+await page2.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
 await page2.evaluate(async () => {
   await fetch("/api/tasks", {
     method: "POST",

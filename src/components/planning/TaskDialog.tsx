@@ -7,7 +7,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { Trash2 } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -247,6 +247,11 @@ function TaskFormBody({
             </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
+          {/* The reference's footer (decompiled Xne, session 6): the right
+              group is `flex gap-3 ml-auto`; Delete is an icon+mr-2 outline
+              button; the submit is a Save icon + "Create Task"/"Update Task"
+              with NO text-white (the default variant's
+              text-primary-foreground styles it). */}
           <div className="flex justify-between pt-4">
             {editing ? (
               <Button
@@ -254,14 +259,14 @@ function TaskFormBody({
                 variant="outline"
                 onClick={() => void remove()}
                 disabled={busy}
-                className="rounded-2xl text-red-600 border-red-200 hover:bg-red-50"
+                className="rounded-2xl border-red-200 text-red-600 hover:bg-red-50"
               >
-                <Trash2 className="w-4 h-4" /> Delete
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
               </Button>
             ) : (
               <span />
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-3 ml-auto">
               <Button
                 type="button"
                 variant="outline"
@@ -273,9 +278,10 @@ function TaskFormBody({
               <Button
                 type="submit"
                 disabled={busy}
-                className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white"
+                className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
               >
-                {editing ? "Save Changes" : "Add Task"}
+                <Save className="w-4 h-4 mr-2" />
+                {editing ? "Update Task" : "Create Task"}
               </Button>
             </div>
           </div>

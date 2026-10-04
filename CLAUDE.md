@@ -112,7 +112,7 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
 | `bun run test` | Vitest unit (59 tests) |
-| `bun run test:e2e` | Playwright e2e (51 specs, needs prior build) |
+| `bun run test:e2e` | Playwright e2e (54 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
 Single test: `bunx vitest run tests/auth.test.ts`.
@@ -123,7 +123,7 @@ Single e2e: `bun run test:e2e -- -g "mobile account menu"`.
 | Level | Tool | Location | Notes |
 |-------|------|----------|-------|
 | Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction |
-| E2E | Playwright | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity, auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout), the full-bleed container, day-row spacing, the task-dialog delete confirm, planning — including the decompiled reference behaviors (null-init selectedDay, static stats placeholder, decorative Filter, display-only chips) |
+| E2E | Playwright | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity, auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon) |
 
 - E2E runs against the **production standalone** on `:3100` with its own
   seeded `db/e2e.db`; the setup project signs in ONCE (login is

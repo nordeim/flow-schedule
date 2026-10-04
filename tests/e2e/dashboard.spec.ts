@@ -425,9 +425,17 @@ test.describe("dashboard", () => {
 
     // The reference's rich Next Up card (S-1): heading, priority badge,
     // progress row, and the functional Mark Complete button.
-    const card = page.locator("div.rounded-3xl", { hasText: "E2E next up task" });
+    // Scope to the StatusCard via its heading — the task title ALSO lands
+    // on the calendar as a task block (both apps render completed tasks on
+    // the grid — no status filter, decompile-verified), so a bare
+    // `div.rounded-3xl` + hasText locator matches BOTH cards and strict
+    // mode fails whenever now+5min is inside the 07:00–22:00 grid (FS-16,
+    // the time-of-day flake this run exposed).
+    const card = page
+      .locator("div.rounded-3xl")
+      .filter({ has: page.getByRole("heading", { name: "Next Up", exact: true }) });
     await expect(page.getByRole("heading", { name: "Next Up", exact: true })).toBeVisible();
-    await expect(card).toBeVisible();
+    await expect(card).toContainText("E2E next up task");
     const cardInfo = await card.evaluate((el) => ({
       outer: el.className,
       badge: el.querySelector("div[class*=rounded-2xl]")?.textContent ?? "",
@@ -441,9 +449,11 @@ test.describe("dashboard", () => {
     expect(cardInfo.ready).toBe("Ready");
 
     // Mark Complete is functional (S-4): PATCH → completed → the card
-    // re-renders without the task (live-verified on the reference).
+    // re-renders without the task (live-verified on the reference). The
+    // completed task REMAINS on the calendar (no status filter) — assert
+    // the STATUSCARD drops it, not the page (FS-16 corollary).
     await page.getByRole("button", { name: /Mark Complete/ }).click();
-    await expect(page.locator("div.rounded-3xl", { hasText: "E2E next up task" })).toHaveCount(0);
+    await expect(card).not.toContainText("E2E next up task");
     const after = await (await page.request.get("/api/tasks")).json();
     const done = (after?.data?.tasks ?? []).find(
       (t: { id: string }) => t.id === id,
@@ -507,8 +517,29 @@ test.describe("dashboard", () => {
     await expect(dialog.getByRole("heading", { name: "Add New Task" })).toBeVisible();
     const start = dialog.locator("#start_time");
     await expect(start).toHaveValue(/T10:00/);
+    // The reference's submit: "Create Task" with a Save icon (mr-2), no
+    // text-white (session 6, P-2/P-3) — and the footer container is
+    // `flex gap-3 ml-auto` (P-4).
+    const submit = dialog.getByRole("button", { name: "Create Task", exact: true });
+    await expect(submit).toBeVisible();
+    await expect(submit.locator("svg")).toHaveClass(/mr-2/);
+    await expect(submit).not.toHaveClass(/text-white/);
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toBeHidden();
+  });
+
+  test("Refresh Calendar button is content-sized (icon_sm dead variant, P-7)", async ({ page }) => {
+    // The reference passes size:"icon_sm" — a variant ABSENT from its size
+    // map — so cva emits no size class and the button sizes from its
+    // content (svg 16px + p-1.5 + border = 30px, live-measured). The clone
+    // previously invented icon_sm:"h-9 w-9 rounded-lg" (36px).
+    const refresh = page.locator('button[title="Refresh Calendar"]');
+    await expect(refresh).toBeAttached();
+    await expect(refresh).not.toHaveClass(/h-9/);
+    await expect(refresh).not.toHaveClass(/w-9/);
+    const box = await refresh.boundingBox();
+    expect(Math.round(box?.width ?? 0)).toBe(30);
+    expect(Math.round(box?.height ?? 0)).toBe(30);
   });
 
   test("calendar day rows carry the reference's spacing and cursor (are, W-1/W-3)", async ({ page }) => {

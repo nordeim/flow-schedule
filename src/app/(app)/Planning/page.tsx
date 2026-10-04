@@ -19,12 +19,7 @@ import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { BarChart3, Calendar, Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskDialog, emptyTaskForm } from "@/components/planning/TaskDialog";
 import { CATEGORY_BADGES, PRIORITY_TEXT, type Category } from "@/lib/domain";
 import { useFlowStore } from "@/store/useFlowStore";
@@ -69,13 +64,10 @@ export default function PlanningPage() {
         <div className="flex gap-3">
           {/* Decorative, like the reference's Filter button (no handler). */}
           <Button variant="outline" className="rounded-2xl border-slate-200">
-            <Filter className="w-4 h-4" /> Filter
+            <Filter className="w-4 h-4 mr-2" /> Filter
           </Button>
-          <Button
-            onClick={openCreate}
-            className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white"
-          >
-            <Plus className="w-4 h-4" /> Add Task
+          <Button onClick={openCreate} className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600">
+            <Plus className="w-4 h-4 mr-2" /> Add Task
           </Button>
         </div>
       </div>
@@ -160,76 +152,69 @@ export default function PlanningPage() {
           gap-6">…</div>, P-1). */}
       {selectedDay && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Accordion
-            type="single"
-            collapsible
-            defaultValue="tasks"
-            className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-3xl"
-          >
-            <AccordionItem value="tasks" className="border-0">
-              <AccordionTrigger className="flex items-center gap-2 px-6 py-4 hover:no-underline">
+          {/* The reference's selected-day task list is a plain Card
+              (tE/nE/rE/iE) — always visible, NOT an accordion (session 6,
+              P-1): CardTitle is a div, the content never collapses. */}
+          <Card className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-3xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-sky-500" />
                 {format(selectedDay, "EEEE, MMM d, yyyy")}
-              </AccordionTrigger>
-              <AccordionContent className="px-6">
-                <div className="space-y-3">
-                  {selectedDayTasks.map((t) => (
-                    <div key={t.id} className="p-4 rounded-2xl bg-white/50 border border-slate-200">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium text-slate-900">{t.title}</h4>
-                        <div className={`text-sm font-medium ${PRIORITY_TEXT[t.priority]}`}>
-                          {t.priority}
-                        </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {selectedDayTasks.map((t) => (
+                  <div key={t.id} className="p-4 rounded-2xl bg-white/50 border border-slate-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-medium text-slate-900">{t.title}</h4>
+                      <div className={`text-sm font-medium ${PRIORITY_TEXT[t.priority]}`}>
+                        {t.priority}
                       </div>
-                      {t.description && (
-                        <p className="text-sm text-slate-600 mb-2">{t.description}</p>
+                    </div>
+                    {t.description && (
+                      <p className="text-sm text-slate-600 mb-2">{t.description}</p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Badge className={CATEGORY_BADGES[t.category as Category] ?? ""}>
+                        {t.category}
+                      </Badge>
+                      {t.start_time && (
+                        <span className="text-xs text-slate-500">
+                          {format(new Date(t.start_time), "HH:mm")}
+                        </span>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Badge className={CATEGORY_BADGES[t.category as Category] ?? ""}>
-                          {t.category}
-                        </Badge>
-                        {t.start_time && (
-                          <span className="text-xs text-slate-500">
-                            {format(new Date(t.start_time), "HH:mm")}
-                          </span>
-                        )}
-                      </div>
                     </div>
-                  ))}
-                  {selectedDayTasks.length === 0 && (
-                    <div className="text-center py-8 text-slate-500">
-                      <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>No tasks scheduled for this day</p>
-                    </div>
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+                  </div>
+                ))}
+                {selectedDayTasks.length === 0 && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No tasks scheduled for this day</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-          <Accordion
-            type="single"
-            collapsible
-            defaultValue="stats"
-            className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-3xl"
-          >
-            <AccordionItem value="stats" className="border-0">
-              <AccordionTrigger className="flex items-center gap-2 px-6 py-4 hover:no-underline">
+          <Card className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-3xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-purple-500" />
                 Day Statistics
-              </AccordionTrigger>
-              <AccordionContent className="px-6">
-                <div className="space-y-4">
-                  {/* The reference's Day Statistics is a static placeholder —
-                      its bundle has no data branch (P-7). */}
-                  <div className="text-center py-8 text-slate-500">
-                    <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Statistics for selected day</p>
-                  </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* The reference's Day Statistics is a static placeholder —
+                    its bundle has no data branch (P-7). */}
+                <div className="text-center py-8 text-slate-500">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Statistics for selected day</p>
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (59 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
-| `bun run test:e2e` | Playwright (51 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (54 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -27,6 +27,22 @@ bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
 `db/e2e.db` itself; it does NOT touch `db/custom.db`. The production build
 fails on type errors by itself (`typescript.ignoreBuildErrors` was removed
 in session 3 — `tests/next-config.test.ts` pins that it stays gone).
+
+### FS-16 (time-of-day flake — added session 6)
+
+A spec that creates a task at `now + N minutes` and asserts PAGE-WIDE
+text/class locators changes behavior with the wall clock: the calendar
+renders the task block (title included — no status filter on either app)
+whenever now+N lands inside the 07:00–22:00 grid, so a
+`div.rounded-3xl` + hasText locator resolves to TWO cards (calendar +
+StatusCard) and strict mode fails; two green runs pre-07:00 UTC prove
+nothing about the rest of the day. Rules: (1) scope locators to the
+component under test (the StatusCard via its "Next Up" heading filter);
+(2) assert component CONTENT (`toContainText` / `not.toContainText`),
+never page-element COUNTs, for data that legitimately persists elsewhere
+(completed tasks stay on the calendar on BOTH apps — decompile-verified);
+(3) icon-level locators like `svg.lucide-chevron-down` must be scoped to
+`main` — the HEADER ships its own chevron (the desktop avatar trigger).
 
 ## Architecture invariants
 
@@ -141,6 +157,21 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
 - **`getByLabel("Password")` substring-matches "Confirm Password"**
   (session 5): the sign-up view renders both fields; use
   `{ exact: true }` on label lookups when sibling labels overlap.
+- **The TaskDialog footer is decompiled reference behavior** (session 6,
+  Xne): the submit is `<Save className="w-4 h-4 mr-2" />` +
+  `{editing ? "Update Task" : "Create Task"}` with NO `text-white` (the
+  default Button variant's `text-primary-foreground` styles it — do not
+  re-add), the Delete icon carries `mr-2` with classes ordered
+  `border-red-200 text-red-600 hover:bg-red-50`, and the right footer
+  group is `flex gap-3 ml-auto` (NOT gap-2). The dialog submit's hover
+  gradient (`hover:from-sky-600 hover:to-blue-700`) exists ONLY here —
+  the Planning header's Add Task button has none.
+- **`icon_sm` is a DEAD variant in the reference** (session 6, P-7): the
+  reference's Refresh Calendar button passes `size:"icon_sm"` but its
+  size map has no such key — cva emits NO size class and the button is
+  content-sized (svg 16px via `[&_svg]:size-4` + `p-1.5` = 30×30,
+  measured on both apps). The clone maps `icon_sm: ""` to mirror that
+  exactly; do NOT "fix" it back to a real size class.
 
 ## Conventions that differ from defaults
 
@@ -151,16 +182,22 @@ in session 3 — `tests/next-config.test.ts` pins that it stays gone).
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
-  design** (session 2): `selectedDay` starts `null` — the whole
-  selected-day section (task list + Day Statistics) renders ONLY after a
-  day-card click; the card highlight follows the SELECTION (no
-  today-marker); Day Statistics is a static placeholder (the reference's
-  bundle has no data branch); the Filter button is decorative (no
-  handler in the reference); day-card chips are display-only (clicks
+  design** (session 2; re-verified session 6): `selectedDay` starts
+  `null` — the whole selected-day section (task list + Day Statistics)
+  renders ONLY after a day-card click; the card highlight follows the
+  SELECTION (no today-marker); Day Statistics is a static placeholder (the
+  reference's bundle has no data branch); the Filter button is decorative
+  (no handler in the reference); day-card chips are display-only (clicks
   bubble to select the day); task items have no action buttons (editing
   happens ONLY from the Dashboard calendar task blocks); and there is no
   Unscheduled section (the string is absent from the reference bundle).
-  `tests/e2e/planning.spec.ts` pins all of it.
+  **The selected-day sections are plain Cards** (session 6, P-1 — the
+  reference's `tE`/`nE`/`rE`/`iE`): Card/CardHeader/CardTitle/CardContent,
+  always visible — NO accordion, no collapse button, and CardTitle is a
+  `div` (the date title has NO heading role; the e2e pins text-based
+  locators + `div.tracking-tight`). The header's Filter/Add-Task icons
+  carry `mr-2` ON TOP of the Button's gap-2 (measured 100.7px vs 89.1px
+  without). `tests/e2e/planning.spec.ts` pins all of it.
 - **The Quick Actions OPEN-PANEL state is decompiled reference behavior,
   not inferred design** (session 3, `G1e`/`z1e`/`W1e`/`H1e`/`K1e` in the
   reference bundle): opening a tile morphs the whole card container into
@@ -269,7 +306,7 @@ deliberately if the reference re-measures differently.
   (ADRs, layer model, all five Tailwind v4 traps with fixes, the
   verification ledger).
 - `flow-schedule_SKILL.md` — the distilled engineering skill (20
-  sections + appendices: anti-patterns FS-1…FS-13, debugging guide,
+  sections + appendices: anti-patterns FS-1…FS-16, debugging guide,
   pre-ship checklist, color/z-index references).
 - `docs/session_1.md` (build narrative) + `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` — the session-1 review/remediation
@@ -288,6 +325,11 @@ deliberately if the reference re-measures differently.
 - `docs/session_5-review.md` + `docs/remediation-plan-session5.md` — the
   session-5 record (the login-page decompile: FS-15, the route guard, the
   root-dashboard route, the 404 page).
+- `docs/session_6-review.md` + `docs/remediation-plan-session6.md` — the
+  session-6 record (the exhaustive state-matched class-tree diff: the
+  Planning Card-vs-Accordion structure, the "Create Task" dialog label,
+  the icon-margin family, the icon_sm dead variant, the FS-16
+  time-of-day flake).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

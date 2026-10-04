@@ -23,7 +23,13 @@ const buttonVariants = cva(
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-9 w-9",
-        icon_sm: "h-9 w-9 rounded-lg",
+        // The reference passes size:"icon_sm" on the Refresh Calendar button
+        // but its own size map has NO such key — cva emits NO size class and
+        // the button sizes from its content (svg 16px + p-1.5 = 30px,
+        // live-measured). Mirrored here as an empty contribution so the
+        // clone's button is content-sized too (session 6, P-7). The
+        // class-name's rounded-lg/p-1.5 apply as on the reference.
+        icon_sm: "",
       },
     },
     defaultVariants: {
