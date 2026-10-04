@@ -264,7 +264,7 @@ src/
 │   ├── (app)/                      # Shared client chrome group
 │   │   ├── layout.tsx              # Wraps AppShell (store bootstrap)
 │   │   ├── Dashboard/page.tsx      # 12-col grid: calendar + sidebar cards
-│   │   ├── Planning/page.tsx       # Week cards + accordions + TaskDialog
+│   │   ├── Planning/page.tsx       # Week cards + click-to-select day panel (decompiled reference behavior: selectedDay starts null, static Day Statistics placeholder, decorative Filter)
 │   │   ├── Profile/page.tsx        # Static preference cards
 │   │   └── Settings/page.tsx       # Theme/Dark/Language/Performance cards
 │   ├── login/page.tsx              # Suspense-wrapped LoginCard
@@ -581,8 +581,8 @@ during the e2e run — both cards rendered their defaults (by design).
 
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
-| Unit (36) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring) |
-| E2E (29) | Playwright (production standalone :3100) | The four user surfaces | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (login/register/error/Google-notice), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action panels, timer countdown, dialog prefill), `planning.spec.ts` (week card, chips, dialog flow, day stats) |
+| Unit (44) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper) |
+| E2E (34) | Playwright (production standalone :3100) | The four user surfaces | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (login/register/error/Google-notice), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action panels, timer countdown, dialog prefill), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
 `auth.setup.ts` signs in ONCE (rate-limiter budget) and shares
@@ -617,7 +617,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 44/44 unit · build ✓ · 29/29 e2e
+# lint clean · tsc clean · 44/44 unit · build ✓ · 34/34 e2e
 ```
 
 ### 10.2 Common tasks
@@ -659,16 +659,21 @@ bun run lint && bun run typecheck && bun run test && bun run build && bun run te
   assumption); horizontal scaling needs a shared store.
 - `POST /api/auth/register` has no email verification (single-workspace
   self-hosting assumption — the reference's platform handles it).
-- The `/Planning` "Filter" button cycles all → scheduled → unscheduled
-  (the reference's filter drawer was not measured in detail).
+- The `/Planning` "Filter" button is decorative — exactly like the
+  reference's (no handler in its bundle); a filter drawer was never
+  measured and does not exist.
 - Dark Mode / Language / Performance cards on `/Settings` are static
   parity surfaces (exactly like the reference's placeholders).
+- Unscheduled tasks are not surfaced anywhere in the UI — exactly like
+  the reference (no "Unscheduled" section exists in its bundle); they
+  remain reachable via the API.
 
 ---
 
 ## 12. Verification Ledger
 
-Claims made in this PAD, with evidence (all executed 2026-10-04):
+Claims made in this PAD, with evidence (all executed 2026-10-04; session-2
+rows re-executed after the Planning parity remediation):
 
 | Claim | Status | Evidence |
 |---|---|---|
@@ -676,9 +681,13 @@ Claims made in this PAD, with evidence (all executed 2026-10-04):
 | typecheck clean | Verified | `bun run tsc --noEmit` → clean |
 | Unit tests pass | Verified | `bun run test` → 44/44 |
 | Production build succeeds | Verified | `bun run build` → 19 routes (8 static incl. `/sitemap.xml` + `/robots.txt`, 11 API) |
-| E2E passes | Verified | `bun run test:e2e` → 29/29 (through live SDK 429s) |
-| Mobile menu geometry parity | Verified | Direct DOM measurement: menu right 374 = trigger right 374, y=54, w=192 (identical to the live reference) |
-| Reference app facts (routes, enums, geometry, gradients, prompts) | Verified | Extracted from the reference's deployed bundle + live authenticated DOM/API probing (session recorded in the build worklog) |
+| E2E passes | Verified | `bun run test:e2e` → 34/34 (two consecutive runs) through live SDK 429s (fallbacks by design) |
+| Smoke suite | Verified | `scripts/smoke-test.sh` → 25/25 |
+| Mobile menu geometry parity | Verified | Live re-measurement on BOTH apps (2026-10-04, 390×844): menu right 374 = trigger right 374, y=54, w=192 — byte-identical |
+| Planning page reference parity | Verified | Reference component decompiled from its bundle (`eSe` in `bundle.js`) + live DOM comparison of both apps: null-init selectedDay, selection-following highlight, static Day Statistics placeholder, decorative Filter, display-only chips/task items, no Unscheduled section — all matched; pinned by 9 planning e2e specs |
+| Quick Action gradient parity | Verified | Computed-style comparison: byte-identical inline hex gradients (`rgb(14,165,233)→rgb(37,99,235)` etc.) on both apps |
+| Canvas gradient parity | Verified | Computed-style + pixel sampling: endpoints byte-identical; oklab-vs-sRGB midtone delta measured 0–3 RGB units (documented acceptance, ADR-004) |
+| Reference app facts (routes, enums, geometry, gradients, prompts) | Verified | Extracted from the reference's deployed bundle + live authenticated DOM/API probing (sessions recorded in the worklog) |
 | LLM fallbacks fire under 429 | Verified | e2e logs: "[ai] daily focus generation failed, using default" + suite green |
 | SQLite path seam | Verified | `tests/db-path.test.ts` (15 cases) + dev/e2e/prod all open the same file per environment |
-| Screenshots | Verified | 9 captures in `docs/screenshots/` from the running dev server |
+| Screenshots | Verified | 10 captures in `docs/screenshots/` from the running dev server (remediated codebase) |

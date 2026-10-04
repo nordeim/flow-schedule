@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (44 tests: auth crypto, domain constants, db-path, .env.example contract, site URL helper) |
-| `bun run test:e2e` | Playwright (29 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (34 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -111,6 +111,17 @@ bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
   place (`mapTask`/`mapNote` in the store); don't sprinkle conversions.
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
+- **The /Planning page is decompiled reference behavior, not inferred
+  design** (session 2): `selectedDay` starts `null` — the whole
+  selected-day section (task list + Day Statistics) renders ONLY after a
+  day-card click; the card highlight follows the SELECTION (no
+  today-marker); Day Statistics is a static placeholder (the reference's
+  bundle has no data branch); the Filter button is decorative (no
+  handler in the reference); day-card chips are display-only (clicks
+  bubble to select the day); task items have no action buttons (editing
+  happens ONLY from the Dashboard calendar task blocks); and there is no
+  Unscheduled section (the string is absent from the reference bundle).
+  `tests/e2e/planning.spec.ts` pins all of it.
 - The seed is idempotent via `is_sample: true` guards + user upsert;
   re-running never duplicates. Sample data belongs to the seed, never to
   the runtime.
@@ -138,11 +149,14 @@ deliberately if the reference re-measures differently.
   (ADRs, layer model, all five Tailwind v4 traps with fixes, the
   verification ledger).
 - `flow-schedule_SKILL.md` — the distilled engineering skill (20
-  sections + appendices: anti-patterns FS-1…FS-10, debugging guide,
+  sections + appendices: anti-patterns FS-1…FS-11, debugging guide,
   pre-ship checklist, color/z-index references).
 - `docs/session_1.md` (build narrative) + `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` — the session-1 review/remediation
   record (the e2e determinism lessons FS-7/8/9 came from there).
+- `docs/session_2.md` (remediation narrative) + `docs/session_2-review.md`
+  + `docs/remediation-plan-session2.md` — the session-2 record (the
+  Planning decompile lessons: infer-vs-decompile, chip bubbling).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

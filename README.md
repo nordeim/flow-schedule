@@ -31,7 +31,7 @@ brainstorm pad.
 | Feature | Description |
 |---------|-------------|
 | 📅 **Weekly time-grid calendar** | 80px day-label column + 16 × 60px hour slots (07:00–22:00); task blocks are absolutely positioned at 1px/minute with category gradients (work=blue, personal=green, health=red, learning=purple, creative=pink, social=yellow, planning=indigo); clicking an empty cell opens the task dialog prefilled with that day+hour |
-| 🗓 **Weekly Planning page** | Seven day cards (top-3 task chips + "+N more"), selected-day task list, day statistics (scheduled hours, completed count, per-category bars), and an unscheduled backlog accordion |
+| 🗓 **Weekly Planning page** | Seven day cards (top-3 task chips + "+N more"); clicking a card — chips included — selects the day (the reference's exact behavior: no section renders until a day is clicked, the highlight follows the selection, and there is no today-marker); the selected-day task list and the Day Statistics card (the reference's static placeholder) render behind the click; the Filter button is decorative, exactly like the reference's |
 | ⚡ **Quick Actions** | Four gradient tiles (reference hex stops: #0ea5e9→#2563eb, #10b981→#14b8a6, #8b5cf6→#6366f1, #f59e0b→#f97316) that swap the card body for inline panels: Add New Task, Start Focus Timer (live countdown), Log Activity (mark past tasks done), Quick Brainstorm (notes CRUD) |
 | 🧠 **AI Summary card** | Server-side LLM analysis of the day's schedule (mood, focus areas, activity types, insight) with the reference's exact prompt and JSON schema; deterministic fallbacks on any failure |
 | ☀️ **Daily Focus card** | LLM-generated productivity quote + author + affirmation ("Generate a short inspirational quote… Return as JSON") with a canned default |
@@ -40,7 +40,7 @@ brainstorm pad.
 | ✅ **Task lifecycle** | 4 priorities (low/medium/high/urgent), 7 categories, 3 statuses (todo/in_progress/completed); create/edit/delete through a shadcn Dialog with datetime-local start + 15-minute-step duration |
 | 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in |
 | 📱 **Mobile navigation** | The reference's exact pattern: a ghost user-icon button opening a Radix DropdownMenu aligned `end` — menu right edge anchored to the trigger's right edge (measured parity: right 374 = trigger 374 @ 390px viewport); no bottom tab bar (the reference ships an empty nav-items array) |
-| 🧪 **Test pyramid** | 44 Vitest unit tests (auth crypto, domain constants, db-path resolution, .env.example contract, site URL helper) + 29 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning) + curl smoke checks |
+| 🧪 **Test pyramid** | 44 Vitest unit tests (auth crypto, domain constants, db-path resolution, .env.example contract, site URL helper) + 34 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning — including the decompiled reference behaviors: null-init selection, placeholder stats, decorative Filter, display-only chips) + curl smoke checks |
 
 ## Screenshots
 
@@ -103,7 +103,10 @@ menu). `/login` is a standalone route with the auth card.
 │   ├── DEPLOYMENT.md              # Production deployment guide
 │   ├── session_1.md               # The build session's narrative transcript (operator-authored)
 │   ├── session_1-review.md        # Session-1 review & remediation record
+│   ├── session_2.md               # The session-1 remediation narrative (operator-authored)
+│   ├── session_2-review.md        # Session-2 review & remediation record
 │   ├── remediation-plan-session1.md      # The session-1 review plan + execution log
+│   ├── remediation-plan-session2.md      # The session-2 review plan + execution log
 │   └── how-to-git-push-using-ssh-wrapper_SKILL.md
 ├── 📂 prisma/
 │   ├── schema.prisma              # User / Task / Note models
@@ -167,7 +170,7 @@ bun run lint && bun run typecheck && bun run test
 # ESLint clean · tsc clean · 44/44 unit tests
 
 bun run build && bun run test:e2e
-# Build succeeds · 29/29 e2e tests (production standalone on :3100)
+# Build succeeds · 34/34 e2e tests (production standalone on :3100)
 ```
 
 ### Production
@@ -225,7 +228,7 @@ Tailwind CSS **v4 CSS-first** — no `tailwind.config.*`; all tokens live in
 | Suite | Command | What it covers |
 |---|---|---|
 | Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients), db-path resolution, .env.example contract, site URL helper |
-| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels, planning week cards + dialog flow |
+| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels, planning week cards + dialog flow + the decompiled reference behaviors (null-init selectedDay, static Day Statistics placeholder, selected-day highlight, chip bubbling, decorative Filter, no Unscheduled section) |
 
 The e2e suite boots the **production standalone build** on `:3100` with its
 own seeded `db/e2e.db`; one setup project signs the demo user in once

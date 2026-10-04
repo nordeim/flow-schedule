@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (session 1, 2026-10-04).
-version: 1.0.0
+  codebase-verified (sessions 1–2, 2026-10-04).
+version: 1.1.0
 last_updated: 2026-10-04
-project_state: 44/44 unit tests, 29/29 e2e tests, all gates green
+project_state: 44/44 unit tests, 34/34 e2e tests, all gates green
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -138,7 +138,7 @@ Demo credentials (seed): `demo@flowschedule.app` / `demo1234`.
 | `bun run start` | Standalone prod server :3000 |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit — 44 tests |
-| `bun run test:e2e` | Playwright — 29 specs; **requires prior `bun run build`** |
+| `bun run test:e2e` | Playwright — 34 specs; **requires prior `bun run build`** |
 | `bun run db:push` / `bun run db:seed` | Schema sync / idempotent seed |
 | `scripts/smoke-test.sh` | 25-check curl suite over the standalone server |
 
@@ -388,12 +388,17 @@ chunks. **Fix:** `allowedDevOrigins: ["127.0.0.1", "localhost"]` in
 
 ### FS-7: Day-card center-click interception (Medium — e2e)
 
-**Symptom:** e2e "day statistics" test intermittently opens the Edit
-dialog instead of selecting a day. **Root cause:** task chips are
+**Symptom:** e2e "day statistics" test intermittently opened the Edit
+dialog instead of selecting a day. **Root cause:** task chips were
 `div[role=button]` with `stopPropagation` INSIDE the day-card `button`;
 Playwright clicks the element's center point, which a chip can cover.
-**Fix:** click the day-card HEADER block (`div.text-center`) and gate
-on hydration first (seeded chip visible). See §10.
+**Session-2 resolution (the REAL fix):** the reference's chips are
+display-only divs with no handler — clicks bubble to the day card and
+select the day. The clone now matches, so the interception is
+**structurally impossible**; any click position selects the day. The
+header-block click (`div.text-center`) remains in the specs as the
+maximally robust variant, and the hydration gate (seeded chip visible
+before clicking) is still required. See §10.
 
 ### FS-8: Deleting the SQLite file under a live server (Critical — e2e infra)
 
@@ -407,13 +412,15 @@ create via the API instead. See FS-9.
 
 ### FS-9: e2e data residue drift (Medium — e2e infra)
 
-**Symptom:** day-total assertions ("3.5h") break after N runs.
+**Symptom:** created-row residue breaks later assertions after N runs.
 **Root cause:** specs create tasks and never delete them; a single
 `.find()`-then-delete also never converges residue from crashed runs.
 **Fix:** cleanup blocks in `planning.spec.ts`/`dashboard.spec.ts`
 delete EVERY matching title via `page.request` (shares the session
 cookie); verified convergence — after a full run the db holds exactly
-the 9 seed tasks.
+the 9 seed tasks. (Session-2 note: the old "3.5h" day-total assertion
+was itself a clone-only feature — see FS-11 — and was retired with the
+stats data branch.)
 
 ### FS-10: Radix menu hide-others in tests (Medium — e2e)
 
@@ -423,6 +430,23 @@ the menu is open. **Fix:** measure/click the trigger BEFORE opening
 (see `tests/e2e/mobile-navigation.spec.ts`). Synthetic `el.click()`
 via `page.evaluate` also does NOT open Radix menus — use
 `locator.click()` (trusted pointer events).
+
+### FS-11: Inferring reference behavior instead of decompiling it (Critical — parity)
+
+**Symptom:** the clone's /Planning page behaved differently from the
+reference on SEVEN counts (today-preselected panel, today-highlight,
+real Day Statistics, working Filter cycler, clickable chips, task item
+action buttons, an Unscheduled accordion) — none of them caught by the
+gate because the specs pinned the WRONG behavior.
+**Root cause:** session 0 built the page from the live EMPTY-state
+reference (no tasks, no day selected) and inferred "reasonable"
+behavior instead of decompiling the component from the bundle.
+**Fix + rule:** decompile the reference's minified component
+(`bundle.js`: state init, conditional guards, handlers) BEFORE building
+a view; the live DOM only corroborates. The corrected behaviors are
+pinned by 9 planning specs (`tests/e2e/planning.spec.ts`). When a
+parity question is open, the bundle is the ground truth — "the
+reference wouldn't do that" is not evidence.
 
 ## 10. Debugging Guide
 
@@ -450,7 +474,7 @@ bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
 bun run test          # 44/44
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 29/29 on the production standalone :3100
+bun run test:e2e      # 34/34 on the production standalone :3100
 scripts/smoke-test.sh # 25/25 curl checks (auth, CRUD, AI envelopes, pages)
 ```
 
@@ -764,17 +788,19 @@ The full ADR set with alternatives-rejected lives in
 
 ## Appendix B: Verification Ledger
 
-Session 1 final gate (2026-10-04):
+Session 2 final gate (2026-10-04, after the Planning parity remediation):
 
 | Check | Result |
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
 | `bun run test` (Vitest) | **44/44** — auth ×8, db-path ×15, domain ×13, env-example ×4, site ×4 |
-| `bun run build` | green; routes include `/robots.txt`, `/sitemap.xml` (session 1) |
-| `bun run test:e2e` (Playwright) | **29/29** × 3 consecutive runs; post-run db = exactly 9 seed tasks |
-| `scripts/smoke-test.sh` | 25/25 (session 0; re-run after remediation if API surface changes) |
-| Reference parity | mobile menu re-measured byte-identical (374/54/192; trigger 374/50) |
+| `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml` |
+| `bun run test:e2e` (Playwright) | **34/34** × 2 consecutive runs (was 29; +6 new planning parity specs — see FS-11) |
+| `scripts/smoke-test.sh` | 25/25 |
+| Reference parity (mobile menu) | re-measured live on BOTH apps: 374/54/192; trigger 374/50 — byte-identical |
+| Reference parity (Planning) | bundle decompile + live DOM comparison on both apps: null-init selection, selected-day highlight, static stats placeholder, decorative Filter, chip bubbling, display-only items, no Unscheduled — all matched |
+| Reference parity (gradients) | Quick Action tiles byte-identical; canvas endpoints identical, oklab midtone delta measured 0–3 RGB units (accepted) |
 
 ## Appendix C: Session History
 
@@ -782,13 +808,21 @@ Session 1 final gate (2026-10-04):
   full app (11 API routes, 4 pages, store, auth, AI fallbacks), the 5
   Tailwind v4 trap mitigations, 36 unit + 29 e2e tests, 4 root docs,
   first push via the SSH wrapper.
-- **Session 1 (2026-10-04, this skill):** review + remediation —
+- **Session 1 (2026-10-04, commit `1742785`):** review + remediation —
   `.env.example` contract (test-pinned), real site metadata
   (`site.ts` + sitemap + robots + `metadataBase`), e2e determinism
   (FS-7/8/9 fixes), 44/44 unit, screenshots refreshed, session + skill
   docs. See `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` (the operator's build narrative
   lives in `docs/session_1.md`).
+- **Session 2 (2026-10-04, this skill revision):** audit + Planning
+  parity — decompiled the reference's Planning component from its
+  bundle and fixed 7 behavioral gaps (P-1…P-7: null-init selectedDay,
+  selection highlight, static Day Statistics placeholder, decorative
+  Filter, display-only chips, display-only task items, no Unscheduled
+  section); e2e 29 → 34 specs; FS-11 lesson recorded. See
+  `docs/session_2-review.md` + `docs/remediation-plan-session2.md`
+  (the operator's narrative lives in `docs/session_2.md`).
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

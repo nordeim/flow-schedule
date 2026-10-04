@@ -1,8 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-// Planning surface (authenticated): week card, 7 day columns, selected-day
-// accordions, and the Add Task dialog flow (create → chip renders →
-// complete → delete).
+// Planning surface (authenticated), pinned to the reference's DECOMPILED
+// behavior (session 2, P-1…P-7 remediation):
+//   - week card with 7 day columns; chips are display-only — a click
+//     anywhere on a card (chips included) selects the day (bubbles);
+//   - the selected-day section (task list + Day Statistics) renders ONLY
+//     after a day card is clicked — selectedDay starts null in the
+//     reference and there is no today-highlight;
+//   - Day Statistics is the reference's static placeholder (no data
+//     branch exists in the reference bundle);
+//   - the Filter button is decorative (label "Filter", no handler);
+//   - there is NO Unscheduled section anywhere in the reference;
+//   - selected-day task items are display-only (edit happens exclusively
+//     from the Dashboard calendar task blocks).
+// The Add Task dialog flow (create → chip renders) is unchanged.
+
+const LONG_DATE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), /;
 
 test.describe("planning page", () => {
   test.beforeEach(async ({ page }) => {
@@ -16,6 +29,17 @@ test.describe("planning page", () => {
     for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
       await expect(page.locator("div.font-semibold", { hasText: day }).first()).toBeVisible();
     }
+  });
+
+  test("no selected-day section renders before a day is clicked", async ({ page }) => {
+    // Hydration gate: wait for a seeded chip so the store has fetched.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    // Reference: selectedDay starts null — the entire 2-col section (task
+    // list + Day Statistics) is absent, and the reference has no
+    // "Unscheduled" section at all (the string is not in its bundle).
+    await expect(page.getByRole("heading", { name: LONG_DATE })).toHaveCount(0);
+    await expect(page.getByText("Day Statistics")).toHaveCount(0);
+    await expect(page.getByText(/Unscheduled/)).toHaveCount(0);
   });
 
   test("seeded tasks show as chips on their day columns", async ({ page }) => {
@@ -53,27 +77,80 @@ test.describe("planning page", () => {
   });
 
   test("day-card click selects the day and its accordion updates", async ({ page }) => {
-    // Click the Wednesday column's HEADER block (EEE + date): a center
-    // click on the card can land on a task chip (div[role=button] with
-    // stopPropagation) and open the Edit dialog instead.
+    // Hydration gate: a pre-hydration click on a day card is a no-op (no
+    // React handler yet). Wait for a seeded chip first: it only renders
+    // once the store has fetched.
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    // Before the click there is no panel at all (reference: selectedDay
+    // starts null — P-1).
+    await expect(page.getByRole("heading", { name: LONG_DATE })).toHaveCount(0);
+    // Chips are display-only (P-5), so any click position selects the day —
+    // the header-block click is kept as the maximally robust variant.
     await page.locator("button.p-4", { hasText: "Wed" }).first().locator("div.text-center").first().click();
     await expect(page.getByRole("heading", { name: /Wednesday/ })).toBeVisible();
   });
 
-  test("day statistics accordion shows totals for the selected day", async ({ page }) => {
-    // Hydration gate: a pre-hydration click on a day card is a no-op (no
-    // React handler yet) and leaves "today" selected — today varies by run
-    // date, so the Monday total would never appear. Wait for a seeded chip
-    // first: it only renders once the store has fetched.
+  test("day statistics shows the reference's static placeholder", async ({ page }) => {
+    // Reference decompile: the Day Statistics accordion's ONLY content is
+    // the static placeholder — there is no data branch (P-7). Select
+    // Monday explicitly (Monday carries 3 seeded tasks — the strongest
+    // temptation for a data branch to appear).
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
-    // Select Monday explicitly (the default is today, which varies by run
-    // date); Monday carries 3 seeded tasks (30 + 120 + 60 = 3.5h). Click the
-    // header block, never the card center — the center can be covered by a
-    // task chip whose stopPropagation opens the Edit dialog instead.
     const mondayCard = page.locator("button.p-4", { hasText: "Mon" }).first();
-    await mondayCard.locator("div.text-center").first().click();
-    await expect(page.getByText("3.5h").first()).toBeVisible();
-    await expect(page.getByText("scheduled", { exact: true })).toBeVisible();
+    await mondayCard.click();
+    await expect(page.getByRole("heading", { name: /Monday/ })).toBeVisible();
+    await expect(page.getByText("Day Statistics")).toBeVisible();
+    await expect(page.getByText("Statistics for selected day")).toBeVisible();
+    await expect(page.getByText("3.5h")).toHaveCount(0);
+    await expect(page.getByText("scheduled", { exact: true })).toHaveCount(0);
+  });
+
+  test("selected day card is highlighted (not today)", async ({ page }) => {
+    // Reference: the card highlight follows the SELECTED day
+    // (bg-sky-50 border-sky-200) — there is no today highlight (P-2).
+    // Monday is never the clicked day here, so it must stay unhighlighted
+    // on every run date (pre-fix, Monday-as-today or Sunday-as-today was
+    // highlighted instead of the selection).
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    await page.locator("button.p-4", { hasText: "Wed" }).first().click();
+    const wed = page.locator("button.p-4", { hasText: "Wed" }).first();
+    await expect(wed).toHaveClass(/bg-sky-50/);
+    await expect(wed).toHaveClass(/border-sky-200/);
+    const mon = page.locator("button.p-4", { hasText: "Mon" }).first();
+    await expect(mon).not.toHaveClass(/bg-sky-50/);
+  });
+
+  test("chip clicks select the day and never open the edit dialog", async ({ page }) => {
+    // Reference chips are display-only divs: a chip click bubbles to the
+    // day card and selects that day (P-5) — the session-1 FS-7
+    // chip-interception class of flake is now structurally impossible.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    await page.locator("button.p-4", { hasText: "Mon" }).first().getByText("Team standup").click();
+    await expect(page.getByRole("heading", { name: /Monday/ })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("selected-day task items are display-only (no action buttons)", async ({ page }) => {
+    // Reference task items: title, priority, description, category badge,
+    // HH:mm — no Mark-done/Edit buttons, no duration text (P-6). Editing
+    // happens exclusively from the Dashboard calendar task blocks.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    await page.locator("button.p-4", { hasText: "Mon" }).first().click();
+    await expect(page.getByRole("heading", { name: /Monday/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark done" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  });
+
+  test("Filter button is decorative", async ({ page }) => {
+    // Reference: an outline button labeled "Filter" with NO onClick (P-4)
+    // — no filter cycling, no label change.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    const filter = page.getByRole("button", { name: "Filter", exact: true });
+    await expect(filter).toBeVisible();
+    await filter.click();
+    await expect(page.getByText(/Filter: (all|scheduled|unscheduled)/)).toHaveCount(0);
+    // Nothing filtered away — the seeded chips are all still there.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    await expect(page.locator("div", { hasText: "Gym session" }).first()).toBeVisible();
   });
 });

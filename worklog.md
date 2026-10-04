@@ -133,3 +133,27 @@ Work Log:
 Stage Summary:
 - Session 1 delivered: remediated codebase, deterministic test suite, session docs, distilled skill, fresh screenshots, all gates green
 - Key new knowledge: env-precedence trap, Playwright webServer-before-globalSetup + SQLite file-handle rule, converging spec cleanup, day-card header clicks
+
+---
+Task ID: 14-16
+Agent: main agent
+Task: Session 2 — audit + Planning parity remediation, screenshots, docs, commit + push
+
+Work Log:
+- git pull (fast-forward: docs/session_2.md — the operator's session-1 remediation narrative); reviewed all 5 root docs + session docs + worklogs for alignment
+- Full gate at base 1742785: lint clean, tsc clean, 44/44 unit, build 19 routes, 29/29 e2e, smoke 25/25 — all green
+- Re-measured the live reference (agent-browser, saved auth): mobile menu 374/54/192 (trigger 374/50) byte-identical on both apps; desktop avatar menu items identical; dashboard card set, calendar grid, task-block styles, Quick Action hex gradients byte-identical; canvas gradient endpoints identical (oklab midtone delta pixel-measured 0–3 RGB units — PAD acceptance upheld)
+- Decompiled the reference's Planning component from its bundle (eSe): found 7 parity gaps (P-1 null-init selectedDay + render guard; P-2 selection-following highlight (no today); P-3 no Unscheduled accordion; P-4 decorative Filter (no handler); P-5 display-only chips (clicks bubble); P-6 display-only task items (no buttons/duration); P-7 static Day Statistics placeholder (no data branch))
+- Wrote docs/remediation-plan-session2.md; validated every finding against the codebase; executed TDD:
+  * RED: 6 new planning specs + 1 rewrite + 1 extension — 7 failed exactly as predicted against the pre-fix build
+  * GREEN: single-file rewrite of src/app/(app)/Planning/page.tsx implementing all 7 reference behaviors
+  * dashboard.spec.ts "Add New Task panel" migrated to API verification (reference surfaces unscheduled tasks nowhere)
+- Final gate: lint clean, tsc clean, 44/44 unit, build green, 34/34 e2e × 2 consecutive runs, smoke 25/25
+- Live parity re-verified on BOTH apps (initial + Monday-clicked states): all 7 behaviors match; mobile-menu geometry re-pinned after the change (374/54/192)
+- Re-captured 10 screenshots (01–09 + new 10-planning-selected.png) from the remediated dev server
+- Updated docs: README, PAD (§3.2/§8/§10.1/§11/§12), AGENTS.md (Planning conventions + session-2 references), CLAUDE.md, flow-schedule_SKILL.md v1.1.0 (FS-11 infer-vs-decompile; FS-7 proper resolution; appendices B/C), docs/session_2-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 2 delivered: Planning page now mirrors the reference's decompiled behavior exactly; e2e 29 → 34 specs; FS-11 lesson (decompile, don't infer) recorded; all gates green × 2 runs
+- Key insight: session-1's FS-7 e2e flake was a symptom of clone-only chip behavior — matching the reference made it structurally impossible

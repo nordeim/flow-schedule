@@ -54,22 +54,20 @@ test.describe("dashboard", () => {
     const input = page.getByLabel("Task Title");
     await input.fill("E2E quick action task");
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    // The panel closes; the unscheduled task shows up on the Planning page's
-    // Unscheduled accordion (Log Activity lists only past/completed —
-    // the reference's "Recently Completed / Past" filter).
+    // The panel closes. The reference surfaces unscheduled tasks nowhere in
+    // the UI (no Unscheduled section on /Planning — session 2, P-3), so
+    // the created task is verified via the API envelope directly.
+    // Cleanup rides the same listing: delete EVERY match so repeated runs
+    // don't drift the seeded state (global-setup deliberately does NOT
+    // reset the db file — see its header comment; a crashed earlier run
+    // can leave residue that a single `.find()`-then-delete would never
+    // converge on). GET /api/tasks → { ok, data: { tasks } }.
     await expect(page.getByLabel("Task Title")).toBeHidden();
-    await page.goto("/Planning");
-    await expect(page.getByText("E2E quick action task").first()).toBeVisible();
-
-    // Cleanup: delete the task(s) via the API so repeated runs don't drift the
-    // seeded state (global-setup deliberately does NOT reset the db file —
-    // see its header comment). GET /api/tasks → { ok, data: { tasks } }.
-    // Delete EVERY match — a crashed earlier run can leave residue that a
-    // single `.find()`-then-delete would never converge on.
     const list = await (await page.request.get("/api/tasks")).json();
     const residue = (list?.data?.tasks ?? []).filter(
       (t: { title: string }) => t.title === "E2E quick action task",
     );
+    expect(residue.length).toBeGreaterThanOrEqual(1);
     for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
   });
 
