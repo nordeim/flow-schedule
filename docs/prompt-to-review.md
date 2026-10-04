@@ -11,6 +11,7 @@ Edit `.env` so that `DATABASE_URL="file:../db/custom.db"` - the `db/` folder sho
 Add vitest and playwright test suite by modifying the respective config files in the repo.
 
 Next, meticulously plan to create a comprehensive remediation plan with a detailed ToDo list to fix the identified codebase issues, bugs and gaps. Next, review and validate the remediation plan against the codebase again to ensure alignment before executing it meticulously. Use TDD approach to make code changes. Look for appropriate skills in the repo included `skills/` folder to help you in the planning (refer to the included `skills/skills-catalog.md` to look for suitable skills)
+Save the remediation plan under the local repo `docs/` folder for future reference.
 
 Capture some screenshots for the dev server running the remediated codebase, save the screen captures as image files under the `docs/screenshots/` folder in the new `flow-schedule` repo. Also, create a working `.env.example` that matches the codebase, include the `.env.example` in the git commit.
 
@@ -25,3 +26,4 @@ SSH key for `git push`:
 ```
 
 ```
+
