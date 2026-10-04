@@ -36,8 +36,16 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        // The CLASSIC shadcn DialogContent (session 8, G-3 — live-measured
+        // on the reference's edit dialog): left-[50%]/top-[50%] with
+        // translate-x-[-50%]/translate-y-[-50%] arbitrary-value positioning,
+        // the four slide-in/out animation classes (engine: tw-animate-css,
+        // G-1), and sm:rounded-lg in the base (twMerge keeps it beside the
+        // custom rounded-3xl — different variant scopes). The modern form
+        // (left-1/2 -translate-x-1/2, no slides, rounded-lg) rendered a
+        // different class string.
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
           className,
         )}
         {...props}
@@ -69,7 +77,11 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg font-semibold leading-none", className)}
+      // The CLASSIC shadcn DialogTitle base (session 8, G-3): includes
+      // tracking-tight — the reference's dialog H2 renders `tracking-tight
+      // text-xl font-bold text-slate-900` after the merge. The modern form
+      // dropped it.
+      className={cn("text-lg font-semibold leading-none tracking-tight", className)}
       {...props}
     />
   );

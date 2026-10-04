@@ -59,8 +59,10 @@ activity log, notes brainstorm), and **two LLM-backed sidebar cards**
 | UI runtime | React | 19.x | The only runtime Next 16 supports; client components for the interactive islands |
 | Language | TypeScript | 5.x (strict) | Typesafety across the store/API/Prisma seams |
 | Styling | Tailwind CSS | 4.x (CSS-first) | The reference's utility vocabulary; `@theme` tokens with v3 values pinned (see §5.4) |
+| Animations | tw-animate-css | 1.4.x | The v4-native port of tailwindcss-animate — powers the Radix enter/exit utilities (.animate-in, fade/zoom/slide) the reference's stylesheet defines (session 8, G-1) |
 | Component primitives | Radix (shadcn-style) | latest | Accessible Dialog/Select/DropdownMenu/Accordion — focus trap, Escape, and ARIA for free |
 | Charts | recharts | 2.15.x | The Skills Map pie — the reference's MEASURED major (its bundle's pie DOM has no recharts-zIndex layers; session 7, G-3, e2e-pinned) |
+| Icons | lucide-react | 0.475.x | The reference's MEASURED version (its bundle banner: v0.475.0, single-class emission; session 8, G-2, e2e-pinned) |
 | Motion | framer-motion | 14.x | The reference's three drifting background blobs |
 | Client state | Zustand | 5.x | Single store, envelope unwrapping, no server-state caching layer needed |
 | ORM | Prisma | 6.x | Schema-as-code, SQLite-first with a PostgreSQL escape hatch |
@@ -443,8 +445,15 @@ erDiagram
 
 The shapes mirror the reference app's entities exactly (Task with
 `start_time`/`duration_minutes`/`end_time`, Note with `tags` array, User)
-— extracted from its live API responses. The wire format is snake_case;
-Prisma is camelCase; `mapTask`/`mapNote` are the only converters.
+— the field names corroborated by the reference's bundle (its TaskDialog
+state initializes `{start_time:"", end_time:"", duration_minutes:60}`;
+`fn.Note.list("-created_date")`; notes' tags consumed as an array). The
+wire format is snake_case in BOTH directions — requests accept
+`start_time`/`duration_minutes`, responses ship through
+`serializeTask`/`serializeNote` (`src/lib/serialize.ts`, session 8 G-4:
+snake_case fields, tags unwrapped to arrays, clone-internal `isSample`/
+`userId` kept off the wire); Prisma stays camelCase; `mapTask`/`mapNote`
+are the wire→client conversion seams.
 
 ### 4.2 Persistence Strategy
 
@@ -494,13 +503,23 @@ category gradients per §1.1, destructive `text-red-600`.
 
 shadcn-style Radix wrappers in `src/components/ui/` (button, input,
 textarea, label, badge, dialog, select, dropdown-menu, accordion, card)
-— unstyled primitives themed via `cn()`; portals at z-50. The Badge is
-the reference's CLASSIC shadcn form (session 7, G-4): a `<div>` with the
+— unstyled primitives themed via `cn()`; portals at z-50. The **classic
+shadcn forms are parity** (sessions 7+8): the Badge is a `<div>` with the
 focus-ring classes in the cva base and `shadow`/`hover:bg-*` on the
-variants — live-measured against the reference's Z1e/W$ and e2e-pinned;
-do not modernize it to the data-slot span form. recharts is pinned to
-2.15.x (the reference's measured major — see §1.2 and the e2e DOM-shape
-pin).
+variants (session 7, G-4 — live-measured against the reference's Z1e/W$);
+DialogContent uses the classic arbitrary-value positioning
+(`left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]`) with the
+four slide-in/out animation classes and `sm:rounded-lg`; DialogTitle's
+base carries `tracking-tight`; SelectTrigger styles its placeholder via
+`ring-offset-background data-[placeholder]:text-muted-foreground` and
+SelectContent carries the side `slide-in-from-*` classes (session 8,
+G-3 — all live-measured on the reference's dialog/listbox and
+e2e-pinned). Do not modernize any of them to the data-slot forms.
+recharts is pinned to 2.15.x and lucide-react to 0.475.x (the
+reference's measured versions — see §1.2 and the e2e DOM-shape pins).
+The Radix enter/exit animations are powered by `@import
+"tw-animate-css"` in `globals.css` (session 8, G-1) — the utility
+strings were dead CSS before that import.
 
 ### 5.4 The Five Tailwind v4 Traps (all applied as code)
 
@@ -594,8 +613,8 @@ during the e2e run — both cards rendered their defaults (by design).
 
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
-| Unit (59) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation) |
-| E2E (58) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill + the "Create Task"/Save-icon submit, the content-sized Refresh button, the decompiled sidebar-card states (status-card locators scoped to the Next Up heading — hour-of-day independent, FS-16), the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, the ALWAYS-VISIBLE CARD structure — CardHeader/CardTitle-div/CardContent, no accordion/heading/chevron, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter with its mr-2 icon margin, the header icon margins + no-hover-gradient Add Task, the createdAt-desc chips/list order, the classic DIV category badges), `dashboard.spec.ts` gains the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers; tooltip wrapper after the svg) + the new-task-first store semantics after a dialog create; the status-card spec's post-click locator accepts BOTH card states (Next Up OR All caught up! — the state-transition flake, session 7 F-2) |
+| Unit (66) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation), `wire-format.test.ts` (serializeTask/serializeNote: snake_case fields, tags as arrays, internal fields off the wire) |
+| E2E (63) | Playwright (production standalone :3100) | The four user surfaces + the logged-out surface | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (the reference's login chrome: logo img, rounded-2xl card + top bar, slate-900 submit, placeholders, stacked footer; the separate sign-up view with Confirm Password + "Passwords do not match"; the forgot/reset views with the green alert; "Invalid email or password" with no period; post-login landing at "/"; the session guards; the Google notice), `not-found.spec.ts` (the reference's custom 404: text-7xl numeral, divider, echoed path, Go Home → "/"), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill + the "Create Task"/Save-icon submit, the content-sized Refresh button, the decompiled sidebar-card states (status-card locators scoped to the Next Up heading — hour-of-day independent, FS-16), the full-bleed container, day-row spacing), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, the ALWAYS-VISIBLE CARD structure — CardHeader/CardTitle-div/CardContent, no accordion/heading/chevron, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter with its mr-2 icon margin, the header icon margins + no-hover-gradient Add Task, the createdAt-desc chips/list order, the classic DIV category badges), `dashboard.spec.ts` gains the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers; tooltip wrapper after the svg) + the new-task-first store semantics after a dialog create + the session-8 pins: the dialog's enter animation (computed `animation-name: enter`), the classic DialogTitle `tracking-tight` + SelectTrigger `ring-offset-background`/`data-[placeholder]:` classes, the single `lucide-trash2` class, and the snake_case API response shape; the status-card spec's post-click locator accepts BOTH card states (Next Up OR All caught up! — the state-transition flake, session 7 F-2); the mobile-menu geometry spec settles the enter animation before measuring (session 8, E-C) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
 `auth.setup.ts` signs in ONCE (rate-limiter budget) and shares
@@ -630,7 +649,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 59/59 unit · build ✓ (self-type-checked) · 58/58 e2e
+# lint clean · tsc clean · 66/66 unit · build ✓ (self-type-checked) · 63/63 e2e
 ```
 
 ### 10.2 Common tasks
@@ -753,3 +772,12 @@ rows re-executed after the sidebar-card/layout-chrome remediation):
 | Mobile menu re-pin (session 7) | Verified | Live on BOTH apps at 390×844: trigger 338/14/36×36, menu 182/54/192×164, items [Profile, Settings, Logout] — no Tailwind v4 regression |
 | Desktop dropdown geometry (session 7) | Verified | First-time measured on BOTH apps at 1440×900: trigger 1252/14/76×36, menu 1136/54/192×164 right-anchored to 1328, items identical — pinned by the existing desktop-menu spec (items) + this measurement |
 | Screenshots (session 7) | Verified | 20 captures re-run via `scripts/capture-screenshots.mjs` (the recharts 2.x pie + the ordered chips + the DIV badges render in 02/03/10) |
+| **Radix animation parity (session 8, G-1)** | Verified | The reference's stylesheet defines `.animate-in { animation-name: enter; 0.15s }` (its dialog/dropdown/select genuinely animate); the clone's utility classes were DEAD CSS (tw-animate-css installed, never imported — zero rules in the built stylesheet). Fixed: `@import "tw-animate-css"` in globals.css; the dialog's computed animation-name is now `enter` on both apps; e2e pins the computed style; the mobile-menu geometry spec settles animations before measuring |
+| **lucide-react 0.475 pin (session 8, G-2)** | Verified | The reference's bundle banner: `lucide-react v0.475.0`, single-class emission (`lucide-${kebab(name)}`); the clone's 0.525.0 emitted dual classes for renamed icons (trash-2) and different icon nodes (LogOut path+path vs polyline+line). Downgraded to ^0.475.0 (React-19-compatible peer range); the edit dialog's trash icon now renders the reference's single `lucide-trash2`; e2e-pinned |
+| **Classic dialog/select primitives (session 8, G-3)** | Verified | Live-measured on the reference's edit dialog + open priority listbox: DialogContent `left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]` + 4 slide classes + `sm:rounded-lg`; DialogTitle `tracking-tight`; SelectTrigger `ring-offset-background data-[placeholder]:text-muted-foreground`; SelectContent side slide-ins. All applied; the edit-mode dialog now diffs **0/62** (byte-identical incl. container + input values); e2e-pinned |
+| **Wire-format serializer (session 8, G-4)** | Verified | Responses previously returned raw camelCase Prisma objects (with isSample/userId; notes' tags as a JSON string) while requests + 3 docs specified the reference's snake_case entity shape. `src/lib/serialize.ts` added (unit-pinned, 7 tests); all task/note routes serialize; mapTask/mapNote read the snake_case wire; the e2e POST/GET spec pins the response field names |
+| **Next-week view parity (session 8, first-time diff)** | Verified | Populated state-matched class-tree diff of the NEXT-week calendar (both apps holding an identical completed task on Tue 11:00): **0 diffs across the entire calendar + Quick Actions region (elements 0–653)**; the task block sits at the identical DOM index [227] with identical classes — the week-navigation surface verified for the first time |
+| **Log Activity populated parity (session 8)** | Verified | State-matched entries on both apps ("Live verify scheduled" / "Completed in 2 days") — identical structure, classes, and relative-time formatting |
+| Mobile menu re-pin (session 8) | Verified | Live on BOTH apps at 390×844 (trusted clicks, animation settled): trigger 338/14/36×36 both; menu 182/54/192×164, items [Profile, Settings, Logout] — no Tailwind v4 regression; the menu now ANIMATES like the reference's |
+| **Reference residue cleanup (session 8, P-3)** | Verified | Session 5's leftover "Live verify scheduled" (completed, Oct 6 11:00) found on the reference's NEXT week — sessions 6/7's "0 tasks" checks only looked at the current week. Deleted via the reference's own dialog (confirm armed); the account is back to the TRUE 0-task baseline |
+| Screenshots (session 8) | Verified | All 20 captures re-run on the remediated codebase (the animated dialog + menu settled before capture; the lucide 0.475 icons render in every shot) |

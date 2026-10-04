@@ -57,6 +57,18 @@ test.describe("mobile account menu (the mobile navigation)", () => {
     const menu = page.getByRole("menu");
     await expect(menu).toBeVisible();
 
+    // The menu ANIMATES open (tw-animate-css, session 8 G-1 — the
+    // reference's own zoom-in-95 + slide-in-from-top-2 enter). Playwright's
+    // boundingBox includes transforms, so measuring mid-animation would
+    // read the zoomed/sliding box. Wait for the enter animation to finish
+    // before measuring (the reference's own measurements always settled).
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[role="menu"]');
+      if (!el) return false;
+      const anims = el.getAnimations();
+      return anims.length === 0 || anims.every((a) => a.playState === "finished");
+    });
+
     const menuBox = await menu.boundingBox();
     expect(menuBox).not.toBeNull();
 

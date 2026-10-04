@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–7, 2026-10-04).
-version: 1.6.0
+  codebase-verified (sessions 1–8, 2026-10-04).
+version: 1.7.0
 last_updated: 2026-10-04
-project_state: 59/59 unit tests, 58/58 e2e tests, all gates green, build self-type-checks
+project_state: 66/66 unit tests, 63/63 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -89,13 +89,14 @@ Locked versions (from `bun pm ls`, verified 2026-10-04):
 |---|---|---|---|
 | Framework | next (App Router, Turbopack) | 16.3.8 | `proxy.ts` era; `allowedDevOrigins` is load-bearing; `params`/`cookies()` async |
 | UI runtime | react / react-dom | 19.3.0 | |
-| Language | typescript | 5.x (strict) | `tsc --noEmit` is the gate — `next.config.ts` has `ignoreBuildErrors: true` (scaffold legacy) |
+| Language | typescript | 5.x (strict) | `tsc --noEmit` is the fast gate; the build self-type-checks too (`ignoreBuildErrors` removed, session 3) |
 | Styling | tailwindcss + @tailwindcss/postcss | 4.3.3 | CSS-first `@theme inline`; NO `tailwind.config.*`; v3 token values pinned (§4) |
 | Primitives | radix-ui (dialog, dropdown-menu, select, accordion, …) | per-package | Focus trap + Escape come free — never hand-roll |
-| Charts | recharts | 3.10.1 | Skills Map pie only |
+| Charts | recharts | 2.15.4 | The reference's measured 2.x major — do NOT bump (session 7, G-3) |
+| Animations | tw-animate-css | 1.4.0 | The v4-native tailwindcss-animate port — imported in globals.css (session 8, G-1) |
 | Motion | framer-motion | 14.0.0 | Background blobs only |
 | State | zustand | 5.0.15 | THE single fetcher of `/api/*` (§6) |
-| Icons | lucide-react | 0.525.0 | |
+| Icons | lucide-react | 0.475.0 | The reference's MEASURED version (single-class emission; session 8, G-2) |
 | ORM | prisma + @prisma/client | 6.19.3 | SQLite; relative `file:` URLs anchored by `src/lib/db-path.ts` |
 | AI | z-ai-web-dev-sdk | 0.0.18 | Server-side ONLY; deterministic fallbacks |
 | Unit tests | vitest | 5.0.3 | `*.test.ts` only (e2e specs never picked up) |
@@ -605,6 +606,42 @@ assertion fails with "element(s) not found". Verify the app first
 accept BOTH headings in the filter. Sessions 4–6 passed only because
 their runs predated the day's last seeded task.
 
+### FS-18: Class equality is not CSS existence — and utility libraries are dead weight until imported (Critical — parity)
+
+**Symptom:** the clone's dialog, dropdown menus, and selects carried the
+full shadcn animation class set (`data-[state=open]:animate-in …
+zoom-in-95 … slide-in-from-top-2`), `tw-animate-css` sat in
+devDependencies — and NOTHING animated. Seven sessions of class-tree
+diffs (761/761, 132/132!) were blind to it: the classes matched the
+reference's exactly, but the built stylesheet contained ZERO rules for
+them (grep the built CSS: `animate-in` absent). The reference's dialog
+slides/fades/zooms in over 150ms; the clone's snapped instantly.
+**Root cause:** class-tree diffs verify the ATTRIBUTE, not the CSS that
+backs it; static e2e pins never assert motion; the package was never
+imported in `globals.css`. The sibling `tailwindcss-animate` (v3 plugin,
+unusable under v4 CSS-first) was equally dead.
+**Fix + rules:** (1) importing a utility library is load-bearing — pin
+it (an e2e now asserts the dialog's computed `animation-name: enter`);
+(2) grep the BUILT stylesheet for a utility's selector before claiming
+it works; (3) motion is a parity surface — the reference's own
+measurements always waited for the 150ms settle, so
+geometry-measuring specs must wait for `getAnimations()` to finish
+(Playwright's `boundingBox()` includes transforms — mid-animation reads
+the zoomed box).
+**The same session's corollaries:** the lucide-react VERSION is parity
+data (the reference's bundle banner says v0.475.0 — its factory emits
+ONE class per icon; 0.525+ emits two for renamed icons like trash-2
+and different icon NODES: LogOut as path+path vs the reference's
+polyline+line — the same evidence class as session 7's recharts 2.x
+pin); and the edit-mode DIALOG is a populated-only surface (session 6
+diffed the create-mode dialog; the Delete button + prefilled values
+exist only in edit mode — the classic DialogTitle/SelectTrigger class
+gaps hid there). Also: the API's RESPONSE shape is a contract — the
+requests spoke snake_case while the responses returned raw camelCase
+Prisma objects (with internal fields); a wire serializer
+(`serializeTask`/`serializeNote`) closed it, and the docs' claim became
+true.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -632,6 +669,11 @@ their runs predated the day's last seeded task.
 | The class-tree diff is 100% green but the apps look different | FS-17 — tag+class diffs are BLIND to text content and DOM order | Re-diff with MATCHED POPULATED data and compare text/order too |
 | A negated assertion fails with "element(s) not found" | The component CHANGED the heading the locator filters by (e.g. "Next Up" → "All caught up!") | Accept BOTH headings in the filter; verify the app first (debug boot: PATCH + re-render) |
 | recharts upgrade makes the e2e DOM-shape pin fail | The reference's pie is the recharts 2.x DOM (no zIndex layers, no shape wrappers, tooltip after svg) | Keep recharts at 2.15.x; re-diff the reference's pie DOM before any major bump |
+| The classes match but nothing animates (instant open/close) | FS-18 — the utility library is installed but never imported; the classes are dead strings | `@import "tw-animate-css"` in globals.css; grep the BUILT stylesheet for the selector; pin computed `animation-name` |
+| A menu/dialog measurement flakes after adding animations | `boundingBox()` includes transforms — mid-animation reads the zoomed/sliding box | Wait for `getAnimations()` to finish before measuring (mobile-navigation.spec.ts's pattern) |
+| An icon renders TWO lucide classes (e.g. `lucide-trash2 lucide-trash-2`) | lucide-react 0.525+ dual-emits for renamed icons; the reference's 0.475.0 emits ONE | Keep lucide at 0.475.x; the e2e pins the single-class contract |
+| An API consumer reads `task.start_time` off a POST/GET response and gets undefined | The response shipped raw camelCase Prisma (startTime) while requests + docs speak snake_case | All task/note routes go through `serializeTask`/`serializeNote` (src/lib/serialize.ts) |
+| The edit-mode dialog diff shows gaps the create-mode diff never did | The Delete button + prefilled values are populated-only surfaces | Diff BOTH dialog modes (the create-mode footer + the edit-mode full tree) |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -642,9 +684,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 59/59
+bun run test          # 66/66
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 54/54 on the production standalone :3100
+bun run test:e2e      # 63/63 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -965,11 +1007,11 @@ parity remediation):
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
-| `bun run test` (Vitest) | **59/59** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
+| `bun run test` (Vitest) | **66/66** — auth ×8, db-path ×15, domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6, wire-format ×7 |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **54/54** × 2 consecutive full runs (was 51; +3 session-6 pins — the Planning card structure, the header icon margins, the content-sized Refresh button — see FS-16) |
+| `bun run test:e2e` (Playwright) | **63/63** × 2 consecutive full runs (58 after session 7; +5 session-8 pins — the enter animation, the classic DialogTitle/SelectTrigger classes, the single lucide class, the snake_case response shape) |
 | `scripts/smoke-test.sh` | 30/30 (incl. authed page renders + unauth guard redirects) |
-| Reference parity (mobile menu) | re-measured live on BOTH apps in session 4: 374/54/192; trigger 374/50/36 — byte-identical, geometry pin held |
+| Reference parity (mobile menu) | re-measured live on BOTH apps every session; session 8: 182/54/192×164 at 390×844, trigger 338/14/36×36 — identical, now ANIMATED like the reference's |
 | Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
 | Reference parity (layout chrome) | full-bleed `p-4 md:p-6 lg:p-8` (1440px on both), day rows `space-y-1.5` (6px gap), default-cursor cells, minute-stacked blocks, dialog delete confirm, scrollbar cascade values |
 | Reference parity (Quick Actions) | session 3: bundle decompile (G1e/z1e/W1e/H1e/K1e) + live DOM on both apps — all matched; completion alert verified by a one-off run |
@@ -979,7 +1021,34 @@ parity remediation):
 
 ## Appendix C: Session History
 
-- **Session 7 (2026-10-04, this skill revision):** audit + POPULATED-state
+- **Session 8 (2026-10-04, this skill revision):** audit of the
+  never-diffed surfaces — the NEXT-week calendar view (populated,
+  state-matched: **0 diffs across the entire calendar + Quick Actions
+  region**) and the EDIT-MODE TaskDialog (populated-only; 0/62 after the
+  fixes). Fixed 4 gaps: every Radix animation was DEAD CSS
+  (tw-animate-css installed but never imported — the reference's
+  dialog/menu/select animate at 0.15s; G-1: `@import "tw-animate-css"`,
+  the geometry specs now settle animations), lucide-react 0.525.0 →
+  **0.475.0** (the reference's measured version — single-class
+  emission; G-2), the classic dialog/select primitive forms
+  (DialogContent arbitrary-value positioning + slide classes +
+  sm:rounded-lg, DialogTitle tracking-tight, SelectTrigger
+  ring-offset-background/data-[placeholder]:, SelectContent side
+  slides; G-3), and the API response wire (raw camelCase Prisma → the
+  documented snake_case entity shape via `serializeTask`/
+  `serializeNote`, tags as arrays, internal fields off the wire; G-4).
+  Also: the README's daily-focus fallback row said Paul J. Meyer (the
+  code ships the Mark Twain set — docs drift, P-1); session 5's leftover
+  "Live verify scheduled" task was found on the reference's NEXT week
+  (sessions 6/7's "0 tasks" checks only looked at the current week)
+  and deleted (P-3); the dropdown-item class ORDER is a documented
+  style-neutral divergence (same class set; P-2). Unit 59 → 66, e2e
+  58 → 63 specs; Log Activity populated + mobile menu re-pinned
+  (338/14/36 + 182/54/192×164 — identical, now animated). See
+  `docs/session_8-review.md` + `docs/remediation-plan-session8.md` (the
+  operator's narrative lives in `docs/session_8.md` — the session-7
+  execution log).
+- **Session 7 (2026-10-04):** audit + POPULATED-state
   parity — the first diff with matched data on both apps (4 identical
   tasks created through each app's own TaskDialog; prior sessions diffed
   empty states). Fixed 4 gaps: the task-list ORDER (the reference's

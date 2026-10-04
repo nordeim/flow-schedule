@@ -16,8 +16,8 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (59 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
-| `bun run test:e2e` | Playwright (58 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test` | Vitest unit suites (66 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers) |
+| `bun run test:e2e` | Playwright (63 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -200,13 +200,47 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   content-sized (svg 16px via `[&_svg]:size-4` + `p-1.5` = 30×30,
   measured on both apps). The clone maps `icon_sm: ""` to mirror that
   exactly; do NOT "fix" it back to a real size class.
+- **The animate utility classes are LIVE CSS, not decoration** (session 8,
+  G-1): `globals.css` imports `tw-animate-css` right after Tailwind — the
+  dialog/dropdown/select `data-[state=open]:animate-in …
+  slide-in-from-top-[48%]` classes were previously DEAD STRINGS (the
+  package was installed but never imported; the built stylesheet carried
+  zero rules for them, so nothing animated). The reference's dialog
+  animates (0.15s enter). Removing the import silently reverts to
+  instant-open — the e2e pins the computed `animation-name: enter`.
+- **lucide-react is PINNED to 0.475.x** (session 8, G-2): the reference's
+  bundle banner says `lucide-react v0.475.0` and its factory emits exactly
+  ONE class per icon. 0.525+ emits TWO for renamed icons (the clone
+  rendered `lucide lucide-trash2 lucide-trash-2` vs the reference's
+  `lucide lucide-trash2`), and its icon NODES differ (LogOut as
+  path+path vs the reference's polyline+line). Do NOT bump lucide without
+  re-diffing the reference's icon DOM.
+- **The dialog/select primitives are the CLASSIC shadcn forms** (session
+  8, G-3 — the session-7 Badge family continued): DialogContent uses
+  `left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]` + the four
+  slide-in/out classes + `sm:rounded-lg`; DialogTitle's base carries
+  `tracking-tight`; SelectTrigger's placeholder styling is
+  `ring-offset-background data-[placeholder]:text-muted-foreground` (NOT
+  the modern `placeholder:` variant); SelectContent carries the side
+  `slide-in-from-*` classes. Do not "modernize" any of them.
+- **Geometry-measuring specs must settle animations first** (session 8,
+  E-C): Playwright's `boundingBox()` includes transforms, and the Radix
+  open-state elements animate for 150ms. `mobile-navigation.spec.ts`
+  waits for `getAnimations()` to finish before measuring — keep that
+  pattern for any new animated-surface measurement (the reference's own
+  measurements always settled via its waits).
 
 ## Conventions that differ from defaults
 
-- The task/note JSON wire format is **snake_case** (`start_time`,
-  `duration_minutes`, `created_at`) — the reference app's entity shape —
-  while Prisma models and TS types are camelCase. The mapping lives in ONE
-  place (`mapTask`/`mapNote` in the store); don't sprinkle conversions.
+- **The task/note wire format is snake_case in BOTH directions** (session
+  8, G-4): requests accept `start_time`/`duration_minutes`; responses
+  ship `start_time`/`end_time`/`duration_minutes`/`created_at`/
+  `updated_at` via `serializeTask`/`serializeNote`
+  (`src/lib/serialize.ts`) — and notes' `tags` are an ARRAY on the wire
+  (the storage JSON string is unwrapped). The clone-internal `isSample`/
+  `userId` fields NEVER cross to the wire. The store's `mapTask`/
+  `mapNote` consume the snake_case shape directly — they remain the only
+  conversion seam (wire → typed client).
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -324,7 +358,8 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   4–6 passed because their runs predated it). The mobile menu is pinned at
   390×844: trigger 338/14/36×36, menu 182/54/192×164, items [Profile,
   Settings, Logout] (re-pinned every session — no Tailwind v4 regression
-  has ever been found).
+  has ever been found; the measurement waits for the menu's enter
+  animation to finish, session 8 E-C).
 
 ## Mobile navigation (the highest-regression-risk surface)
 
@@ -344,7 +379,7 @@ deliberately if the reference re-measures differently.
   (ADRs, layer model, all five Tailwind v4 traps with fixes, the
   verification ledger).
 - `flow-schedule_SKILL.md` — the distilled engineering skill (20
-  sections + appendices: anti-patterns FS-1…FS-16, debugging guide,
+  sections + appendices: anti-patterns FS-1…FS-18, debugging guide,
   pre-ship checklist, color/z-index references).
 - `docs/session_1.md` (build narrative) + `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` — the session-1 review/remediation
@@ -372,6 +407,11 @@ deliberately if the reference re-measures differently.
   session-7 record (the POPULATED-state diff: the createdAt-desc task
   ordering, the store prepend, the recharts 2.x pin, the classic Badge
   form, the state-transition locator flake).
+- `docs/session_8-review.md` + `docs/remediation-plan-session8.md` — the
+  session-8 record (the edit-mode dialog diff: the dead animate classes
+  + the tw-animate-css import, the lucide 0.475 pin, the classic
+  DialogTitle/SelectTrigger/DialogContent forms, the snake_case response
+  serializer).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

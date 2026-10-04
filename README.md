@@ -41,7 +41,7 @@ brainstorm pad.
 | 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in | 
 | 🔒 **Route guards + 404** | The (app) routes are session-guarded server-side — unauthenticated visits redirect to `/login` exactly like the reference; the authenticated root `/` renders the Dashboard directly (the reference's post-login landing), and unknown paths render the reference's custom 404 (text-7xl slate numeral, echoed path, "Go Home") |
 | 📱 **Mobile navigation** | The reference's exact pattern: a ghost user-icon button opening a Radix DropdownMenu aligned `end` — menu right edge anchored to the trigger's right edge (measured parity: right 374 = trigger 374 @ 390px viewport); no bottom tab bar (the reference ships an empty nav-items array) |
-| 🧪 **Test pyramid** | 59 Vitest unit tests (auth crypto, domain constants incl. the skills color map, AI fallback content contract, db-path, .env.example contract, site URL helper, next.config contract, rate-limit fixed window + eviction) + 58 Playwright e2e tests (mobile menu geometry parity, auth flows — incl. the reference's separate sign-up / forgot-password views and the alert cards, route guards, the custom 404, dashboard — incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: the Next Up card with a functional Mark Complete (state-transition-safe), the content-sized Refresh button, the skills-map legend/tooltip + the **recharts 2.x DOM-shape pin**, the AI cards' icons and chips — planning incl. its decompiled reference behaviors: the always-visible Card structure, the header icon margins, the "Create Task" dialog submit, **the createdAt-desc chips/list order, the classic DIV badges, the new-task-first store semantics** — the full-bleed dashboard container, the task-dialog delete confirmation) + curl smoke checks |
+| 🧪 **Test pyramid** | 66 Vitest unit tests (auth crypto, domain constants incl. the skills color map, AI fallback content contract, db-path, .env.example contract, site URL helper, next.config contract, rate-limit fixed window + eviction, **the wire-format serializer contract**) + 63 Playwright e2e tests (mobile menu geometry parity — **animation-settled**, auth flows — incl. the reference's separate sign-up / forgot-password views and the alert cards, route guards, the custom 404, dashboard — incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: the Next Up card with a functional Mark Complete (state-transition-safe), the content-sized Refresh button, the skills-map legend/tooltip + the **recharts 2.x DOM-shape pin**, the AI cards' icons and chips — planning incl. its decompiled reference behaviors: the always-visible Card structure, the header icon margins, the "Create Task" dialog submit, the createdAt-desc chips/list order, the classic DIV badges, the new-task-first store semantics — **the enter-animation pin (tw-animate-css), the classic DialogTitle/SelectTrigger classes, the single lucide-trash2 class, the snake_case API response shape**, the full-bleed dashboard container, the task-dialog delete confirmation) + curl smoke checks |
 
 ## Screenshots
 
@@ -67,7 +67,7 @@ More captures in [`docs/screenshots/`](docs/screenshots/) (profile, settings, fo
 | Charts | recharts | 2.15.x | Skills Map pie (the reference's measured major — its bundle carries no `recharts-zIndex` DOM; a v3 bump changes the pie's internal DOM and is pinned against by an e2e spec) |
 | Motion | framer-motion | 14.x | Animated background blobs (reference timings) |
 | State | Zustand | 5.x | Client store: tasks/notes/user + API envelope unwrapping |
-| Icons | lucide-react | 0.5.x | Icon set |
+| Icons | lucide-react | 0.475.x | Icon set (the reference's measured version — its bundle banner says v0.475.0 and its factory emits ONE class per icon; 0.525+ emits dual classes for renamed icons like trash-2, pinned by an e2e spec) |
 | ORM | Prisma | 6.x | User/Task/Note models |
 | Database | SQLite | — | Zero-config local persistence (swap to PostgreSQL via `DATABASE_URL`) |
 | AI | z-ai-web-dev-sdk | 0.0.x | Server-side LLM (daily focus + AI summary) |
@@ -168,10 +168,10 @@ curl http://localhost:3000/api/health
 # {"status":"ok","app":"flow-schedule","database":"up","ts":"…"}
 
 bun run lint && bun run typecheck && bun run test
-# ESLint clean · tsc clean · 59/59 unit tests
+# ESLint clean · tsc clean · 66/66 unit tests
 
 bun run build && bun run test:e2e
-# Build succeeds (type-checked by the build itself) · 58/58 e2e tests (production standalone on :3100)
+# Build succeeds (type-checked by the build itself) · 63/63 e2e tests (production standalone on :3100)
 ```
 
 ### Production
@@ -200,11 +200,11 @@ environment hardening notes.
 | `/api/auth/register` | POST | — | Create account + session (rate-limited) |
 | `/api/auth/me` | GET | cookie | `{ user } \| { user: null }` |
 | `/api/logout` | POST | cookie | Clears the session |
-| `/api/tasks` | GET / POST | cookie | List tasks · create task (enum-invalid values coerce to the reference's defaults; stored enums are always valid) |
-| `/api/tasks/[id]` | PATCH / DELETE | cookie | Update (partial, enum-guarded) · delete (ownership-checked) |
-| `/api/notes` | GET / POST | cookie | List notes · create note (tags array) |
+| `/api/tasks` | GET / POST | cookie | List tasks · create task (enum-invalid values coerce to the reference's defaults; stored enums are always valid). Both directions speak the reference's snake_case entity shape — requests `start_time`/`duration_minutes`, responses `start_time`/`end_time`/`duration_minutes`/`created_at` (`src/lib/serialize.ts`, unit + e2e pinned) |
+| `/api/tasks/[id]` | PATCH / DELETE | cookie | Update (partial, enum-guarded) · delete (ownership-checked); responses serialized the same way |
+| `/api/notes` | GET / POST | cookie | List notes · create note (tags array on BOTH sides — the storage JSON string is unwrapped by `serializeNote`) |
 | `/api/notes/[id]` | PATCH / DELETE | cookie | Update · delete (ownership-checked) |
-| `/api/ai/daily-focus` | GET | cookie | LLM quote/author/affirmation (fallback: Paul J. Meyer default) |
+| `/api/ai/daily-focus` | GET | cookie | LLM quote/author/affirmation (fallback: the reference's Mark Twain set — `src/lib/ai-defaults.ts`, unit-pinned) |
 | `/api/ai/summary?date=` | GET | cookie | LLM mood/focus-areas/activities/insights (fallbacks per reference) |
 | `/api/health` | GET | — | Liveness + DB probe |
 
@@ -228,8 +228,8 @@ Tailwind CSS **v4 CSS-first** — no `tailwind.config.*`; all tokens live in
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients, skills color map + name transform), the AI fallback content contract (Mark Twain set), db-path resolution, .env.example contract, site URL helper, next.config contract (no build bypasses), rate-limit fixed window + bucket eviction |
-| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels (container gradient morph, header replacement, placeholder-only quick-add, minutes-hidden countdown, zero-minutes disabled state, read-only history, notes create/edit/confirm-delete), the decompiled sidebar-card states (Next Up card + functional Mark Complete + priority badge + progress bar — state-transition- and hour-of-day-independent, skills-map Award/legend classes + the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers), AI cards' Brain/Sparkles icons + purple-pink Mood + blue/green chips + max-h-20 insights, DailyFocus vertical layout + Target icon), the content-sized Refresh Calendar button, the full-bleed dashboard container, the day-row spacing/cursor, the task-dialog delete confirmation + "Create Task"/"Update Task" submit with its Save icon, the new-task-first store semantics after a dialog create, planning week cards + dialog flow + the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure with no accordion/heading, static Day Statistics placeholder, selected-day highlight, chip bubbling, decorative Filter with its mr-2 icon margin, no Unscheduled section, the createdAt-desc chips/list order, the classic DIV category badges) |
+| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients, skills color map + name transform), the AI fallback content contract (Mark Twain set), db-path resolution, .env.example contract, site URL helper, next.config contract (no build bypasses), rate-limit fixed window + bucket eviction, **the wire-format serializer contract (snake_case entity shape, tags as array, internal fields off the wire)** |
+| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements, **settled after the enter animation**), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels (container gradient morph, header replacement, placeholder-only quick-add, minutes-hidden countdown, zero-minutes disabled state, read-only history, notes create/edit/confirm-delete), the decompiled sidebar-card states (Next Up card + functional Mark Complete + priority badge + progress bar — state-transition- and hour-of-day-independent, skills-map Award/legend classes + the recharts 2.x DOM-shape pin (no zIndex layers / shape wrappers), AI cards' Brain/Sparkles icons + purple-pink Mood + blue/green chips + max-h-20 insights, DailyFocus vertical layout + Target icon), the content-sized Refresh Calendar button, the full-bleed dashboard container, the day-row spacing/cursor, the task-dialog delete confirmation + "Create Task"/"Update Task" submit with its Save icon, the new-task-first store semantics after a dialog create, **the dialog's enter animation (computed animation-name), the classic DialogTitle/SelectTrigger classes, the reference's single lucide-trash2 class, the snake_case API response shape**, planning week cards + dialog flow + the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure with no accordion/heading, static Day Statistics placeholder, selected-day highlight, chip bubbling, decorative Filter with its mr-2 icon margin, no Unscheduled section, the createdAt-desc chips/list order, the classic DIV category badges) |
 
 The e2e suite boots the **production standalone build** on `:3100` with its
 own seeded `db/e2e.db`; one setup project signs the demo user in once

@@ -2,6 +2,7 @@
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
+import { serializeTask } from "@/lib/serialize";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -68,7 +69,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const task = await db.task.update({ where: { id }, data });
-  return ok({ task });
+  return ok({ task: serializeTask(task) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

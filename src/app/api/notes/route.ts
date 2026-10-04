@@ -1,7 +1,9 @@
 // /api/notes — GET (list) + POST (create). Note shapes mirror the reference:
-// title (nullable), content, tags (JSON string array).
+// title (nullable), content, tags (array on the wire — the storage JSON
+// string is unwrapped by serializeNote, session 8 G-4).
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
+import { serializeNote } from "@/lib/serialize";
 
 export async function GET() {
   const auth = await requireUser();
@@ -10,7 +12,7 @@ export async function GET() {
     where: { userId: auth.user.id },
     orderBy: { createdAt: "desc" },
   });
-  return ok({ notes });
+  return ok({ notes: notes.map(serializeNote) });
 }
 
 export async function POST(req: Request) {
@@ -46,5 +48,5 @@ export async function POST(req: Request) {
       userId: auth.user.id,
     },
   });
-  return ok({ note }, 201);
+  return ok({ note: serializeNote(note) }, 201);
 }

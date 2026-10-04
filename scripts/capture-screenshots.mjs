@@ -69,9 +69,16 @@ await page.getByLabel("Password").fill("demo1234");
 await page.getByRole("button", { name: "Sign in" }).click();
 await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
 
-// 08-mobile-menu: open the account menu (trusted click).
+// 08-mobile-menu: open the account menu (trusted click). The menu
+// ANIMATES open now (tw-animate-css, session 8 G-1) — settle before the
+// capture so the menu is fully zoomed/slid into place.
 await page.getByRole("button", { name: "Open account menu" }).click();
 await page.waitForSelector("[role=menu]");
+await page.waitForFunction(() => {
+  const el = document.querySelector('[role="menu"]');
+  const anims = el ? el.getAnimations() : [];
+  return anims.length === 0 || anims.every((a) => a.playState === "finished");
+});
 await page.screenshot({ path: `${OUT}/08-mobile-menu.png` });
 await page.keyboard.press("Escape");
 
@@ -136,10 +143,49 @@ await page2.evaluate(async () => {
 });
 
 // 15-taskdialog-delete-confirm: open the dialog on a seeded task and stop
-// at the open state (the confirm itself is native — pinned by e2e).
+// at the open state (the confirm itself is native — pinned by e2e). The
+// dialog animates open (session 8 G-1) — settle before the capture.
 await page2.getByRole("button", { name: /Team standup/ }).first().click();
 await page2.getByRole("dialog").waitFor();
+await page2.waitForFunction(() => {
+  const el = document.querySelector('[role="dialog"]');
+  const anims = el ? el.getAnimations() : [];
+  return anims.length === 0 || anims.every((a) => a.playState === "finished");
+});
 await page2.screenshot({ path: `${OUT}/15-taskdialog.png` });
+await page2.keyboard.press("Escape");
+
+// ---- 04/05: Profile + Settings (desktop, post-lucide-0.475 refresh) ----
+await page2.goto(`${BASE}/Profile`);
+await page2.getByRole("heading", { name: "Profile" }).waitFor();
+await page2.waitForTimeout(600);
+await page2.screenshot({ path: `${OUT}/04-profile.png` });
+
+await page2.goto(`${BASE}/Settings`);
+await page2.getByRole("heading", { name: "Settings" }).waitFor();
+await page2.waitForTimeout(600);
+await page2.screenshot({ path: `${OUT}/05-settings.png` });
+
+// ---- 06/11/12/13: the Quick Action OPEN panels (trusted clicks; session 8
+// re-captured them so the lucide 0.475 icons render in every shot). The
+// panels morph the whole card — the open state needs the click. ----
+const openPanel = async (label, file) => {
+  await page2.goto(`${BASE}/`);
+  await page2.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+  await page2.getByRole("button", { name: label, exact: true }).click();
+  await page2.waitForTimeout(700); // the motion overlay + panel render
+  await page2.screenshot({ path: `${OUT}/${file}` });
+};
+await openPanel("Start Focus Timer", "06-focus-timer.png");
+await openPanel("Add New Task", "11-quickaction-addtask.png");
+await openPanel("Log Activity", "12-quickaction-logactivity.png");
+await openPanel("Quick Brainstorm", "13-quickaction-brainstorm.png");
+
+// ---- 07: mobile dashboard (390×844) ----
+await page.goto(`${BASE}/`);
+await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${OUT}/07-mobile-dashboard.png` });
 
 await browser.close();
 const files = fs.readdirSync(OUT).filter((f) => /^\d+/.test(f));

@@ -691,6 +691,141 @@ test.describe("dashboard", () => {
       if (t.title.startsWith("E2E prepend")) await page.request.delete(`/api/tasks/${t.id}`);
     }
   });
+  test("the task dialog animates open like the reference (G-1)", async ({ page }) => {
+    // The reference's stylesheet defines .animate-in { animation-name:
+    // enter; animation-duration: 0.15s } — its dialog/menus genuinely
+    // animate. The clone shipped the same utility classes but never
+    // imported the engine (tw-animate-css), so they were dead strings:
+    // computed animation-name was "none". Pinned at the computed-style
+    // level so a missing import can never come back silently.
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    const anim = await dialog.evaluate((el) => getComputedStyle(el).animationName);
+    expect(anim).toBe("enter");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test("the dialog title renders the classic tracking-tight heading (G-3)", async ({ page }) => {
+    // The reference's DialogTitle base is the classic shadcn form
+    // (text-lg font-semibold leading-none tracking-tight) — the merged
+    // heading renders `tracking-tight text-xl font-bold text-slate-900`.
+    // The clone's modern base dropped tracking-tight.
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const heading = page.getByRole("dialog").getByRole("heading", { name: "Add New Task" });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveClass(/tracking-tight/);
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  });
+
+  test("select triggers carry the classic ring/placeholder classes (G-3)", async ({ page }) => {
+    // The reference's SelectTrigger: `... shadow-sm ring-offset-background
+    // data-[placeholder]:text-muted-foreground focus:outline-none ...`.
+    // The clone's modern base had replaced that with
+    // placeholder:text-muted-foreground and dropped ring-offset-background.
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const trigger = page.getByRole("dialog").getByRole("combobox").first();
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveClass(/ring-offset-background/);
+    await expect(trigger).toHaveClass(/data-\[placeholder\]:text-muted-foreground/);
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  });
+
+  test("the edit dialog's delete icon renders the reference's single lucide class (G-2)", async ({ page }) => {
+    // The reference runs lucide-react v0.475.0 — its factory emits exactly
+    // ONE class per icon (lucide-trash2). The clone's 0.525.0 emits BOTH
+    // lucide-trash2 AND lucide-trash-2 for renamed icons. Pinned so the
+    // lucide major cannot drift from the reference's measured version.
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E trash icon")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    // 15:00 today — a slot free of seeded tasks on every weekday, and a
+    // time that renders on the calendar grid at ANY hour of the run
+    // (FS-16: now+N-minutes tasks vanish from the grid outside
+    // 07:00–22:00).
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const d = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E trash icon task",
+          start_time: `${d}T15:00`,
+          duration_minutes: 30,
+          category: "work",
+        },
+      })
+    ).json();
+    const id = created?.data?.task?.id;
+    expect(id).toBeTruthy();
+    await page.reload();
+
+    const block = page.getByRole("button", { name: /E2E trash icon task/ }).first();
+    await expect(block).toBeVisible();
+    await block.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Edit Task" })).toBeVisible();
+    const trash = dialog.getByRole("button", { name: "Delete" }).locator("svg");
+    await expect(trash).toHaveClass(/lucide-trash2/);
+    await expect(trash).not.toHaveClass(/lucide-trash-2/);
+
+    // Cleanup: cancel the dialog, then remove the task via the API.
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await page.request.delete(`/api/tasks/${id}`);
+  });
+
+  test("the tasks API responds in the reference's snake_case entity shape (G-4)", async ({ page }) => {
+    // The documented wire contract (AGENTS.md / PAD §4.1): tasks ship
+    // start_time / end_time / duration_minutes / created_at / updated_at,
+    // and the clone-internal fields (isSample/userId) stay off the wire.
+    // The request side always spoke snake_case; the responses used to
+    // return raw camelCase Prisma objects.
+    const residue = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title.startsWith("E2E wire task")) await page.request.delete(`/api/tasks/${t.id}`);
+    }
+    const created = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E wire task",
+          start_time: new Date(Date.now() + 5 * 60_000).toISOString(),
+          duration_minutes: 45,
+          category: "personal",
+        },
+      })
+    ).json();
+    const task = created?.data?.task ?? {};
+    expect(task.start_time).toBeTruthy();
+    expect(task.duration_minutes).toBe(45);
+    expect(task.end_time).toBeTruthy();
+    expect(task.created_at).toBeTruthy();
+    expect(task.updated_at).toBeTruthy();
+    expect(task.startTime).toBeUndefined();
+    expect(task.durationMinutes).toBeUndefined();
+    expect(task.isSample).toBeUndefined();
+    expect(task.userId).toBeUndefined();
+
+    // The GET list ships the same shape.
+    const list = await (await page.request.get("/api/tasks")).json();
+    const listed = (list?.data?.tasks ?? []).find(
+      (t: { title: string }) => t.title === "E2E wire task",
+    );
+    expect(listed?.start_time).toBeTruthy();
+    expect(listed?.duration_minutes).toBe(45);
+
+    await page.request.delete(`/api/tasks/${task.id}`);
+  });
 });
 
 test.describe("dashboard layout (wide viewport)", () => {

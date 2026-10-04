@@ -420,3 +420,107 @@ Stage Summary:
   diffs need matched data), library versions are parity data, the
   state-transition locator corollary (accept BOTH headings), and
   prove-the-app-first before fixing a spec (the debug boot)
+
+---
+Task ID: 24
+Agent: main agent
+Task: Session 8 — audit the never-diffed surfaces (next-week view,
+edit-mode dialog) + remediation of the dead animation CSS, the lucide
+version, the classic primitive family, and the asymmetric wire contract
+
+Work Log:
+- git pull (fast-forward: docs/session_8.md — the operator's session-7
+  narrative); base main @ 567a6a6; full gates green at base
+  (lint/tsc/59 unit/build/58 e2e/30 smoke); session-7 fixes verified
+  in code (orderBy, prepend, recharts 2.15.4, classic Badge)
+- Audit method: the never-diffed surfaces. Found "Live verify
+  scheduled" (completed, work, Tue Oct 6 11:00) on the reference's
+  NEXT week — session 5's Mark Complete live-verification residue;
+  sessions 6/7's "0 tasks" checks only looked at the current week.
+  Reproduced it on the clone (calendar dialog + Mark Complete) for a
+  state-matched diff of both new surfaces
+- Audit A (next-week view, first-time diff): 0 diffs across the entire
+  calendar + Quick Actions region (elements 0-653); the task block at
+  the identical DOM index [227] with identical classes; the remaining
+  diffs are the documented styled-jsx STYLE node + today-data sidebar
+  states (the demo user's seed tasks vs the reference's 0-tasks-today)
+- Audit B (edit-mode dialog, first populated diff): 8 raw diffs → 3
+  real findings: DialogTitle missing tracking-tight, SelectTrigger
+  missing ring-offset-background/data-[placeholder]:, and the lucide
+  trash DUAL class. Followed the primitives to their sources: the
+  reference's DialogContent is the classic form (left-[50%],
+  translate-x-[-50%], 4 slide classes, sm:rounded-lg) — the clone
+  shipped the modern form
+- Audit of the open Select listbox: SelectContent missing the side
+  slide-in-from-* classes. Audit of the open menu: order-only class
+  diffs (same set, style-neutral — documented as P-2, not fixed).
+  Log Activity populated panel: identical entries. Mobile menu
+  re-pinned live on both apps (338/14/36 + 182/54/192×164)
+- G-1 discovered: the built stylesheet contains ZERO animate-in/
+  fade/zoom/slide rules — tw-animate-css was in devDependencies but
+  never imported; every Radix animation in the clone was a dead string
+  (the reference's CSS defines .animate-in {enter, 0.15s})
+- G-2 discovered: the reference's bundle banner says lucide-react
+  v0.475.0 and its factory emits ONE class per icon; the clone's
+  0.525.0 emits two for renamed icons + different icon nodes (LogOut
+  path+path vs polyline+line — the documented internals divergence is
+  version-driven)
+- G-4 discovered: the API wire was asymmetric — requests spoke the
+  documented snake_case while responses returned raw camelCase Prisma
+  objects (with isSample/userId; notes' tags as a JSON string); P-1:
+  README still said Paul J. Meyer for the daily-focus fallback
+- Plan saved to docs/remediation-plan-session8.md; validated against
+  the codebase (route input parsing, store mappers, e2e reader usage,
+  lucide 0.475 peer range)
+- RED: 7 wire-format unit tests + 5 new e2e specs (animation-name,
+  tracking-tight, ring classes, single lucide class, snake_case
+  response) — all failing as predicted on the pre-fix build
+- GREEN: @import "tw-animate-css" in globals.css (+ dead
+  tailwindcss-animate removed); lucide-react pinned ^0.475.0; the
+  classic DialogContent/DialogTitle/SelectTrigger/SelectContent forms;
+  src/lib/serialize.ts (serializeTask/serializeNote) wired into all 4
+  task/note routes + mapTask/mapNote reading the snake_case wire
+- E-C: mobile-navigation.spec.ts waits for getAnimations() to finish
+  before measuring (boundingBox includes transforms); the capture
+  script settles animations before the menu/dialog shots
+- Gate: lint clean · tsc clean · 66/66 unit (59→66) · build green ·
+  63/63 e2e × 2 consecutive full runs (58→63) · smoke 30/30
+- Live parity re-verified: the EDIT-MODE dialog 0/62 byte-identical
+  (incl. container + values); the next-week populated calendar 0 diffs
+  in the calendar region; animation-name "enter" on both apps; the
+  mobile menu re-pinned (identical geometry, now animated); the wire
+  verified live (snake_case + tags arrays + no internal fields)
+- Reference cleanup: "Live verify scheduled" deleted via the
+  reference's own dialog (confirm armed); the clone twin deleted via
+  the API — the reference account is back to the TRUE 0-task baseline
+- Screenshots: all 20 captures re-run (the script now settles
+  animations and re-captures profile/settings/quickaction/mobile
+  views so the lucide 0.475 icons render)
+- Docs realigned: README (P-1 row, wire API rows, lucide row, counts),
+  AGENTS.md (4 new quirks + the snake_case-wire rewrite + session-8
+  references), CLAUDE.md (stack + serializer seams + counts), PAD
+  (§1.2/§4.1/§5.3/§8/§10.1/§12 — 9 new ledger rows),
+  flow-schedule_SKILL.md v1.7.0 (FS-18 + 6 debugging rows + session
+  history + the recharts/ignoreBuildErrors stack-table corrections),
+  remediation-plan-session8.md execution record,
+  docs/session_8-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 8 delivered: the first next-week and edit-mode-dialog class
+  tree diffs closed the animation gap (tw-animate-css import — the
+  dialog/menu/select now animate like the reference's), the lucide
+  version pin (0.475.0, the reference's measured version), the classic
+  dialog/select primitive forms (the edit dialog now diffs 0/62), and
+  the snake_case response wire (serializeTask/serializeNote); e2e
+  58 → 63 specs, unit 59 → 66; the reference account restored to the
+  true 0-task baseline
+- Key new knowledge: FS-18 (class equality is not CSS existence —
+  grep the BUILT stylesheet; importing a utility library is
+  load-bearing; geometry specs must settle animations), the lucide
+  corollary (version banners and icon factories are decompilable —
+  the "not actionable" internals divergence was a version pin waiting
+  to be measured), populated-only surfaces keep yielding (diff BOTH
+  dialog modes), wire contracts must be symmetric, and cleanup claims
+  must match their probe scope (enumerate the API, not just the
+  current week)

@@ -1,4 +1,12 @@
 @import "tailwindcss";
+/* tw-animate-css — the Tailwind v4-native port of the classic
+   tailwindcss-animate utilities (.animate-in/.animate-out, fade/zoom/
+   slide-in/out). The reference's dialog/dropdown/select all carry these
+   classes AND its stylesheet defines them (.animate-in { animation-name:
+   enter; animation-duration: 0.15s }); the clone previously shipped the
+   same class strings with NO engine behind them — dead CSS, zero motion
+   (session 8, G-1). This import is load-bearing for motion parity. */
+@import "tw-animate-css";
 
 /* ------------------------------------------------------------------ */
 /* FlowSchedule — Tailwind CSS v4 CSS-first configuration.             */

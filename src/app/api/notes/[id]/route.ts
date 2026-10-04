@@ -1,6 +1,7 @@
 // /api/notes/[id] — PATCH + DELETE.
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
+import { serializeNote } from "@/lib/serialize";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -42,7 +43,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const note = await db.note.update({ where: { id }, data });
-  return ok({ note });
+  return ok({ note: serializeNote(note) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

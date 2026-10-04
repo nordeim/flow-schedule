@@ -1,10 +1,12 @@
 // /api/tasks — GET (list) + POST (create).
 // Task shapes mirror the reference entity: title, description, priority,
-// category, status, start_time, duration_minutes, end_time.
+// category, status, start_time, duration_minutes, end_time. Responses go
+// through serializeTask (the snake_case wire seam, session 8 G-4).
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fail, ok, readJson, requireUser } from "@/lib/api";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
+import { serializeTask } from "@/lib/serialize";
 
 export async function GET() {
   const auth = await requireUser();
@@ -19,7 +21,7 @@ export async function GET() {
     // order decides which chips are visible behind "+N more".
     orderBy: { createdAt: "desc" },
   });
-  return ok({ tasks });
+  return ok({ tasks: tasks.map(serializeTask) });
 }
 
 export async function POST(req: Request) {
@@ -81,5 +83,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return ok({ task }, 201);
+  return ok({ task: serializeTask(task) }, 201);
 }

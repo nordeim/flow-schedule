@@ -107,7 +107,11 @@ type FlowState = {
   deleteNote: (id: string) => Promise<void>;
 };
 
-// Server → client mappers (Prisma camelCase → reference-style snake_case).
+// Server → client mappers. The API wire IS the reference's snake_case
+// entity shape (serializeTask/serializeNote, session 8 G-4): start_time /
+// end_time / duration_minutes / created_at / updated_at, notes' tags as
+// an ARRAY. mapTask/mapNote remain the single conversion seam — they
+// validate/cast the wire fields into the client's typed shape.
 type RawTask = {
   id: string;
   title: string;
@@ -115,11 +119,11 @@ type RawTask = {
   priority: string;
   category: string;
   status: string;
-  startTime: string | null;
-  endTime: string | null;
-  durationMinutes: number | null;
-  createdAt: string;
-  updatedAt: string;
+  start_time: string | null;
+  end_time: string | null;
+  duration_minutes: number | null;
+  created_at: string;
+  updated_at: string;
 };
 
 function mapTask(t: RawTask): Task {
@@ -130,11 +134,11 @@ function mapTask(t: RawTask): Task {
     priority: t.priority as Priority,
     category: t.category as Category,
     status: t.status as TaskStatus,
-    start_time: t.startTime,
-    end_time: t.endTime,
-    duration_minutes: t.durationMinutes,
-    created_at: t.createdAt,
-    updated_at: t.updatedAt,
+    start_time: t.start_time,
+    end_time: t.end_time,
+    duration_minutes: t.duration_minutes,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
   };
 }
 
@@ -142,26 +146,19 @@ type RawNote = {
   id: string;
   title: string | null;
   content: string;
-  tags: string;
-  createdAt: string;
-  updatedAt: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
 };
 
 function mapNote(n: RawNote): Note {
-  let tags: string[] = [];
-  try {
-    const parsed = JSON.parse(n.tags);
-    if (Array.isArray(parsed)) tags = parsed.filter((t) => typeof t === "string");
-  } catch {
-    tags = [];
-  }
   return {
     id: n.id,
     title: n.title,
     content: n.content,
-    tags,
-    created_at: n.createdAt,
-    updated_at: n.updatedAt,
+    tags: Array.isArray(n.tags) ? n.tags.filter((t) => typeof t === "string") : [],
+    created_at: n.created_at,
+    updated_at: n.updated_at,
   };
 }
 
