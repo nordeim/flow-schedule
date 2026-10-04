@@ -1,0 +1,115 @@
+"use client";
+
+// FlowSchedule — AI Summary card: mood + focus areas + activities + insights
+// for a given day. LLM-backed (/api/ai/summary) with the reference's
+// deterministic fallbacks (empty day → "planning/Free day/Open schedule").
+
+import * as React from "react";
+import { Sparkles, TrendingUp } from "lucide-react";
+import type { AiSummary } from "@/lib/ai";
+
+const EMPTY_DAY_SUMMARY: AiSummary = {
+  mood: "planning",
+  focus_areas: ["Free day"],
+  activities: ["Open schedule"],
+  insights: "Perfect opportunity for planning or taking a break!",
+};
+
+export function AISummaryCard({ day }: { day: Date }) {
+  // Derived loading (no effect-body setState): `result` holds the summary
+  // keyed by its request day; when `dayKey` changes the stale result stops
+  // matching and the skeleton renders until the fresh fetch lands.
+  const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(
+    day.getDate(),
+  ).padStart(2, "0")}`;
+  const [result, setResult] = React.useState<{ day: string; summary: AiSummary } | null>(
+    null,
+  );
+  const loading = !result || result.day !== dayKey;
+  const summary = result?.summary ?? EMPTY_DAY_SUMMARY;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let next: AiSummary;
+      try {
+        const res = await fetch(`/api/ai/summary?date=${dayKey}`);
+        const body = (await res.json()) as
+          | { ok: true; data: { summary: AiSummary } }
+          | { ok: false };
+        next = body.ok && body.data.summary ? body.data.summary : EMPTY_DAY_SUMMARY;
+      } catch {
+        next = EMPTY_DAY_SUMMARY;
+      }
+      if (!cancelled) setResult({ day: dayKey, summary: next });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dayKey]);
+
+  if (loading) {
+    return (
+      <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-4 shadow-xl border border-white/20">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-5 h-5 text-purple-500 animate-pulse" />
+          <h3 className="text-base font-semibold text-slate-900">AI Summary</h3>
+        </div>
+        <div className="space-y-2 animate-pulse">
+          <div className="h-3 bg-slate-200 rounded-xl w-3/4" />
+          <div className="h-3 bg-slate-200 rounded-xl w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-4 shadow-xl border border-white/20 relative overflow-hidden">
+      <div className="bg-gradient-to-br from-sky-400/20 to-green-400/20 mt-2 mr-64 mb-2 ml-64 pr-10 pl-10 absolute top-0 right-0 w-16 h-16 rounded-full transform translate-x-6 -translate-y-6" />
+      <div className="relative z-10">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-5 h-5 text-purple-500" />
+          <h3 className="text-base font-semibold text-slate-900">AI Summary</h3>
+        </div>
+        <div className="space-y-3">
+          <div className="bg-pink-50 rounded-xl p-3 border border-pink-100">
+            <div className="flex items-center gap-2 text-pink-600 font-semibold text-sm mb-1">
+              <TrendingUp className="w-4 h-4" /> Mood
+            </div>
+            <p className="text-sm text-slate-700 capitalize">{summary.mood}</p>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-900 mb-1.5">Focus Areas</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {summary.focus_areas.slice(0, 3).map((area, i) => (
+                <span
+                  key={i}
+                  className="bg-indigo-50 text-indigo-700 text-xs px-2.5 py-1 rounded-md font-medium border border-indigo-100"
+                >
+                  {area}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-900 mb-1.5">Activities</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {summary.activities.slice(0, 3).map((activity, i) => (
+                <span
+                  key={i}
+                  className="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-lg font-medium"
+                >
+                  {activity}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-2 max-h-24 overflow-y-auto custom-scrollbar">
+            <h4 className="text-xs font-bold text-slate-900 mb-1">Insights</h4>
+            <p className="text-xs text-slate-600">{summary.insights}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

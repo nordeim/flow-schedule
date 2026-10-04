@@ -1,0 +1,59 @@
+// FlowSchedule — Prisma schema
+// Entities mirror the reference app's Task/Note/User shapes exactly:
+//   Task: title, description, priority, category, status, start_time,
+//         duration_minutes, end_time
+//   Note: title, content, tags
+//   User: email, password_hash, full_name (self-hosted auth)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tasks        Task[]
+  notes        Note[]
+}
+
+model Task {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  priority        String    @default("medium") // low | medium | high | urgent
+  category        String    @default("work") // work | personal | health | learning | creative | social | planning
+  status          String    @default("todo") // todo | in_progress | completed
+  startTime       DateTime? // null = unscheduled
+  endTime         DateTime?
+  durationMinutes Int?
+  isSample        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startTime])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  title     String?
+  content   String
+  tags      String   @default("[]") // JSON array of strings
+  isSample  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}

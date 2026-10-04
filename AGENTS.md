@@ -1,78 +1,145 @@
-# AGENTS.md — ORBITAL
+# AGENTS.md
 
-Single Next.js 16 app (App Router) that clones the reference PM workspace: a workspace page (view paths like `/goals` and `/goals/<id>` are rewritten onto it) plus a real `/login` route, client-side view switching, Prisma/SQLite persistence, cookie-session auth, and a server-side AI task planner with a clarifying-questions step. Clone remote: `https://github.com/nordeim/project-management.git`; pushes go to the SSH remote via `docs/ssh_git_wrapper_v3.py`.
+Instructions for AI coding agents working in this repository. Every line here
+answers: "would an agent likely get this wrong without being told?" —
+verified against the toolchain on 2026-10-04.
 
 ## Commands
 
-| Task | Command |
-|------|---------|
-| Install | `bun install` (or `npm install`) |
-| Dev server (port 3000) | `bun run dev` |
-| Production build | `bun run build` |
-| Production server | `bun run start` |
-| Lint | `bun run lint` |
-| Type check | `bun run typecheck` |
-| Unit tests (138 checks) | `bun run test` |
-| Browser E2E (115 checks; needs a build) | `bun run test:e2e` |
-| Prisma client after schema change | `bunx prisma generate` |
-| Recreate DB from schema | `bun run db:push` |
-| Seed demo workspace | `bun run db:seed` |
-| End-to-end smoke suite | `./scripts/smoke-test.sh` (needs `bun run build` first; pins its own `DATABASE_URL` — immune to shell env traps) |
-| Regenerate docs screenshots | `./scripts/capture-all.sh` (needs a build; reseeds, boots, captures all 16 shots incl. the wizard pair, cleans up, verifies pristine — one invocation) |
+Run from the repo root unless noted. Bun 1.3+ is the canonical runtime
+(the `db:seed` script is `bun prisma/seed.ts`); Node ≥ 20 works for
+everything else.
 
-**Gate order before every push:** `bun run lint` → `bun run typecheck` → `bun run test` (138) → `bun run build` → `./scripts/smoke-test.sh` (30 checks, all must pass) → `bun run test:e2e` (115 Playwright checks — boots the standalone server on :3100 against its own `db/e2e.db`). There is no hosted CI; the local gate is the only gate. `next.config.ts` sets `ignoreBuildErrors` — the explicit `typecheck` step is what catches type errors; never skip it.
+| Command | What it does |
+|---|---|
+| `bun run dev` | Dev server on :3000 (Turbopack), logs tee'd to `dev.log` |
+| `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
+| `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
+| `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
+| `bun run test` | Vitest unit suites (36 tests: auth crypto, domain constants, db-path) |
+| `bun run test:e2e` | Playwright (29 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
+| `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
+| `bunx prisma generate` | Regenerate the Prisma client after schema edits |
 
-First-run setup: `bun install && cp .env.example .env && bun run db:push && bun run db:seed && bun run dev`. Demo login: `demo@orbital.app` / `Demo1234!`.
+Clean-check order: `bun run lint && bun run typecheck && bun run test &&
+bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
+`db/e2e.db` itself; it does NOT touch `db/custom.db`.
 
-## Architecture facts you would otherwise guess wrong
+## Architecture invariants
 
-- **Single-page workspace with path URLs, not per-view routes.** `src/app/page.tsx` resolves the session server-side and passes a **nullable user** to `OrbitalApp` (client) — the shell renders for unauthenticated visitors too (reference behavior): empty states + a LOG IN header pill (**v2.5, measured**: radius 12, pad `11px 20px` content-driven h40, the STANDARD raised pair at ≥768; radius 10, pad `6px 14px` h≈28.5, the SMALL -3px/-3px 6px pair in the mobile app bar — beware `rounded-xl`: the shadcn `--radius: 1rem` override resolves it to 20px); the store skips data fetches while `user` is null. Views switch inside Zustand; `next.config.ts` rewrites `/goals`, `/goals/:goalId`, `/my-tasks`, `/tasks`, `/activity`, `/team`, `/settings` onto the page, and `src/lib/router.ts` (`parseUrl` / `toPath`) maps view state ↔ `location.pathname` via `pushState` + a `popstate` listener (browser back/forward works). Legacy `?view=…` links still resolve. Do not add `app/` routes per view and do not change the URL shape.
-- **Every view-switch surface is a REAL ANCHOR (v2.7, measured on the re-deployed reference).** The live converted its navigation to `<a href>` links; the clone mirrors the DOM while staying an SPA: the shared click contract (`anchorGo` / `sidebarAnchorGo` patterns in `orbital-app.tsx` + `sidebar.tsx`) calls `preventDefault` + the store's `navigate` on plain left clicks, and falls through on modified/middle clicks so the truthful href opens a real tab. Surfaces: sidebar nav ×6 + brand + TASKS STATUS widget (`sidebar.tsx`), mobile tab bar ×4 (MORE stays a `<button>`, `orbital-app.tsx`), 768 pill nav ×6 (the pill's "Tasks" targets `/my-tasks`), MORE sheet rows ×3 (`Tasks → /tasks`), dashboard stat wells (`/goals`, `/my-tasks` ×2) + goal wells (`/goals/<id>`) + "Full log" ×2 (`/activity`, `/goals`) + the New Goal pill (`/goals?new=true` — navigates to goals AND auto-opens the wizard), and the goals-view cards (`/goals/<id>`). The wizard deep link: the store's `newGoalIntent` flag (set by `openNewGoal()` on soft nav, by `boot()`/`applyUrlState()` on hard loads/popstate) renders the GoalsView dialog open and is cleared on dialog close; `syncUrl` keeps `?new=true` in the URL exactly like the reference. The mobile app-bar brand is NOT clickable (measured — plain element), and the desktop completion ring is a PLAIN `cursor-pointer` div with no click handler (measured — the reference's ring is dead; do not re-wire it). The goals-view "NEW GOAL" button stays a `<button>` (opens the wizard in place, no navigation). **v2.8: (a) every button computes `cursor: pointer`** — the base layer carries the reference's exact global rule (`button, [role="button"] { cursor: pointer }`; Tailwind v4's preflight sets no pointer, so the rule must live in `globals.css`); **(b) goal-card anchors wrap the ENTIRE card** (the desktop anchor spans the text column AND the 120px stats/action column — 1072px at 1440, matching the reference's coverage) and their click handlers GUARD button-origin clicks (`e.target.closest("button")` → `preventDefault()` + return — the action squares open their dialogs without navigating; this fixed the v2.7 regression where the mobile card's edit/delete clicks bubbled into navigation); **(c) the dashboard goal wells are BARE anchors wrapping inner well divs** (the anchor's own computed shadow stays `none`); **(d) the brand strings are the literal `ORBITAL`** (sidebar + MORE sheet + pill nav — the reference's textContent; their spans keep a redundant `text-transform: uppercase`, mirrored); **(e) the chrome shadows use plain-declaration custom classes** (`.orb-appbar-shadow` / `.orb-tabbar-shadow` / `.orb-sheet-shadow` / `.orb-pill-nav-shadow` / `.orb-sheet-close` — Tailwind v4 composes `shadow-[…]` utilities with unset `--tw-*` vars, emitting four zero-alpha prefixes in the computed string; the classes byte-match the reference's clean declarations, and the sheet close uses the re-measured 3px/6px 0.78/0.27 pair); **(f) the filter chips pin a literal `rounded-[9999px]`** (`rounded-full` serializes as `calc(infinity*1px)` = 33554432px in Chrome — the reference computes 9999px).
-- **The all-tasks view lives at `/tasks` (v2.7, measured).** `views/tasks-view.tsx` renders every workspace task from the store's `allTasks` slice: h1 "Tasks" (28px/400) + "{n} total tasks across all goals" sub, the My-Tasks five-chip filter row (same spec, workspace-wide counts), and TaskCard-content rows as PLAIN `cursor-pointer` divs — NO edit/delete action squares, NO open-on-click (the reference's row click is inert — their WIP seam, replicated faithfully). Reachable ONLY from the mobile MORE sheet's "Tasks" row; NO navigation surface lights up while on it (no sidebar item, no mobile tab, no pill tab carries an active state). `/my-tasks` (tasks assigned to the signed-in user) is unchanged.
-- **`/login` is a real route, not a rewrite.** `src/app/login/page.tsx` renders the `LoginCard` (`login-screen.tsx`) with three states — sign-in, sign-up, forgot-password — and `?from_url=` return handling; the card renders for EVERY visitor, authenticated ones included (**v2.11/F13, measured on the live**: no redirect — signing in from the authenticated state lands on the workspace via the client flow; the v1.4–v2.10 redirect was a drift, now closed and pinned in `auth.spec.ts`). "Continue with Google" is rendered for parity but degrades to an explanatory toast (no OAuth credentials in a self-hosted clone; same doctrine as the AI fallbacks). Reads/mutations stay session-gated — the reference's public-read behavior is a Base44 platform artifact and a documented deviation.
-- **All server state lives in one Zustand store** (`src/components/orbital/store.ts`) — no React Query, no SWR, no server actions. Actions call the API, then refresh affected slices. Keep that pattern.
-- **API envelope is `{ ok, data } | { ok, error: { code, message } }`** — build it with `ok()` / `fail()` from `src/lib/api.ts`; the store's `call()` helper is the only sanctioned client for it.
-- **Auth is hand-rolled** (`src/lib/auth.ts`): scrypt password hashes + HMAC-signed stateless cookie (`orbital_session`, 7-day TTL). `requireSession()` guards every route handler. No NextAuth, no JWTs, no middleware. Auth routes are rate-limited (`src/lib/rate-limit.ts`): 10 attempts/IP/15 min fixed window → `429 RATE_LIMITED` with `Retry-After`; per-process only (single-node deploy).
-- **Auth navigation uses `router.refresh()`, not `window.location`** — login success and Log Out re-resolve the session server-side (`page.tsx` is `force-dynamic`); the header swaps UserMenu ↔ LOG IN without a full reload (v2.9: the user pill is r12 pad 11/16 with a 12px/500 #6E6E6E name; the popover is r12, opens 8px below, its LogOut glyph is 14px). Keep that pattern; ESLint flags `window.location.href` assignments.
-- **The visual system is neumorphic, built from measured tokens** (v1.4–v1.7) and ships **THREE card tiers** (v1.6, measured side-by-side on the live app): canvas `#EBE7E2`; raised surfaces `#EEEAE6`; **standard** pair `-5px -5px 10px 0.78 / 5px 5px 12px 0.27` (buttons, small ui — `.orb-raised`, `.orb-card`); **deeper row** pair `-5px -5px 10px 0.92 / 5px 5px 12px 0.36` (goal/task/activity cards — `.orb-row-card` r14, `.orb-goal-card` r16); **large panel** pair `-8px -8px 16px 0.78 / 8px 8px 18px 0.31` (dashboard panels, settings cards, goal-detail stats — `.orb-panel` r16; the sidebar keeps `.orb-raised-lg` r20). Progress track `#DDD8D0`. Primitive classes live in `globals.css` under `@layer utilities`: `.orb-raised` / `.orb-raised-lg` (panels), `.orb-raised-btn` (buttons), `.orb-well` / `.orb-well-pill` (insets), `.orb-card` (legacy standard alias), `.orb-task-blocked` (blocked-task coral ring — composes with `.orb-row-card`, which already carries the deeper pair), `.orb-btn-dark` / `.orb-btn-post` (dark in-dialog primary submits), `.orb-btn-cancel` (dialog secondary), `.orb-pill-round` (Team's radius-12 action buttons — NOT round pills, v1.6). **Label typography is a two-tier system (v1.7, measured): `.orb-label` = 11px/600/ls 1.1px/#6E6E6E uppercase (panel headers, stat columns, chip labels); `.orb-label-sm` = 10px/600/ls 1.2px/#767676 uppercase (sidebar sections, NPA, date labels, TASKS STATUS). The destructive red is `--orb-coral-deep #BD3228` (v1.7 — darker than v1.4's #C9574E).** **Cascade warning:** custom classes in that layer are emitted AFTER Tailwind's generated utilities, so an arbitrary `shadow-[…]`/`rounded-*`/`h-*` utility on an element that also carries `.orb-card`/`.orb-raised`/`.orb-btn-*` LOSES — style overrides as dedicated custom classes (that's why `.orb-task-blocked` and `.orb-btn-post` exist — the retired `.orb-pill-outline-sm` was never defined; the mobile NEW GOAL button is the base `.orb-pill-outline` with a `New` label, and the dashboard's greeting pill uses `.orb-pill-outline-lg` 132×40). Pairing `bg-orb-well` (a color utility) with `shadow-[…]` is fine.
-- **In-dialog primary submits are DARK pills, not neumorphic** (v1.5): "Post Update" (`#2F2823`, radius 14, 32px, literal Title Case + Send icon), "Continue" / "Add Task" / "Save" (`#3A3A3A` bg, `#F1F1F0` text, radius 10). Page-level actions (NEW GOAL, ADD TASK, DELETE, Team's Invite/New Agent round pills) stay neumorphic raised. **Dialogs are neumorphic panels with TWO button systems** (v2.0, measured): the base `DialogContent` in `ui/dialog.tsx` carries `sm:max-w-[500px] rounded-[20px] p-[28px_28px_24px]` (standard form dialogs — add-task/task-edit; goal-edit overrides to 480px — with 15px/600 headings, 36px inputs, Cancel = 12px/500 pad 8/18 raised, submit = 12px/600 pad 8/20 NO shadow via `.orb-btn-submit`/`.orb-btn-cancel-std`, and a 30px r8 raised close square — EXCEPT goal-edit, which carries NO close and no heading icon per the v2.9 measure: the live's Edit Goal panel has zero svgs, only the status control + Cancel + Save). **v2.9: the dialog form selects are NATIVE `<select>` elements (add-task status/assignee, task-edit status/assignee, goal-edit status — 216×35, bg #EBE7E2, r10, 13px, the `.orb-select` class; the SETTINGS selects keep their shadcn triggers, their chevron-downs measured at stroke 2).** Exceptions: the invite dialog at 384px/p24 with 36px/13px buttons; the task-detail (check-in) modal at 448px/16/p24 (h2 16/500 lh 16, Post Update = `.orb-btn-post` 32px r14 pad 0/12); and the New Goal wizard, a 680px radius-24 conversational wrapper (pad 28/28/24, 32px r9 close square, bot avatar + speech bubble above the 624px r16 form panel with 37.5px pad-9/14 inputs, 11px/600 uppercase `.orb-btn-dark` pills gap 6, scrim at 0.3 alpha). All scrims: `rgba(46,42,38,0.25)` + 12px backdrop blur by default; **per-kind overrides (v2.1, measured): form dialogs (add-task / goal-edit / task-edit) and the wizard scrim at 0.3; check-in + invite keep 0.25.** **Dialog panels carry NO box-shadow (v2.1, measured)** — depth comes from the blurred scrim alone (the old `-8px` panel pair was removed from the base `DialogContent`). **Standard-dialog control spec (v2.1, measured): select triggers h35 pad 8/12; date inputs h38; textareas 13px pad 8/12 min-h 72 (goal-edit/task-edit/add-task); text/number inputs h36. Submit pills: add-task "Add Task" + task-edit "Save Changes" at pad 8/22 (w 96.5/124.9 — inline style, the unlayered `.orb-btn-submit` padding beats Tailwind px utilities); goal-edit reads "Save" at 8/20 (w 67.5); the check-in's Send icon carries mr-4 inside `.orb-btn-post` (icon→text 12px).**
-- **The main content is a clamped 1200px column on a glowing canvas** (v1.5; glow re-measured v2.2): `orbital-app.tsx` wraps every view in `max-w-[1200px]` and paints a fixed purple radial gradient with NO `at` clause — `radial-gradient(600px, rgba(201,179,245,0.35) 0%, rgba(0,0,0,0) 70%)` — so the disc sits at the VIEWPORT CENTER in every chrome state (verified by isolated-layer pixel analysis; the earlier `87.44% 95.38%` and `59.17% 29.89%` readings were content-pollution artifacts). Pointer-events none, under the content. Don't add per-view max-widths — the shell owns the clamp.
-- **The dashboard is a 2×2 grid** (v1.5–v1.9): top-left cell = date card (photo ROTATES BY TIME OF DAY across four lighting variants via the tested `src/lib/day-image.ts` seam — `day-hills-morning/noon/dusk/night.jpg`, 5/11/17/21 boundaries, 0.8 opacity; raised date square radius 12, day+month flush stack) beside a 180px ring card (p-6, inner CSS circle 156px, NO SVG ring; `clamp(28px,3.5vw,52px)` fw-300 numerals, "done" caption 10px/400); top-right = the three-column stats panel (`.orb-panel`, p 20/24, columns **centered** with `pad 10px` inner blocks, **numerals in 88px WELL squares — `bg-orb-well` + the 3px inset pair `rgba(255,250,244,0.68)/rgba(160,143,126,0.24)`, r12 at `md+` / FLUID SQUARES below `md` (aspect-square, ~104 at 390 → 199 at 700; the old fixed 104 is wrong above 390), numerals `30px`/400 below `md`, `clamp(28px,3.5vw,52px)`/300 from `md` (floor 28 at 768, 50.4 at 1440, v2.2)**, 11px/600 labels, 12px `#665F57` subs, 16px gap — v1.7); bottom = Agent Activity (card p-0; header px 18/pt 20/mb 14; NPA well inset 14px margins with the 10px small-label "Next Planned Action" + 13px value; full-width rows p 14/18 with 30px solid icon circles `#C9B3F5`/`#2ECC8A` + 13px `square-check-big` glyphs, **row gap 12 (v2.6, measured — was 14) and the detail sub-line WRAPS to two lines (no truncate — the live's long first row renders 86.5px)**, lh 20/18, timestamp inside the message row) + Goals (card p 20/18/0; header mb 20; rows as inset wells p 12/14 with 60px SVG rings, 13px/500 titles, 11px meta, 10px row gap, 14px/500 ring pct). Grid gap 20px, and the desktop tracks are ASYMMETRIC below 1280 — `lg:grid-cols-[minmax(0,1fr)_minmax(438px,1fr)]` (date column 198 at 1024, 374 at 1200, equal halves ≥1280; the starved date card clips invisible under `overflow-hidden`, matching the live); the greeting is 28px/leading-1.2 Title Case with a period ("Good Evening.") at every breakpoint, switching at 05:00/12:00/18:00 (the live QF() boundaries — small hours greet "Good Evening.").
-- **The desktop sidebar is STICKY** (v1.7, measured): the `aside` pins at `top-0` with `height calc(100vh-40px)`; the `.orb-raised-lg` PANEL is the full sticky height with its own 28/16/16 padding (the aside carries none — the shadow box measures 860px on a 900px viewport like the live app). Inside: compact brand (16px six-dot mark + "ORBITAL" 13px/600/ls 2.34px `#2F2823`, flush at the panel's top pad), `.orb-label-sm` section headers, 39px nav rows (inactive 14px/400), and a bottom row of clock (80px) + a PLAIN Tasks Status link (no well — 11px/700 numbers, 11px/400 `#767676` captions) 10px apart, then the 30px collapse bar. The bottom block uses `mt-auto`.
-- **Task cards are flat radius-14 deeper-tier rows** (v1.6/v1.7): `p 14px 18px`, gray status chip (11px + colored dot) with a **6px chip-row → title gap and 4px title mb (v2.1, measured)**, 14px/500 title (`#BD3228` when blocked), 12px one-line description, 11px meta with 11px lucide icons, solid `#EEEAE6` AI chip (r6, 10px/500 `#996CE4`) — with 26px radius-7 raised action squares pinned top-right OUTSIDE the shadowed card, 2px apart; the row click opens the check-in modal. The activity feed (v1.6–v2.6): timestamps render date-fns `formatDistanceToNow` long form ("3 minutes ago", "2 months ago" — the pure core `formatDistance` in `orbital.ts`); most recent entry as a standalone hero card (36px icon + "Last agent action" caption, no timestamp) that ALSO REPEATS as the first row of its date group — "Online · N" equals the count of timestamped rows (v2.5, measured on the live) — then date-grouped rows (`.orb-label-sm` labels, `groupActivityByDate` + `activityTypeTag` in the tested `src/lib/activity-groups.ts` / `activity-tags.ts` seams) each wrapped in one big radius-14 card carrying the deeper pair (v2.6, measured — the v1.9 "no card wrapper" reading retired), with the label rendered as an inline span inside a 24px line box whose margin-bottom is 10px (v2.6 — the text sits ~7px lower than a plain block P); every group row ends with a 10px/600 `#B3B3B3` type tag, and the header carries an inset-well "Online · N" pill. The DASHBOARD's activity panel renders at most 20 rows (v2.5 — the full feed lives on the Activity view), and its "Next Planned Action" derives from the first blocked TASK in display order (goal order, then task order — the tested `src/lib/next-action.ts` seam, fed by the store's `allTasks` slice).
-- **The date picker is a custom component** (`ui/date-picker.tsx`): a 37.5px pad-9/14 well trigger (13px) → a **TWO-LAYER popover (v2.1, measured): outer 262px radius-14 `#ECEBE9` card (1px `#D8D4CF` border + Material drop shadow `0 4px 6px -1px / 0 2px 4px -2px rgba(0,0,0,0.1)`, p-0) wrapping an inner radius-16 `#EEEAE6` card (pad 16/18) that carries the neumorphic `-8px` pair** — opening CENTERED under the trigger and growing downward (`align=center` + `avoidCollisions=false` — it overflows the dialog like the live), with raised 28px chevron circles, Su–Sa headers, 32px radius-16 day cells, today in bold purple. Grid math renders ONLY the weeks a month needs (v2.0: 5 rows for Sep 2026, 6 for Aug 2026 — no 6-row pad) and the long trigger format (`"September 20th, 2026"`) live in the pure seam `src/lib/calendar.ts` (`monthGrid`, `isSameDay`, `formatLongDate`).
-- **SQLite path normalization (v2.3, extracted + hardened):** the Prisma CLI resolves relative `file:` URLs against `prisma/schema.prisma`, and the runtime follows the SAME rule via the tested seam `src/lib/db-path.ts` (pinned by `tests/db-path.test.ts`). Anchor order: the standalone-detector root (Next's standalone `server.js` runs `process.chdir(__dirname)` into `.next/standalone`, whose traced `prisma/schema.prisma` copy would otherwise capture the plain CWD rule — the detector recognizes that folder and returns the real repo two levels up), then the module's own repo root (validated by the source file existing on disk — the standalone bundle rewrites `import.meta.url` into a virtual `<standalone>/src/lib/...` path that must be ignored), then the CWD. Always import `db` from `@/lib/db`, never construct `PrismaClient` directly.
-- **Standalone server must start from the project root** (`output: "standalone"`; `outputFileTracingRoot` is pinned in `next.config.ts`). npm/bun scripts guarantee this; running `server.js` from elsewhere breaks the SQLite path.
-- **Schema changes use `db push`, not migrations** (`prisma/migrations/` does not exist). `bun run db:seed` is idempotent — it wipes and reseeds domain tables.
+- **Real routes, not rewrites**: the pages live at `/Dashboard`, `/Planning`,
+  `/Profile`, `/Settings` (capitalized — the reference app's exact paths)
+  inside the `(app)` route group, plus a standalone `/login`. The root `/`
+  redirects to `/Dashboard`. Do not "fix" the casing and do not collapse
+  them into one SPA page.
+- **Data flow**: client components read the Zustand store
+  (`src/store/useFlowStore.ts`); the store is the ONLY fetcher of `/api/*`
+  and unwraps the `{ ok, data } | { ok, error }` envelope. Server
+  components do not fetch entity data — the pages are client islands over
+  the store (matching the reference's SPA behavior).
+- **API envelope discipline**: every route handler returns
+  `ok(data)` / `fail(code, message, status)` from `src/lib/api.ts`. Never
+  throw across the boundary; never return raw Prisma errors.
+- **Auth**: scrypt password hashes + HMAC-signed session tokens
+  (`userId.expiry.mac`) in an HttpOnly `fs_session` cookie — see
+  `src/lib/auth.ts`. Login/register are rate-limited (10/IP/min, 429 +
+  `Retry-After`); keep total per-suite real logins well under the budget
+  (the Playwright setup project signs in ONCE and shares storageState).
+- **LLM never hard-fails**: `src/lib/ai.ts` wraps every z-ai-web-dev-sdk
+  call in try/catch with deterministic fallbacks (the reference does the
+  same — its catch blocks ship canned content). The SDK is server-side
+  ONLY; never import it in a client component.
+- **Entity enums live in `src/lib/domain.ts`** (4 priorities, 7 categories,
+  3 statuses, 16 calendar hours, 80px/60px grid geometry, gradient maps).
+  The API routes validate writes against these guards; don't duplicate the
+  constants in components.
+
+## Framework quirks (verified the hard way)
+
+- **Tailwind v4 is CSS-first**: there is no `tailwind.config.*`. All tokens
+  live in `src/app/globals.css` `@theme inline`. Two repo-critical pins:
+  1. Semantic tokens are **full `hsl()` values** — a bare `0 0% 100%`
+     triplet under `@theme inline` silently resolves to *transparent*
+     (Trap 1 in `docs/Tailwind-V4-Validation-Report.md`).
+  2. `--shadow-sm` is **pinned to the v3 value**
+     `0 1px 2px 0 rgb(0 0 0 / 0.05)` — v4's default is one notch heavier
+     and every `shadow-sm` in the app (header, cards, buttons) would drift
+     (Trap 5). The slate/sky/etc. palette hexes are likewise pinned v3
+     values (Trap 2 — v4's oklch defaults drift 1–3 sRGB units/channel).
+- **space-y selector rewrite (Trap 4)**: v4 emits
+  `:where(.space-y-* > :not(:last-child)) { margin-block-end }` with ZERO
+  specificity — a child's own `mt-*`/`mb-*` WINS where v3 overrode it.
+  This app keeps **no `space-y-*` container with children that carry
+  explicit mt/mb utilities** (the header's dropdown menu deliberately uses
+  `p-1` + item margins). Keep it that way; the mobile-menu geometry spec
+  will fail if the pattern sneaks back in.
+- **Quick Action gradients are inline-style hex** (not
+  `bg-gradient-to-r` utilities) — the reference's own form, which also
+  sidesteps v4's in-oklab gradient interpolation drift (Trap 3).
+- **Next 16 dev-origin protection** silently blocks dev chunks for the
+  `127.0.0.1` origin (symptom: unhydrated page, native form GET fallbacks) —
+  `allowedDevOrigins: ["127.0.0.1", "localhost"]` in `next.config.ts` is
+  load-bearing.
+- **`useSearchParams` must sit inside `<Suspense>`** or the static
+  prerender of `/login` fails the build.
+- **react-hooks/set-state-in-effect is an ERROR in this ESLint setup** —
+  derive loading states instead of resetting them in effect bodies
+  (AISummaryCard's keyed-result pattern), and use remounts to reset form
+  state (TaskDialog's DialogContent-mounted body), never reset-effects.
+- **Radix menu hide-others**: while a DropdownMenu is open, Radix marks the
+  app root `aria-hidden` — role queries for elements OUTSIDE the menu time
+  out. Measure/click the trigger BEFORE opening (see
+  `tests/e2e/mobile-navigation.spec.ts`).
+- **Radix menus need trusted pointer events**: synthetic
+  `el.click()` via `page.evaluate` does NOT open them. Use Playwright
+  `locator.click()`.
+- **Bun auto-loads `.env` from parent directories too** — a workspace
+  parent `.env` with an absolute `DATABASE_URL` wins over this repo's
+  relative one. Both are supported: `src/lib/db-path.ts` passes absolute
+  `file:` URLs through untouched and anchors relative ones to the repo that
+  owns `prisma/schema.prisma` (pinned by `tests/db-path.test.ts`).
+- **`typescript.ignoreBuildErrors: true` ships in `next.config.ts`** (the
+  scaffold's setting) — the gate is `bun run typecheck` instead. Do not let
+  that lull you: `tsc --noEmit` must be clean.
 
 ## Conventions that differ from defaults
 
-- **Three distinct status vocabularies** (don't mix them):
-  - Task: `pending | in_progress | blocked | need_help | done`
-  - Goal: `active | done | draft | paused`
-  - Check-in update: `on_track | blocked | need_help | done`
-  - Canonical labels/colors: `TASK_STATUS_META` / `GOAL_STATUS_META` / `UPDATE_STATUS_META` in `src/lib/orbital.ts`.
-- **Tailwind 4 hybrid config:** tokens are CSS variables in `src/app/globals.css` (`--orb-*` palette, `@theme inline` mapping); the legacy `tailwind.config.ts` exists only for shadcn/ui HSL tokens and `tailwindcss-animate`. Use `orb-*` color utilities for app styling.
-- **Icon strokes are COMPUTED-STYLE parity (v2.9 re-measure): the live's icons render at computed 1.5px** — every lucide svg carries an inline `stroke-width: 1.5` style that overrides the `stroke-width="2"` presentation ATTRIBUTE (CSS beats presentation attributes; the v2.6 "universal 2" census read the attribute and missed the override — always read `getComputedStyle(svg).strokeWidth`). The split: chrome/content glyphs pass `strokeWidth={1.5}` (sidebar, tab bar, pill nav, feed rows, task meta, the AI zap, empty states, the wizard's deadline calendar); the ACTION-BUTTON + FORM-CONTROL set keeps the lucide default 2 (NEW GOAL plus, card action squares pencil/trash, goal-detail DELETE + Target calendar, Team plus buttons, Settings chevron-downs + save, dialog close Xs, the check-in Send, the wizard X + sparkles, the date-picker popover chevrons, login mail/lock, the popover LogOut); and two specials — the 768 back-strip chevron-left renders 1.8 and the wizard's bot 1.6. Glyph note: the live's date glyphs are plain `Calendar` (NOT `CalendarDays`) and the AI chip carries a `Zap` (NOT `Sparkles`) at 9px with 0.5px letter-spacing. Beware the shadcn Button base (`[&_svg:not([class*='size-'])]:size-4`) forcing 16px on child glyphs — opt out with an explicit `size-*` class.
-- **TypeScript is strict except `noImplicitAny: false`** (sandbox default; kept intentionally).
-- **Validation is hand-rolled in route handlers** (trim, length caps, enum membership, referential checks). No schema library — zod and the other template extras were pruned in v1.2; follow the existing manual style.
-- **The dialogs run the v2.10 scrim-flex generation with a coherent z-system (measured on the live).** The `ui/dialog.tsx` base renders the overlay AS the flex root (`fixed inset-0 z-[200] flex items-center justify-center p-[24px_16px]` + the per-kind scrim) with the panel as its relative CHILD (no panel shadow); the standard form dialogs (add-task/task-edit 500px, goal-edit 480px) carry `<p>` 15/600 lh 22.5 mb-20 headings, `flex flex-col gap-[14px]` forms, `.orb-label-dlg` labels (11/600/uppercase/ls 0.88/lh 16.5/mb 6 — display block), h-35.5 inputs (h-37.5 date), mt-4/gap-10 button rows (goal-edit mt-6), and the 13px `#5A5A5A` close X; goal-edit's status order is Draft|Active|Paused|Completed with no Title asterisk. Z map: tab bar 100 · sheet overlay 200 / panel 201 · form dialogs 200 · wizard 100 · check-in 50 · date-picker 210 (portaled — documented deviation). The check-in modal anchors `top-[5%]` below sm with 9999px radios + 16px textarea; the wizard is r24/z-100 with a 50% bot avatar. **Tailwind v4's space-y puts margin-block-end on the EARLIER child (v3 put margin-top on the later one)** — the login form mirrors the live's v3-computed layout with EXPLICIT mt utilities (input wrapper mt-[6px], field blocks mt-3/sm:mt-4, bottom block mt-4/sm:mt-5, footer mt-3) + `inline leading-5` labels (the 24px strut line box makes each field block 78, card 746); don't reintroduce space-y there.
-- **Every mutation writes an `ActivityLog` row** (type, message, detail, task/goal ids). New endpoints must keep the feed complete. (`goal_analyzed` is logged by the clarify endpoint — an AI action, not a mutation.)
-- **AI features degrade, never fail:** `POST /api/goals/clarify` (wizard questions) and `generate-tasks` both fall back to deterministic outputs when the SDK is down.
-- **Pure domain seams are unit-tested** (`src/lib/router.ts`, `clarify.ts`, `plan-sanitizer.ts`, `checkin.ts`, `rate-limit.ts`, `team.ts`, `next-action.ts` (v2.5: task-based — first blocked task in display order, taking `allTasks` + the goals list, NOT the activity feed), `calendar.ts`, `activity-groups.ts`, `activity-tags.ts`, `day-image.ts`, `greetingFor` + `formatDistance`/`relativeTime` in `orbital.ts`, the logo geometry helpers in `logo.tsx`, all with Vitest `*.test.ts` — 138 checks). Route handlers import these modules instead of inlining the logic — extend the tests when you extend the logic.
-- **Deletes confirm INLINE, never in a modal** (reference pattern): the goal card swaps its icons for a "Delete / Cancel" pair, the goal-detail header swaps DELETE for "Delete goal & all tasks? · Yes, Delete | Cancel", and task cards swap their icons for "Delete? | Yes | No". Don't reintroduce `AlertDialog` confirms.
-- **Goal-detail geometry (v2.2, measured)**: the stats grid is ALWAYS two columns `grid-cols-[2.04fr_1fr]` — even at 390 (209+97 side by side, both h130; the old `sm:` stacking was wrong); the view root keeps the wide pad `px-7 pt-6` at mobile (content x34 — unlike list views' x18); the header row is `flex items-start justify-between` with NO gap/wrap — the title block (`flex-1 min-w-0`, chip at +5px) takes every leftover px beside the 102×40 DELETE pill; the header sits 24px (mt-6) below the "Back to Goals" row; description mt 5, Target line (13px `#767676` + CalendarDays 13) mt 8.
-- **The brand marks are two different dot arrangements** (pixel-measured): sidebar/logo mark = six dots in a hexagonal ring; login card = six dots in a 1-2-3 pyramid on a WHITE ROUNDED SQUARE (rx 98/1200, no shadow — the reference's Frame24.svg). Geometry lives as pure helpers in `logo.tsx` with a spec — don't hand-place dots.
-- **Sidebar carries a live analog clock and collapses on desktop** (`sidebar-clock.tsx` + `sidebar-collapse.ts`, a `useSyncExternalStore` store persisted to localStorage `orbital-sidebar-collapsed`). Don't reintroduce `useState`-in-`useEffect` patterns for it — React 19's lint rules reject them; use external stores.
-- **AI agents are TeamMembers with `description`/`instructions`** (schema extended in v1.2); the New Agent dialog and `/api/team` POST share the `src/lib/team.ts` seams.
-- **My Tasks ships five filter tabs** (All / Pending / In Progress / Blocked / Done — no "Need Help" tab, matching the reference; the `need_help` status itself remains in the vocabulary). Empty states render directly on the canvas — no card wrapper.
-- **Mobile navigates with a full-width bottom bar + app bar** (v1.7, measured — REPLACES v1.6's floating-pill reading): the mobile shell is FULL-BLEED below **`md`** (v2.2 — the live's crossover, not `lg`; the padding stays the fixed mobile spec through 767 with NO `sm:` growth); **the padding splits like the live (v2.1, measured): `main` pads `16px 6px 90px`, then per-view containers — the dashboard wrapper adds `px-16 pt-12 pb-12` (hero at x22/y90), list views add `px-12 pt-24` (h1 at x18/y102)**; a sticky full-bleed app bar (ORBITAL logo + user pill, bottom drop shadow, ROUNDED BOTTOM CORNERS 0 0 20 20, pad 14/20, CONTENT-DRIVEN height — 56.5 logged-out / 62 authenticated) replaces the desktop greeting header, the date card + ring sit side-by-side at 150px tall (both hero cards `flex 1 1 50%` — equal halves at every mobile width), and the bottom tab bar is a FULL-WIDTH bar attached to the screen bottom — `rounded-t-[20px]` (top corners only), upward shadow `0 -4px 20px rgba(160,143,126,0.22)`, pad 8/8/12, content-height driven (chip 53.5, NO min-height) — with 20px icons at the **computed stroke 1.5 (v2.9 re-measure)**, 9px/600 uppercase labels, and **every view tab's icon+label wrapped in a flex-column chip (gap 4, pad 8/4, radius 14) that STRETCHES TO THE FULL TAB WIDTH (73.2 of 73.2 at 390 — v2.4 re-measured; the tab button itself carries NO padding); the ACTIVE chip gets the BRIGHT inset well (`bg #EBE7E2` + the `.orb-nav-active` pair rgba(255,252,248,0.75)/rgba(180,165,150,0.32)). The MORE button keeps its OWN pad 8/4 plus an 8px flex basis (`flex-[1_1_8px]`, mirroring the live's content-box basis participation) so it renders ~6.4px WIDER than the view tabs (81.2 vs 73.2) and NEVER carries the well (color-only)**. **Mobile goal cards (v2.4, measured) are a COMPACT single-column layout** (pad 14/16, card h≈136): the top row pairs a BARE status label — 7px status-colored dot (green `#2ECC8A` active / light purple otherwise, gap 6) + 11px/600 uppercase + normal-case coral blocked count, NO pill — with the percentage in a SMALL WELL CHIP (bg `#EBE7E2`, radius 8, pad 3/10, the 2px inset pair rgba(255,250,244,0.8)/rgba(160,143,126,0.28), 13px/500); row mb 10, then full-width 16px/500 title (mt 0), 6px track, meta row (fraction left; date + edit/delete right). The DESKTOP card keeps the pill status chip + bare 42px pct (v1.6, unchanged), and its chip's blocked count renders UPPERCASE with 0.88 tracking (v2.6, measured — the MOBILE card's blocked count stays normal-case). **Filter chips (goals + my-tasks) are a single NON-WRAPPING row (v2.1, measured)** — `whitespace-nowrap shrink-0` chips that overflow the right edge like the live, never wrap. The MORE sheet (Tasks / Team / Settings) is a r24 bottom sheet (pad 20/20/40 incl. safe-area, upward-only shadow `0 -8px 32px rgba(160,143,126,0.28)`, 4px `#CCC7C0` handle, 32px r10 raised close, 9px brand mark + "ORBITAL" Archivo 12px/600/ls 2.16, PLAIN 16px/400 `#2F2823` rows h 49 with 8px gaps and 20px list-todo/users/settings glyphs) over a `rgba(0,0,0,0.2)` + 4px-blur scrim. Desktop keeps the sidebar.
-- **The md–lg range is a THIRD chrome state (v2.2, measured — the live renders three separate DOM subtrees `md:hidden` / `hidden md:block lg:hidden` / `hidden lg:block`, and the clone now mirrors it)**: 768–1023 shows NO sidebar and NO app bar — the DESKTOP greeting header (greeting x48/y47 + user pill + New Goal `.orb-pill-outline-lg` 132×40 r12) renders on the dashboard; list views add a 52px strip above the main with a "Dashboard" back button (chevron-left 15 `#9A9A9A` + 13px/500 `#6E6E6E`, ~112×34 raised r10 pill, strip pad 18/20/0) that returns to the dashboard; `main` pads `12px 20px 100px` (list) / `24px 20px 100px` (dashboard) and the content = the DESKTOP components (desktop goal cards 672×166, full stat labels, 88px wells, settings 2-col) with `.page-container` pad 24/28 max-w 1200 (content x48). Navigation is a FLOATING CENTERED PILL — `fixed bottom-4 left-1/2 -translate-x-1/2`, 494×71, z-[100], pad 10/16, gap 4, `bg-orb-raised` r20 with the LARGE panel shadow pair — holding the brand (9px dot mark, `mr-1` + a 1px right divider rgba(160,143,126,0.18), + "ORBITAL" 11px/600/ls 0.18em) and SIX tabs, each an anchor wrapping an inner CHIP span (min-width 52, r12, pad 8/12, transition 150ms) that carries the ACTIVE well (the desktop nav set: Home/Goals/Tasks/Activity/Team/Settings, 18px icons, column layout gap 3, pad 8/12, r12). The ACTIVE tab is an inset WELL chip: `bg-orb-well`, the 3px inset pair `rgba(255,252,248,0.75)/rgba(180,165,150,0.32)`, icon+label `#3A3A3A`, label 9px/600/ls 0.36px uppercase (inactive: transparent, `#767676`, 400). All content-component transitions (wells 88, full labels, desktop cards, settings 2-col, ring 180, date card 200) fire at `md`, not `sm`.
-- **ESLint ignores `skills/`** (the operator's skill catalog, not app code) plus build output dirs — don't remove those ignores.
+- The task/note JSON wire format is **snake_case** (`start_time`,
+  `duration_minutes`, `created_at`) — the reference app's entity shape —
+  while Prisma models and TS types are camelCase. The mapping lives in ONE
+  place (`mapTask`/`mapNote` in the store); don't sprinkle conversions.
+- Task `status: "in_progress"` (snake), but priorities/categories are bare
+  words — mirror the reference enums exactly; no synonyms, no casing games.
+- The seed is idempotent via `is_sample: true` guards + user upsert;
+  re-running never duplicates. Sample data belongs to the seed, never to
+  the runtime.
+- Screenshots for docs live in `docs/screenshots/` and are captured from
+  the dev server at 1440×900 (desktop) and 390×844 (mobile).
+- ESLint config intentionally relaxes several rules for AI-generated code
+  ergonomics, but `react-hooks/set-state-in-effect` remains an ERROR —
+  it has caught two real cascading-render bugs in this codebase.
 
-## Git
+## Mobile navigation (the highest-regression-risk surface)
 
-- **`main` only.** No feature branches.
-- Conventional Commits with emoji prefixes: `:art: feat: …`, `:memo: docs: …`, `:bug: fix: …`.
-- Never commit `.env`, `*.key`, `db/*.db`, or `node_modules/` (all gitignored).
-- Push through the SSH wrapper from the repo root: `python3 docs/ssh_git_wrapper_v3.py --key-file <key outside repo> --remote git@github.com:nordeim/project-management.git` — runbook: `docs/how-to-git-push-using-ssh-wrapper_SKILL.md`.
+The reference app's mobile navigation is **ONLY** the header's account
+menu — a ghost user-icon Button (`div.md:hidden`) opening a Radix
+DropdownMenu `align="end"`. The reference ships **no bottom tab bar**
+(its mobile nav-items array is empty). Measured parity at a 390px
+viewport: menu right 374 = trigger right 374, menu top 54 (4px
+sideOffset below the 50px trigger bottom), width 192. Any change to the
+header layout, the menu classes, or the trigger padding will fail
+`tests/e2e/mobile-navigation.spec.ts` — that spec is the pin, update it
+deliberately if the reference re-measures differently.
+
+## Reference
+
+- `Project_Architecture_Document.md` — the full engineering reference
+  (ADRs, layer model, all five Tailwind v4 traps with fixes, the
+  verification ledger).
+- `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
+  taxonomy; read it before touching `globals.css`.
+- `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env
+  hardening).
+- `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` — the SSH push
+  runbook for this repository.
