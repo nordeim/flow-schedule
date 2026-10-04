@@ -16,15 +16,17 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (44 tests: auth crypto, domain constants, db-path, .env.example contract, site URL helper) |
-| `bun run test:e2e` | Playwright (34 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test` | Vitest unit suites (53 tests: auth crypto, domain constants, db-path, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction) |
+| `bun run test:e2e` | Playwright (38 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` (dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
 
 Clean-check order: `bun run lint && bun run typecheck && bun run test &&
 bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
-`db/e2e.db` itself; it does NOT touch `db/custom.db`.
+`db/e2e.db` itself; it does NOT touch `db/custom.db`. The production build
+fails on type errors by itself (`typescript.ignoreBuildErrors` was removed
+in session 3 — `tests/next-config.test.ts` pins that it stays gone).
 
 ## Architecture invariants
 
@@ -99,9 +101,17 @@ bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
   relative one. Both are supported: `src/lib/db-path.ts` passes absolute
   `file:` URLs through untouched and anchors relative ones to the repo that
   owns `prisma/schema.prisma` (pinned by `tests/db-path.test.ts`).
-- **`typescript.ignoreBuildErrors: true` ships in `next.config.ts`** (the
-  scaffold's setting) — the gate is `bun run typecheck` instead. Do not let
-  that lull you: `tsc --noEmit` must be clean.
+- **`typescript.ignoreBuildErrors` is GONE from `next.config.ts`** (removed
+  in session 3 — the production build now fails on type errors itself;
+  `tests/next-config.test.ts` pins the contract). `bun run typecheck`
+  remains the fast gate — keep it clean.
+- **Playwright text matching hits textarea default-value text nodes**: a
+  controlled `<textarea>`'s React-rendered default value lives in the DOM
+  as a text node, so `getByText(/pattern/)` can match the STILL-MOUNTED
+  create-view textarea instead of the list item you meant (suite-load
+  timing decides which resolves first — a real flake, session 3).
+  Scope list-item assertions with `getByRole("paragraph").filter(...)`
+  (see the Brainstorm specs).
 
 ## Conventions that differ from defaults
 
@@ -122,6 +132,21 @@ bun run build && bun run test:e2e`. The e2e global setup pushes + seeds
   happens ONLY from the Dashboard calendar task blocks); and there is no
   Unscheduled section (the string is absent from the reference bundle).
   `tests/e2e/planning.spec.ts` pins all of it.
+- **The Quick Actions OPEN-PANEL state is decompiled reference behavior,
+  not inferred design** (session 3, `G1e`/`z1e`/`W1e`/`H1e`/`K1e` in the
+  reference bundle): opening a tile morphs the whole card container into
+  the action's gradient (`relative backdrop-blur-xl rounded-3xl p-4
+  shadow-xl border border-white/20 overflow-hidden min-h-[280px]` + a
+  motion expanding overlay from the clicked tile) and REPLACES the
+  "Quick Actions" heading with the panel header. Panels: Add Task is
+  placeholder-only (no label) with a `bg-slate-700` submit; the Focus
+  Timer hides the minutes input while running (Play/Pause toggle,
+  "Focus session complete!" alert at 0, start disabled at minutes=0 —
+  the reference's duration alert is unreachable dead code, mirrored);
+  Log Activity is a READ-ONLY top-5 completed/past list (relative
+  end_time, no action buttons); Brainstorm supports note EDITING with
+  30-char truncated clickable previews and window.confirm deletes.
+  `tests/e2e/dashboard.spec.ts` pins all of it.
 - The seed is idempotent via `is_sample: true` guards + user upsert;
   re-running never duplicates. Sample data belongs to the seed, never to
   the runtime.
@@ -149,7 +174,7 @@ deliberately if the reference re-measures differently.
   (ADRs, layer model, all five Tailwind v4 traps with fixes, the
   verification ledger).
 - `flow-schedule_SKILL.md` — the distilled engineering skill (20
-  sections + appendices: anti-patterns FS-1…FS-11, debugging guide,
+  sections + appendices: anti-patterns FS-1…FS-13, debugging guide,
   pre-ship checklist, color/z-index references).
 - `docs/session_1.md` (build narrative) + `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` — the session-1 review/remediation
@@ -157,6 +182,10 @@ deliberately if the reference re-measures differently.
 - `docs/session_2.md` (remediation narrative) + `docs/session_2-review.md`
   + `docs/remediation-plan-session2.md` — the session-2 record (the
   Planning decompile lessons: infer-vs-decompile, chip bubbling).
+- `docs/session_3-review.md` + `docs/remediation-plan-session3.md` +
+  `docs/session_3.md` — the session-3 record (the Quick Actions
+  open-panel decompile: FS-12, the textarea default-value locator flake,
+  the dead-code alert mirroring, build-bypass removal).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

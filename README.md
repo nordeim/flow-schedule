@@ -32,7 +32,7 @@ brainstorm pad.
 |---------|-------------|
 | 📅 **Weekly time-grid calendar** | 80px day-label column + 16 × 60px hour slots (07:00–22:00); task blocks are absolutely positioned at 1px/minute with category gradients (work=blue, personal=green, health=red, learning=purple, creative=pink, social=yellow, planning=indigo); clicking an empty cell opens the task dialog prefilled with that day+hour |
 | 🗓 **Weekly Planning page** | Seven day cards (top-3 task chips + "+N more"); clicking a card — chips included — selects the day (the reference's exact behavior: no section renders until a day is clicked, the highlight follows the selection, and there is no today-marker); the selected-day task list and the Day Statistics card (the reference's static placeholder) render behind the click; the Filter button is decorative, exactly like the reference's |
-| ⚡ **Quick Actions** | Four gradient tiles (reference hex stops: #0ea5e9→#2563eb, #10b981→#14b8a6, #8b5cf6→#6366f1, #f59e0b→#f97316) that swap the card body for inline panels: Add New Task, Start Focus Timer (live countdown), Log Activity (mark past tasks done), Quick Brainstorm (notes CRUD) |
+| ⚡ **Quick Actions** | Four gradient tiles (reference hex stops: #0ea5e9→#2563eb, #10b981→#14b8a6, #8b5cf6→#6366f1, #f59e0b→#f97316) — decompiled panel behavior (session 3): opening a tile morphs the whole card into that action's gradient (motion expanding overlay from the clicked tile) and REPLACES the “Quick Actions” heading with the panel header; Add New Task (placeholder-only input, slate-700 submit), Start Focus Timer (live countdown, minutes input hidden while running, Play/Pause toggle, completion alert), Log Activity (read-only top-5 completed/past history with relative end times), Quick Brainstorm (notes with truncated previews, create/edit, confirm-delete) |
 | 🧠 **AI Summary card** | Server-side LLM analysis of the day's schedule (mood, focus areas, activity types, insight) with the reference's exact prompt and JSON schema; deterministic fallbacks on any failure |
 | ☀️ **Daily Focus card** | LLM-generated productivity quote + author + affirmation ("Generate a short inspirational quote… Return as JSON") with a canned default |
 | 🎯 **Skills Map** | Recharts pie of the day's scheduled minutes by category with an integer-hours center total and a per-category legend |
@@ -40,7 +40,7 @@ brainstorm pad.
 | ✅ **Task lifecycle** | 4 priorities (low/medium/high/urgent), 7 categories, 3 statuses (todo/in_progress/completed); create/edit/delete through a shadcn Dialog with datetime-local start + 15-minute-step duration |
 | 🔐 **Cookie-session auth** | scrypt password hashing + HMAC-signed session tokens (HttpOnly cookie), per-IP login/register rate limiting (429 + Retry-After), sign-up built in |
 | 📱 **Mobile navigation** | The reference's exact pattern: a ghost user-icon button opening a Radix DropdownMenu aligned `end` — menu right edge anchored to the trigger's right edge (measured parity: right 374 = trigger 374 @ 390px viewport); no bottom tab bar (the reference ships an empty nav-items array) |
-| 🧪 **Test pyramid** | 44 Vitest unit tests (auth crypto, domain constants, db-path resolution, .env.example contract, site URL helper) + 34 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning — including the decompiled reference behaviors: null-init selection, placeholder stats, decorative Filter, display-only chips) + curl smoke checks |
+| 🧪 **Test pyramid** | 53 Vitest unit tests (auth crypto, domain constants, db-path resolution, .env.example contract, site URL helper, next.config contract, rate-limit fixed window + eviction) + 38 Playwright e2e tests (mobile menu geometry parity, auth flows, dashboard, planning — including the decompiled reference behaviors: null-init selection, placeholder stats, decorative Filter, display-only chips, and the Quick Actions open-panel states: container gradient morph, placeholder-only quick-add, minutes-hidden timer, read-only history, notes create/edit/confirm-delete) + curl smoke checks |
 
 ## Screenshots
 
@@ -53,7 +53,7 @@ brainstorm pad.
 | ![Planning](docs/screenshots/03-planning.png) | ![Mobile menu](docs/screenshots/08-mobile-menu.png) |
 
 More captures in [`docs/screenshots/`](docs/screenshots/) (profile, settings,
-focus timer, mobile dashboard, mobile planning).
+focus timer, quick-action open panels, mobile dashboard, mobile planning).
 
 ## Tech Stack
 
@@ -167,10 +167,10 @@ curl http://localhost:3000/api/health
 # {"status":"ok","app":"flow-schedule","database":"up","ts":"…"}
 
 bun run lint && bun run typecheck && bun run test
-# ESLint clean · tsc clean · 44/44 unit tests
+# ESLint clean · tsc clean · 53/53 unit tests
 
 bun run build && bun run test:e2e
-# Build succeeds · 34/34 e2e tests (production standalone on :3100)
+# Build succeeds (type-checked by the build itself) · 38/38 e2e tests (production standalone on :3100)
 ```
 
 ### Production
@@ -227,8 +227,8 @@ Tailwind CSS **v4 CSS-first** — no `tailwind.config.*`; all tokens live in
 
 | Suite | Command | What it covers |
 |---|---|---|
-| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients), db-path resolution, .env.example contract, site URL helper |
-| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels, planning week cards + dialog flow + the decompiled reference behaviors (null-init selectedDay, static Day Statistics placeholder, selected-day highlight, chip bubbling, decorative Filter, no Unscheduled section) |
+| Unit | `bun run test` | scrypt/HMAC round-trips, reference domain constants (16 slots, 80/60px, enums, gradients), db-path resolution, .env.example contract, site URL helper, next.config contract (no build bypasses), rate-limit fixed window + bucket eviction |
+| E2E | `bun run test:e2e` | Mobile menu geometry parity (right-anchored, reference measurements), menu navigation, Escape/focus behavior, logout, login/register/error flows, dashboard calendar + task blocks + gradients, quick action panels (container gradient morph, header replacement, placeholder-only quick-add, minutes-hidden countdown, zero-minutes disabled state, read-only history, notes create/edit/confirm-delete), planning week cards + dialog flow + the decompiled reference behaviors (null-init selectedDay, static Day Statistics placeholder, selected-day highlight, chip bubbling, decorative Filter, no Unscheduled section) |
 
 The e2e suite boots the **production standalone build** on `:3100` with its
 own seeded `db/e2e.db`; one setup project signs the demo user in once

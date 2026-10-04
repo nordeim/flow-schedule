@@ -1,215 +1,299 @@
 "use client";
 
-// FlowSchedule — Quick Actions card.
-// Mirrors the reference: a 2×2 grid of gradient tiles; clicking a tile
-// swaps the WHOLE card body for an inline panel (gradient header row with
-// back arrow + icon + title, then the form/list on a tinted surface).
-// The gradients are inline-style linear-gradients with sRGB hex stops —
-// the reference's own values (#0ea5e9→#2563eb, #10b981→#14b8a6,
-// #8b5cf6→#6366f1, #f59e0b→#f97316) — which also sidesteps Tailwind v4's
-// in-oklab gradient interpolation drift (Trap 3 in the validation report).
+// FlowSchedule — Quick Actions card, decompiled from the reference bundle
+// (session 3, G1e + panels z1e/W1e/H1e/K1e):
+//   - the card container morphs: tiles view = translucent white
+//     (rgba(255,255,255,0.6)), open panel = the action's gradient (motion
+//     layout, transition .4 circOut) with an AnimatePresence expanding
+//     overlay animating from the clicked tile's rect;
+//   - the "Quick Actions" heading exists ONLY in the tiles view — opening a
+//     panel replaces it with the panel header (ghost icon back button +
+//     action icon + label);
+//   - tiles: h-24 rounded-2xl p-3 shadow-lg, grid gap-3, icon w-5 h-5 mb-1.5,
+//     label text-[11px], framer whileHover scale 1.07 / whileTap .93;
+//   - Add Task (z1e): placeholder-only input (no label), slate-700 submit;
+//   - Focus Timer (W1e): minutes input hidden while running, Play/Pause
+//     toggle, "Focus session complete!" alert at 0;
+//   - Log Activity (H1e): read-only top-5 completed/past history with
+//     relative end times;
+//   - Brainstorm (K1e): create/edit/confirm-delete notes with truncated
+//     30-char previews.
+// The gradient stops are inline-style sRGB hex values — the reference's own
+// form, which also sidesteps Tailwind v4's in-oklab gradient interpolation
+// drift (Trap 3 in the validation report).
 
 import * as React from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
   CirclePlus,
+  Eye,
+  Pause,
   Play,
   RotateCcw,
   Save,
   Timer,
+  Trash2,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { QUICK_ACTIONS, PRIORITY_TEXT, type QuickActionId } from "@/lib/domain";
-import { useFlowStore } from "@/store/useFlowStore";
+import { Textarea } from "@/components/ui/textarea";
+import { QUICK_ACTIONS, type QuickActionId } from "@/lib/domain";
+import { useFlowStore, type Note } from "@/store/useFlowStore";
 
-type ActivePanel = QuickActionId | null;
+// The reference's idle card background (z$ in its bundle).
+const CARD_BG_IDLE = "rgba(255, 255, 255, 0.6)";
+
+// The reference's panel entrance/exit (initial/animate/exit y-offsets,
+// .3s circOut with a .2s delay).
+const panelMotion = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 },
+  transition: { duration: 0.3, ease: "circOut" as const, delay: 0.2 },
+};
+
+type TileOrigin = { top: number; left: number; width: number; height: number };
+
+type PanelProps = {
+  onCancel: () => void;
+  formColor: string;
+};
+
+function ActionIcon({ id, className }: { id: QuickActionId; className?: string }) {
+  switch (id) {
+    case "addTask":
+      return <CirclePlus className={className} />;
+    case "focusTimer":
+      return <Timer className={className} />;
+    case "logActivity":
+      return <BookOpen className={className} />;
+    case "brainstorm":
+      return <Zap className={className} />;
+  }
+}
 
 export function QuickActions() {
-  const [active, setActive] = React.useState<ActivePanel>(null);
+  const [activeId, setActiveId] = React.useState<QuickActionId | null>(null);
+  const [activeGradient, setActiveGradient] = React.useState<string | null>(null);
+  const [background, setBackground] = React.useState<string>(CARD_BG_IDLE);
+  const [origin, setOrigin] = React.useState<TileOrigin | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Reference G1e: opening a tile records its rect (relative to the card),
+  // flips the card background to the action's gradient, and swaps the view.
+  const openPanel = (id: QuickActionId, e: React.MouseEvent<HTMLButtonElement>) => {
+    const action = QUICK_ACTIONS.find((a) => a.id === id)!;
+    const card = containerRef.current?.getBoundingClientRect();
+    const tile = e.currentTarget.getBoundingClientRect();
+    if (card) {
+      setOrigin({
+        top: tile.top - card.top,
+        left: tile.left - card.left,
+        width: tile.width,
+        height: tile.height,
+      });
+    }
+    setActiveGradient(action.gradient);
+    setBackground(action.gradient);
+    setActiveId(id);
+  };
+
+  const closePanel = () => {
+    setActiveId(null);
+    setBackground(CARD_BG_IDLE);
+  };
+
+  const active = activeId ? QUICK_ACTIONS.find((a) => a.id === activeId) ?? null : null;
+
+  return (
+    <motion.div
+      ref={containerRef}
+      layout
+      className="relative backdrop-blur-xl rounded-3xl p-4 shadow-xl border border-white/20 overflow-hidden min-h-[280px]"
+      style={{ background }}
+      transition={{ duration: 0.4, ease: "circOut" as const }}
+    >
+      {/* Expanding overlay: grows from the clicked tile's rect to the full
+          card while the gradient takes over (the reference's
+          "expanding-overlay" AnimatePresence child). */}
+      <AnimatePresence>
+        {activeId && origin && activeGradient && (
+          <motion.div
+            key="expanding-overlay"
+            className="absolute z-10 rounded-3xl"
+            initial={{
+              top: origin.top,
+              left: origin.left,
+              width: origin.width,
+              height: origin.height,
+              opacity: 0.6,
+            }}
+            animate={{ top: 0, left: 0, width: "100%", height: "100%", opacity: 1 }}
+            exit={{
+              top: origin.top,
+              left: origin.left,
+              width: origin.width,
+              height: origin.height,
+              opacity: 0,
+              transition: { duration: 0.3, ease: "circIn" as const },
+            }}
+            transition={{ duration: 0.35, ease: "circOut" as const }}
+            style={{ background: activeGradient }}
+          />
+        )}
+      </AnimatePresence>
+      <div className="relative z-20">
+        <AnimatePresence mode="wait">
+          {activeId && active ? (
+            <motion.div
+              key="form-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, delay: activeId ? 0.15 : 0 }}
+              className="relative"
+            >
+              <div className="flex items-center mb-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={closePanel}
+                  aria-label="Back to Quick Actions"
+                  className="mr-2 rounded-full w-8 h-8 hover:bg-black/10 text-white"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <h3 className="text-lg font-semibold flex items-center text-white">
+                  <ActionIcon id={activeId} className="w-5 h-5 mr-2" />
+                  {active.label}
+                </h3>
+              </div>
+              {activeId === "addTask" && (
+                <AddTaskPanel onCancel={closePanel} formColor={active.formColor} />
+              )}
+              {activeId === "focusTimer" && (
+                <FocusTimerPanel onCancel={closePanel} formColor={active.formColor} />
+              )}
+              {activeId === "logActivity" && (
+                <LogActivityPanel onCancel={closePanel} formColor={active.formColor} />
+              )}
+              {activeId === "brainstorm" && (
+                <BrainstormPanel onCancel={closePanel} formColor={active.formColor} />
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="buttons-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { delay: 0.2 } }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <h3 className="text-lg font-semibold text-slate-900 mb-3">Quick Actions</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {QUICK_ACTIONS.map((action) => (
+                  <motion.button
+                    key={action.id}
+                    onClick={(e) => openPanel(action.id, e)}
+                    whileHover={{ scale: 1.07, boxShadow: "0px 10px 20px rgba(0,0,0,0.15)" }}
+                    whileTap={{ scale: 0.93 }}
+                    className="flex flex-col items-center justify-center h-24 rounded-2xl p-3 text-white shadow-lg"
+                    style={{ background: action.gradient }}
+                    aria-label={action.label}
+                  >
+                    <ActionIcon id={action.id} className="w-5 h-5 mb-1.5" />
+                    <span className="text-[11px] font-medium text-center leading-tight">
+                      {action.label}
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
+
+// ---- Add Task (reference z1e) ------------------------------------------------
+
+function AddTaskPanel({ onCancel, formColor }: PanelProps) {
   const createTask = useFlowStore((s) => s.createTask);
   const refreshTasks = useFlowStore((s) => s.refreshTasks);
-
-  return (
-    <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20">
-      <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
-      {active === null ? (
-        <div className="grid grid-cols-2 gap-4">
-          {QUICK_ACTIONS.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => setActive(action.id)}
-              className="group relative overflow-hidden rounded-xl p-5 flex flex-col items-center justify-center gap-3 transition-all duration-200 shadow-md hover:shadow-lg h-28 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ background: action.gradient }}
-              aria-label={action.label}
-            >
-              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <ActionIcon id={action.id} />
-              <span className="font-medium text-sm opacity-90">{action.label}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <QuickActionPanel
-          id={active}
-          onClose={() => setActive(null)}
-          onCreateTask={async (title) => {
-            await createTask({ title });
-            await refreshTasks();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function ActionIcon({ id }: { id: QuickActionId }) {
-  const cls = "text-2xl opacity-90";
-  switch (id) {
-    case "addTask":
-      return <CirclePlus className={cls} />;
-    case "focusTimer":
-      return <Timer className={cls} />;
-    case "logActivity":
-      return <BookOpen className={cls} />;
-    case "brainstorm":
-      return <Zap className={cls} />;
-  }
-}
-
-function PanelShell({
-  id,
-  title,
-  onClose,
-  children,
-}: {
-  id: QuickActionId;
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const action = QUICK_ACTIONS.find((a) => a.id === id)!;
-  return (
-    <div
-      className="relative rounded-3xl overflow-hidden border border-white/20 shadow-xl min-h-[280px]"
-      style={{ background: action.gradient }}
-    >
-      <div className="relative z-20">
-        <div className="flex items-center mb-3">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="mr-2 rounded-full w-8 h-8 hover:bg-black/10 text-white"
-            aria-label="Back to Quick Actions"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h3 className="text-lg font-semibold flex items-center text-white">
-            <ActionIcon id={id} />
-            <span className="ml-2 inline-flex items-center">{title}</span>
-          </h3>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function QuickActionPanel({
-  id,
-  onClose,
-  onCreateTask,
-}: {
-  id: QuickActionId;
-  onClose: () => void;
-  onCreateTask: (title: string) => Promise<void>;
-}) {
-  switch (id) {
-    case "addTask":
-      return <AddTaskPanel onClose={onClose} onCreateTask={onCreateTask} />;
-    case "focusTimer":
-      return <FocusTimerPanel onClose={onClose} />;
-    case "logActivity":
-      return <LogActivityPanel onClose={onClose} />;
-    case "brainstorm":
-      return <BrainstormPanel onClose={onClose} />;
-  }
-}
-
-function AddTaskPanel({
-  onClose,
-  onCreateTask,
-}: {
-  onClose: () => void;
-  onCreateTask: (title: string) => Promise<void>;
-}) {
   const [title, setTitle] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
 
+  // Reference z1e: submit posts the quick-add defaults explicitly, then the
+  // panel closes (no error UI — failures log server-side/console).
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = title.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
-    setError(null);
+    if (!title.trim()) return;
     try {
-      await onCreateTask(trimmed);
-      setTitle("");
-      onClose();
+      await createTask({
+        title: title.trim(),
+        category: "work",
+        priority: "medium",
+        status: "todo",
+      });
+      await refreshTasks();
+      onCancel();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the task.");
-    } finally {
-      setBusy(false);
+      console.error("Error creating task:", err);
     }
   };
 
   return (
-    <PanelShell id="addTask" title="Add New Task" onClose={onClose}>
-      <form
-        onSubmit={submit}
-        className="p-4 space-y-3 rounded-2xl bg-sky-50/90"
-      >
-        <div className="space-y-2">
-          <label htmlFor="quick-task-title" className="text-sm font-medium text-slate-700">
-            Task Title
-          </label>
-          <Input
-            id="quick-task-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Task Title..."
-            className="rounded-2xl"
-            maxLength={300}
-            required
-          />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} className="rounded-2xl">
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={busy || title.trim().length === 0}
-            className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white"
-          >
-            <Save className="w-4 h-4" /> Add
-          </Button>
-        </div>
-      </form>
-    </PanelShell>
+    <motion.form
+      onSubmit={submit}
+      className={`p-4 space-y-3 rounded-2xl ${formColor}`}
+      {...panelMotion}
+    >
+      <Input
+        placeholder="Task Title..."
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="rounded-lg border-slate-300 bg-white/70 placeholder:text-slate-500 text-slate-800"
+      />
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="rounded-lg text-slate-600 hover:bg-slate-700/10"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          className="bg-slate-700 hover:bg-slate-800 text-white rounded-lg"
+        >
+          <Save className="w-4 h-4 mr-1.5" /> Add
+        </Button>
+      </div>
+    </motion.form>
   );
 }
 
-function FocusTimerPanel({ onClose }: { onClose: () => void }) {
+// ---- Focus Timer (reference W1e) ---------------------------------------------
+
+function FocusTimerPanel({ onCancel, formColor }: PanelProps) {
   const [minutes, setMinutes] = React.useState(25);
   const [remaining, setRemaining] = React.useState(25 * 60);
   const [running, setRunning] = React.useState(false);
+
+  // Reference W1e semantics, translated without effect-body setState
+  // (react-hooks/set-state-in-effect):
+  //   - idle display = minutes*60 (derived); starting resets to full;
+  //     pausing shows the full duration again (the reference's idle effect
+  //     snaps remaining back to minutes*60);
+  //   - running display = the countdown; reaching 0 stops + alerts.
+  const display = running ? remaining : minutes * 60;
 
   React.useEffect(() => {
     if (!running) return;
@@ -217,6 +301,7 @@ function FocusTimerPanel({ onClose }: { onClose: () => void }) {
       setRemaining((r) => {
         if (r <= 1) {
           setRunning(false);
+          window.alert("Focus session complete!");
           return 0;
         }
         return r - 1;
@@ -225,240 +310,323 @@ function FocusTimerPanel({ onClose }: { onClose: () => void }) {
     return () => clearInterval(t);
   }, [running]);
 
-  const setMinutesAndReset = (m: number) => {
-    if (Number.isNaN(m) || m < 1) return;
-    const clamped = Math.min(Math.floor(m), 600);
-    setMinutes(clamped);
-    setRemaining(clamped * 60);
-    setRunning(false);
+  const toggle = () => {
+    if (!running && minutes <= 0) {
+      window.alert("Please set a valid duration.");
+      return;
+    }
+    if (!running) setRemaining(minutes * 60);
+    setRunning(!running);
   };
 
   const reset = () => {
-    setRemaining(minutes * 60);
     setRunning(false);
+    setRemaining(minutes * 60);
   };
 
-  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
-  const ss = String(remaining % 60).padStart(2, "0");
+  // Reference W1e: parseInt; only a positive integer changes the value and
+  // only an emptied field sets 0.
+  const onMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = parseInt(e.target.value, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      setMinutes(parsed);
+      setRemaining(parsed * 60);
+    } else if (e.target.value === "") {
+      setMinutes(0);
+      setRemaining(0);
+    }
+  };
+
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
-    <PanelShell id="focusTimer" title="Start Focus Timer" onClose={onClose}>
-      <div className="p-4 space-y-4 rounded-2xl text-center bg-green-50/90">
-        <div className="text-5xl font-mono text-slate-700 tabular-nums">
-          {mm}:{ss}
-        </div>
+    <motion.div className={`p-4 space-y-4 rounded-2xl text-center ${formColor}`} {...panelMotion}>
+      <div className="text-5xl font-mono text-slate-700 tabular-nums">{fmt(display)}</div>
+      {!running && (
         <div className="flex items-center justify-center gap-2">
           <Input
             type="number"
-            min={1}
-            value={minutes}
-            onChange={(e) => setMinutesAndReset(Number(e.target.value))}
+            value={minutes === 0 && remaining === 0 ? "" : minutes}
+            onChange={onMinutesChange}
             placeholder="Minutes"
             aria-label="Timer minutes"
             className="w-24 text-center rounded-lg border-slate-300 bg-white/70"
+            min={1}
+            disabled={running}
           />
           <span className="text-slate-600">minutes</span>
         </div>
-        <div className="flex justify-center gap-3">
-          <Button
-            onClick={() => setRunning((r) => !r)}
-            disabled={remaining <= 0 && !running}
-            className={`rounded-full w-20 h-20 shadow text-white ${
-              running ? "bg-orange-500 hover:bg-orange-600" : "bg-green-500 hover:bg-green-600"
-            }`}
-            aria-label={running ? "Pause timer" : "Start timer"}
-          >
-            {running ? <RotateCcw className="w-8 h-8" /> : <Play className="w-8 h-8" />}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={reset}
-            className="rounded-full h-20 px-4 border-green-200 text-green-700 hover:bg-green-50"
-            aria-label="Reset timer"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </Button>
-        </div>
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose} className="text-slate-600 hover:bg-slate-700/10 text-xs">
-            Close Timer
-          </Button>
-        </div>
+      )}
+      <div className="flex justify-center gap-3">
+        <Button
+          onClick={toggle}
+          size="lg"
+          disabled={minutes <= 0 && !running}
+          aria-label={running ? "Pause timer" : "Start timer"}
+          className={`rounded-full w-20 h-20 ${
+            running ? "bg-orange-500 hover:bg-orange-600" : "bg-green-500 hover:bg-green-600"
+          } text-white`}
+        >
+          {running ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
+        </Button>
+        <Button
+          onClick={reset}
+          variant="outline"
+          size="lg"
+          aria-label="Reset timer"
+          className="rounded-full w-20 h-20 border-slate-300 hover:bg-slate-200/50 text-slate-600"
+        >
+          <RotateCcw className="w-7 h-7" />
+        </Button>
       </div>
-    </PanelShell>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onCancel}
+        className="rounded-lg text-slate-600 hover:bg-slate-700/10 mt-2"
+      >
+        Close Timer
+      </Button>
+    </motion.div>
   );
 }
 
-function LogActivityPanel({ onClose }: { onClose: () => void }) {
+// ---- Log Activity (reference H1e) --------------------------------------------
+
+function LogActivityPanel({ onCancel, formColor }: PanelProps) {
   const tasks = useFlowStore((s) => s.tasks);
-  const updateTask = useFlowStore((s) => s.updateTask);
-  const [busyId, setBusyId] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const refreshTasks = useFlowStore((s) => s.refreshTasks);
+  // Starts in the loading state — the store refresh IS the reference's
+  // on-open fetch (the panel opens with "Loading history..." until it lands).
+  const [ready, setReady] = React.useState(false);
 
-  const now = new Date();
-  const recent = tasks
-    .filter((t) => t.start_time && new Date(t.start_time) <= now)
-    .sort((a, b) => (a.start_time! < b.start_time! ? 1 : -1))
-    .slice(0, 20);
+  React.useEffect(() => {
+    let cancelled = false;
+    void refreshTasks()
+      .catch((err) => console.error("Error fetching past tasks:", err))
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTasks]);
 
-  const complete = async (id: string) => {
-    setBusyId(id);
-    setError(null);
-    try {
-      await updateTask(id, { status: "completed" });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the task.");
-    } finally {
-      setBusyId(null);
-    }
-  };
+  // Reference H1e: end_time-descending, completed OR ended-in-the-past,
+  // top 5 — a read-only history (no action buttons).
+  const now = React.useMemo(() => new Date(), []);
+  const history = React.useMemo(
+    () =>
+      tasks
+        .filter((t) => t.status === "completed" || (t.end_time && new Date(t.end_time) < now))
+        .sort((a, b) => (b.end_time ?? "").localeCompare(a.end_time ?? ""))
+        .slice(0, 5),
+    [tasks, now],
+  );
 
   return (
-    <PanelShell id="logActivity" title="Log Activity" onClose={onClose}>
-      <div className="p-4 space-y-3 rounded-2xl bg-purple-50/90 max-h-80 overflow-y-auto custom-scrollbar">
-        <h4 className="text-md font-medium text-slate-700 mb-2">Recently Completed / Past</h4>
-        {recent.length === 0 && (
-          <p className="text-slate-500 text-sm">No recent activity found.</p>
-        )}
-        {recent.map((t) => (
-          <div key={t.id} className="flex items-center justify-between gap-2 text-sm">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-700 truncate">{t.title}</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {t.category}
-                </Badge>
-                <span className={PRIORITY_TEXT[t.priority]}>{t.priority}</span>
-                {t.status === "completed" && (
-                  <span className="text-xs text-green-600 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> done
-                  </span>
-                )}
-              </div>
-            </div>
-            {t.status !== "completed" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busyId === t.id}
-                onClick={() => void complete(t.id)}
-                className="rounded-lg border-green-200 text-green-700 hover:bg-green-50"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Done
-              </Button>
-            )}
+    <motion.div
+      className={`p-4 space-y-3 rounded-2xl ${formColor} max-h-80 overflow-y-auto custom-scrollbar`}
+      {...panelMotion}
+    >
+      <h4 className="text-md font-medium text-slate-700 mb-2">Recently Completed / Past</h4>
+      {!ready && <p className="text-slate-500 text-sm">Loading history...</p>}
+      {ready && history.length === 0 && (
+        <p className="text-slate-500 text-sm">No recent activity found.</p>
+      )}
+      {ready &&
+        history.map((t) => (
+          <div
+            key={t.id}
+            className="p-2.5 bg-white/70 rounded-lg shadow-sm border border-slate-200/70"
+          >
+            <p className="text-sm font-medium text-slate-800">{t.title}</p>
+            <p className="text-xs text-slate-500">
+              {t.status === "completed" ? "Completed" : "Ended"}{" "}
+              {t.end_time ? formatDistanceToNow(new Date(t.end_time), { addSuffix: true }) : "N/A"}
+            </p>
           </div>
         ))}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose} className="text-slate-600 hover:bg-slate-700/10 text-xs">
-            Close
-          </Button>
-        </div>
+      <div className="flex justify-end mt-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="rounded-lg text-slate-600 hover:bg-slate-700/10"
+        >
+          Close
+        </Button>
       </div>
-    </PanelShell>
+    </motion.div>
   );
 }
 
-function BrainstormPanel({ onClose }: { onClose: () => void }) {
+// ---- Brainstorm (reference K1e) ----------------------------------------------
+
+function BrainstormPanel({ onCancel, formColor }: PanelProps) {
   const notes = useFlowStore((s) => s.notes);
+  const refreshNotes = useFlowStore((s) => s.refreshNotes);
   const createNote = useFlowStore((s) => s.createNote);
+  const updateNote = useFlowStore((s) => s.updateNote);
   const deleteNote = useFlowStore((s) => s.deleteNote);
-  const [editing, setEditing] = React.useState(false);
+  // Reference K1e views: "list" | "create" | "viewNote" (+ the note being
+  // edited for viewNote).
+  const [view, setView] = React.useState<"list" | "create" | "viewNote">("list");
   const [content, setContent] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<Note | null>(null);
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void refreshNotes()
+      .catch((err) => console.error("Error fetching notes:", err))
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshNotes]);
+
+  const openCreate = () => {
+    setContent("");
+    setEditing(null);
+    setView("create");
+  };
+
+  const openNote = (n: Note) => {
+    setEditing(n);
+    setContent(n.content);
+    setView("viewNote");
+  };
 
   const save = async () => {
-    const trimmed = content.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
-    setError(null);
+    if (!content.trim()) return;
     try {
-      await createNote({ content: trimmed });
-      setContent("");
-      setEditing(false);
+      if (editing && editing.id) {
+        await updateNote(editing.id, { content });
+      } else {
+        await createNote({ content });
+      }
+      await refreshNotes();
+      setView("list");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the note.");
-    } finally {
-      setBusy(false);
+      console.error("Error saving note:", err);
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this note?")) {
+      try {
+        await deleteNote(id);
+        await refreshNotes();
+        if (editing && editing.id === id) setView("list");
+      } catch (err) {
+        console.error("Error deleting note:", err);
+      }
     }
   };
 
   return (
-    <PanelShell id="brainstorm" title="Quick Brainstorm" onClose={onClose}>
-      <div className="p-4 space-y-3 rounded-2xl bg-yellow-50/90 max-h-80 overflow-y-auto custom-scrollbar">
-        {!editing ? (
-          <>
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="text-md font-medium text-slate-700">My Notes</h4>
-              <Button
-                size="sm"
-                onClick={() => setEditing(true)}
-                className="rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs"
+    <motion.div
+      className={`p-4 space-y-3 rounded-2xl ${formColor} max-h-80 overflow-y-auto custom-scrollbar`}
+      {...panelMotion}
+    >
+      {view === "list" && (
+        <>
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-md font-medium text-slate-700">My Notes</h4>
+            <Button
+              size="sm"
+              onClick={openCreate}
+              className="rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs"
+            >
+              <CirclePlus className="w-3.5 h-3.5 mr-1" /> New Note
+            </Button>
+          </div>
+          {!ready && <p className="text-slate-500 text-sm">Loading notes...</p>}
+          {ready && notes.length === 0 && (
+            <p className="text-slate-500 text-sm">No notes yet. Create one!</p>
+          )}
+          {ready &&
+            notes.map((n) => (
+              <div
+                key={n.id}
+                className="p-2.5 bg-white/70 rounded-lg shadow-sm border border-slate-200/70 flex justify-between items-center"
               >
-                <CirclePlus className="w-3.5 h-3.5" /> New Note
-              </Button>
-            </div>
-            {notes.length === 0 && (
-              <p className="text-slate-500 text-sm">No notes yet. Create one!</p>
-            )}
-            {notes.map((n) => (
-              <div key={n.id} className="p-3 rounded-xl bg-white/70 border border-slate-200/60">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
-                <div className="flex justify-end mt-2">
+                <p
+                  className="text-sm text-slate-800 truncate cursor-pointer hover:underline"
+                  onClick={() => openNote(n)}
+                >
+                  {n.content.substring(0, 30)}
+                  {n.content.length > 30 ? "..." : ""}
+                </p>
+                <div className="flex gap-1">
                   <Button
-                    size="sm"
                     variant="ghost"
-                    onClick={() => void deleteNote(n.id)}
-                    className="text-red-500 hover:bg-red-50 text-xs"
-                    aria-label={`Delete note ${n.id}`}
+                    size="icon"
+                    onClick={() => openNote(n)}
+                    aria-label="View note"
+                    className="w-7 h-7 rounded-md text-slate-500 hover:bg-slate-200/50"
                   >
-                    Delete
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => void remove(n.id)}
+                    aria-label="Delete note"
+                    className="w-7 h-7 rounded-md text-red-500 hover:bg-red-100/50"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
             ))}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Your note..."
-              className="w-full min-h-[120px] rounded-2xl border border-slate-300 bg-white/70 p-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              maxLength={10000}
-            />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="flex justify-between">
-              <Button
-                variant="ghost"
-                onClick={() => setEditing(false)}
-                className="text-slate-600 hover:bg-slate-700/10"
-              >
-                ← Back to List
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => void save()}
-                disabled={busy || content.trim().length === 0}
-                className="rounded-lg bg-green-500 hover:bg-green-600 text-white"
-              >
-                <Save className="w-4 h-4" /> Save Note
-              </Button>
-            </div>
+        </>
+      )}
+      {(view === "create" || (view === "viewNote" && editing)) && (
+        <>
+          <Textarea
+            placeholder="Your note..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="rounded-lg border-slate-300 min-h-[120px] bg-white/80 text-slate-800"
+          />
+          <div className="flex justify-between items-center mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setView("list")}
+              className="rounded-lg text-slate-600 hover:bg-slate-700/10"
+            >
+              ← Back to List
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void save()}
+              className="rounded-lg bg-green-500 hover:bg-green-600 text-white"
+            >
+              <Save className="w-4 h-4 mr-1.5" />
+              {editing ? "Update" : "Save"} Note
+            </Button>
           </div>
-        )}
-        <div className="flex justify-end pt-2 border-t border-slate-200/50">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-slate-600 hover:bg-slate-700/10 text-xs"
-          >
-            Close Notes
-          </Button>
-        </div>
+        </>
+      )}
+      <div className="flex justify-end mt-3 pt-2 border-t border-slate-200/50">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          className="rounded-lg text-slate-600 hover:bg-slate-700/10"
+        >
+          Close Notes
+        </Button>
       </div>
-    </PanelShell>
+    </motion.div>
   );
 }

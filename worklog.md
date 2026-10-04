@@ -1,159 +1,111 @@
 # Worklog
 
 ---
-Task ID: 2
-Agent: Explore agent (scandihaven docs)
-Task: Research scandihaven architecture docs
+Task ID: 17
+Agent: main agent
+Task: Session 3 — audit + Quick Actions parity remediation
 
 Work Log:
-- read the 3 docs
-  - /home/z/my-project/scandihaven/Project_Architecture_Document.md (1815 lines, PAD v1.5 — complete)
-  - /home/z/my-project/scandihaven/scandihaven_SKILL.md (1512 lines — complete)
-  - /home/z/my-project/scandihaven/README.md (228 lines — complete)
-- verified via grep: no `allowedDevOrigins` and no `z-ai-web-dev-sdk`/LLM references inside the 3 docs (matches in repo were in unrelated `skills/` folder); auth model is Better-Auth DB sessions, not cookie-session
+- git pull (fast-forward: docs/prompt-to-review-2.md update + docs/session_3.md — the operator's
+  narrative of the session-2 remediation that produced dac1fad)
+- Reviewed AGENTS.md, CLAUDE.md, PAD (§11 deferred work, §12 ledger), session_2-review.md,
+  remediation-plan-session2.md, worklog.md, session_3.md — all aligned with the tree
+- Full gate at base dac1fad: lint clean · typecheck clean · 44/44 unit · build 19 routes ·
+  34/34 e2e · smoke 25/25 — all green
+- Env contract verified: .env DATABASE_URL="file:../db/custom.db", db/ at repo root
+  (custom.db + e2e.db), dev server healthy
+- Read skills/skills-catalog.md; selected skills: code-review-checklist,
+  verification-and-review-protocol, tdd, nextjs16-tailwind4, agent-browser, clone-app-pat-pro
+- Audit target = the session-2 change (dac1fad: Planning page + 2 spec files) — clean
+- **FS-11 applied to the LAST unverified surface — Quick Actions OPEN-PANEL state** (only the
+  tiles were verified in session 2). Decompiled G1e (container) + z1e (Add Task) + W1e (Focus
+  Timer) + H1e (Log Activity) + K1e (Brainstorm) from the reference bundle:
+  * Q-1 container: ref morphs whole-card background white/60→gradient (motion layout +
+    AnimatePresence expanding-overlay from clicked tile origin), p-4, min-h-[280px],
+    overflow-hidden; clone uses static white card + separate gradient PanelShell, p-6
+  * Q-2 header: ref REPLACES "Quick Actions" h3 with the panel header (back arrow + action
+    label); clone keeps BOTH visible
+  * Q-3 tiles: ref h-24 rounded-2xl p-3 shadow-lg, icon w-5 h-5 mb-1.5, label text-[11px],
+    grid gap-3, framer whileHover scale 1.07 / whileTap .93; clone h-28 rounded-xl p-5 gap-4,
+    text-2xl icon, text-sm label, CSS hover overlay
+  * Q-4 Add Task: ref = placeholder-only input (no label) rounded-lg, buttons size-sm
+    rounded-lg, submit **bg-slate-700** (NOT blue gradient), explicit create defaults
+    (category work / priority medium / status todo), no error UI; clone has label + rounded-2xl
+    + blue-gradient submit + error UI
+  * Q-5 Focus Timer: ref hides minutes input while running + disables it, empty-string value
+    at 0/0, alert("Focus session complete!") at 0, alert("Please set a valid duration."),
+    reset button = w-20 h-20 rounded-full border-slate-300 text-slate-600 (SAME size as
+    toggle), Close Timer = rounded-lg mt-2 size-sm; clone shows input always, no alerts,
+    small green reset button, close text-xs
+  * Q-6 Log Activity: ref = fetch Task.list("-end_time") filter completed OR end_time<past
+    slice(0,5), items p-2.5 bg-white/70 rounded-lg shadow-sm border + title + "Completed"/
+    "Ended" + relative end_time (formatDistanceToNow), loading "Loading history...", close
+    label "Close"; clone = store-derived slice(0,20) start_time<=now, flex rows with
+    category/priority/clone-only "Done" action button
+  * Q-7 Brainstorm: ref = 3 views (list/create/viewNote), note EDITING via Note.update
+    (button label "Update"/"Save Note"), 30-char truncated clickable preview, edit+delete
+    icon buttons (window.confirm on delete), loading "Loading notes...", items
+    p-2.5 bg-white/70 rounded-lg shadow-sm border flex justify-between; clone = 2 views, no
+    editing, no confirm, full content, different classes
+  * Backend already supports everything needed (PATCH /api/notes/[id] + store.updateNote
+    exist but unwired in the panel; task create defaults exist at the API)
+- Deferred-work audit: D-1 ignoreBuildErrors removal (safe — typecheck clean; needs build
+  pipeline verification), D-2 rate-limiter buckets Map never evicts expired entries
+  (unbounded growth under distributed key spray — minor memory hygiene defect)
 
 Stage Summary:
-- Architecture: 4-layer model L0 proxy.ts → L1 App/RSC → L2 client islands → L3 domain/DB; Turborepo monorepo (apps/web :3000, apps/admin :3001 + packages db/auth/commerce/ui/email/config); dependency direction db ← auth ← commerce ← apps; no package build step (transpilePackages of TS source, exports→src/*.ts); reads via RSC→commerce→Drizzle, mutations via Server Actions returning ActionResult<T> (ok/fail, never throw); exactly 5 whitelisted Route Handlers; Zustand for UI-only client state.
-- Stack pins: pnpm 10.15.0, Turborepo 2.10.12, Next.js 16.3.4, React 19.2.8, TS 5.9.3 (strict + noUncheckedIndexedAccess + verbatimModuleSyntax), Tailwind 4.3.3 + @tailwindcss/postcss + PostCSS 8.5.6, radix-ui 1.6.7 + CVA 0.7.1 + tailwind-merge 3.6.0, PG 17-alpine + Drizzle 0.45.2 + pg 8.23.0, Better-Auth 1.7.3, Zod 4.5.4, Zustand 5.0.15, stripe 22.6.1, Vitest 5 + fast-check 4.3 + Playwright 1.63 + axe 4.13, Node ≥22.
-- Tailwind v4 gotchas: no tailwind.config.js (CSS-first @theme in packages/ui/src/tokens.css); @source "../../../../packages/ui/src" (3 directives: ui/auth/commerce) load-bearing or classes in packages silently never generate (NFR-STACK-7); var() chains inside @theme are DROPPED by the 4.3 build — semantic tokens must be literal hex, var() only for fonts (NFR-STACK-8); tokens import via @import "@scandihaven/ui/tokens.css" after @import "tailwindcss"; mobile nav = Radix Dialog/Drawer z-50 with focus trap/scroll lock, lg:hidden; hydration-safe persist requires useSyncExternalStore with null server snapshot (never useState(() => localStorage)).
-- Next 16 behaviors: proxy.ts replaces middleware.ts and MUST live at apps/*/src/proxy.ts (repo-root compiles but never registers — H8d); config.matcher must be an inline literal; params/searchParams/cookies()/headers() async — always await; pages export only default+metadata/generateMetadata/revalidate/dynamic; Turbopack builds — react-dom/server must be runtime-imported with /* turbopackIgnore: true */; turbo.json globalEnv 12 vars or stale cache; revalidate 300 ISR + force-dynamic cart/admin; rebuild-without-restart → ChunkLoadError → global-error.tsx + chunk-recovery self-heal; admin beforeFiles rewrites strip /admin prefix.
-- Auth: Better-Auth Drizzle adapter + admin plugin (role/banned), DB sessions (immediate revocation, 30d/24h rotation), minPasswordLength 10, trustedOrigins derived per request from x-forwarded-host/host/x-forwarded-proto only (never Origin/Referer — H-AUTH), RBAC matrix 7 roles × 15 permissions with requirePermission()+audit_log, (staff) layout gate is UX-only, sign-in outside gate, validateRedirectPath; sh_cart cookie = HMAC-signed token (BETTER_AUTH_SECRET ≥32, timingSafeEqual) distinct from cart UUID (H1-CART); 2FA absent = P0 R-SEC-1.
-- Testing: Vitest unit/property (fc.assert(fc.property(...)) inside it(), imports explicit, testTimeout 30_000), coverage gates 90%/85% commerce (90.9/90.62 actual), real-PG integration auto-skip unless localhost (CI migrate+seed first), Playwright Chromium + axe WCAG 2.2 AA serious/critical=0, scoped locators + distinct aria-labels on multiple role="status", 286 tests; gate order lint→typecheck→test→build→db:setup→e2e.
-- DB: Drizzle forward-only migrations (db:generate → review SQL → db:migrate; never hand-edit), money = integer minor units, globalThis singleton Pool with lazy Proxy (max 10, statement_timeout 15s), idempotent seed via pg_advisory_xact_lock + natural-key upserts refusing non-local hosts, order numbers SH-YYYY-XXXXXX via advisory lock + MAX(split_part), webhook_event UNIQUE inserted inside placement TX (H4d), job outbox with idempotencyKey + FOR UPDATE SKIP LOCKED drain, rate_limit_hit PK upsert, search_vector GENERATED ALWAYS STORED + GIN + pg_trgm.
-- z-ai-web-dev-sdk / LLM: NOT present in these docs — no AI features in app architecture; AI-related content is agent-conventions only (AGENTS.md/CLAUDE.md, PRD §15 agent operating contract, six-phase Meticulous Approach, skill drift checks).
-- Security: securityHeaders() single manifest (HSTS preload, CSP allow-listing js.stripe.com + static.cloudflareinsights.com, XCTO, XFO DENY, Referrer-Policy, Permissions-Policy) applied by both proxies on every response incl. /sign-in; Zod at every boundary; sanitize-html + safeJsonLd for all dangerouslySetInnerHTML; sql.raw banned; PG fixed-window rate limits (auth 5/min, typeahead 60/min/IP, newsletter 3/hr, checkout 30/min, trade 5/day); CRON_SECRET timingSafeEqual; Stripe SAQ-A iframe-only card data, 300s webhook signature, server re-derived amounts; secrets scan rg --no-ignore; hashEmail/ip_hash PII hygiene.
----
-Task ID: 1
-Agent: main agent
-Task: Clone flow-schedule repo, explore reference app, gather all build knowledge
-
-Work Log:
-- Read operating instructions from uploaded file (coding specialist contract)
-- Cloned https://github.com/nordeim/flow-schedule.git to /home/z/my-project/flow-schedule (root of new codebase)
-- Read docs/Tailwind-V4-Validation-Report.md: 5 engine-level traps (bare-HSL transparent theme, oklch palette drift, oklab gradient interpolation, space-y selector rewrite with mt-3 children, shadow-sm scale shift)
-- Logged into https://flow-schedule-b9a0b2cb.base44.app/ with credentials; saved auth state to /home/z/my-project/reference/auth-state.json
-- Captured reference screenshots: dashboard, planning, profile, settings, mobile views, quick action dialogs
-- Extracted complete app internals from JS bundle (1071KB):
-  * Pages: Dashboard, Planning, Profile, Settings + platform login
-  * Entities: Task (title, description, priority low/medium/high/urgent, category work/personal/health/learning/creative/social/planning, status todo/in_progress/completed, start_time, duration_minutes, end_time), Note (title, content, tags), User
-  * Layout: min-h-screen bg-gradient-to-br from-slate-50 via-sky-100 to-indigo-100 + 3 animated framer-motion blobs
-  * Header: sticky top-0 z-50 bg-white/60 backdrop-blur-lg shadow-sm; logo activity icon; avatar dropdown (desktop) + user icon dropdown (mobile, align=end); mobile bottom nav array is EMPTY (Y$=[])
-  * Calendar: 16 hour slots 07:00-22:00, gridTemplateColumns 80px repeat(16, 60px), day rows EEE+MMM d, task blocks absolute positioned
-  * Category gradients: work blue, personal green, health red, learning purple, creative pink, social yellow, planning indigo
-  * Quick Actions: addTask (#0ea5e9→#2563eb), focusTimer (#10b981→#14b8a6), logActivity (#8b5cf6→#6366f1), brainstorm (#f59e0b→#f97316) with formColors
-  * AI Summary LLM prompt: mood/focus_areas/activities/insights JSON schema
-  * Daily Focus LLM prompt: quote/author/affirmation JSON schema
-  * Priority colors: low green, medium yellow, high orange, urgent red
-  * Skills Map: recharts PieChart with center total hours
-  * Planning: 7-day cards grid, selected day accordions, Add Task dialog (shadcn)
-- Cloned scandihaven repo; subagent summarized architecture (layer model, Tailwind v4 @theme rules, Next.js 16 specifics, ActionResult envelope, testing strategy)
-- Read skills: nextjs16-tailwind4 (mobile nav debugging), agents-md, claude-md, readme-md, project-architecture-document-md, how-to-git-push-using-ssh-wrapper_SKILL.md
-- Mobile menu verified on reference: Radix DropdownMenu align="end" (menu right edge = trigger right edge at 374px in 390px viewport), My Account/Profile/Settings/Logout
-
-Stage Summary:
-- All reference app internals captured; scaffold configs understood (Prisma/SQLite + z-ai-web-dev-sdk + Next.js 16 + Tailwind v4)
-- ORBITAL README provides proven patterns: cookie-session auth (scrypt+HMAC), {ok,data}|{ok,error} envelope, idempotent seed, Tailwind v4 serialization traps
-- Ready to build FlowSchedule clone
+- Base dac1fad fully green; audit complete; headline finding = 7 Quick Actions panel gaps
+  (Q-1…Q-7) + 2 deferred items (D-1 ignoreBuildErrors, D-2 bucket eviction)
+- Next: write remediation-plan-session3.md, TDD execution, live parity re-verification
 
 ---
-Task ID: 5-7
+Task ID: 18
 Agent: main agent
-Task: Build complete FlowSchedule clone, fix Tailwind v4 bugs, verify with dev server + e2e, capture screenshots
+Task: Session 3 — TDD remediation execution, verification, screenshots, docs, push
 
 Work Log:
-- Created prisma/schema.prisma (User/Task/Note mirroring reference entities)
-- Built src/lib: auth.ts (scrypt+HMAC sessions), api.ts (envelope+rate limit), domain.ts (reference constants), ai.ts (z-ai-web-dev-sdk with fallbacks)
-- Built 11 API routes: auth login/register/me, logout, tasks CRUD, notes CRUD, ai daily-focus/summary, health
-- Built globals.css with all 5 Tailwind v4 trap mitigations (full hsl() theme vars, v3 palette pin, shadow-sm pin, custom cursor rule, space-y guardrail comment)
-- Built shadcn ui components (button/input/textarea/label/badge/dialog/select/dropdown-menu/accordion/card)
-- Built layout: AppShell + Header (desktop avatar menu + mobile user-icon dropdown align=end) + BackgroundBlobs (framer-motion)
-- Built Dashboard: WeeklySchedule (16×60px grid, 80px labels, absolute task blocks), QuickActions (4 gradient panels), SkillsMap (recharts pie), StatusCard, DailyFocusCard, AISummaryCard
-- Built Planning (7-day cards + accordions + TaskDialog), Profile, Settings, /login pages
-- Fixed lint gate root causes: react-hooks/set-state-in-effect (remount pattern in TaskDialog; derived loading in AISummaryCard)
-- Fixed /login prerender error (Suspense boundary for useSearchParams)
-- Fixed CSS comment bug (mt-*/mb-* contains */)
-- Fixed duplicate Close Timer aria-label (arrow now "Back to Quick Actions")
-- Full gate green: lint clean, tsc clean, 36/36 unit tests, build succeeds, 29/29 e2e tests
-- Mobile menu verified byte-identical geometry to reference: menu right=374=trigger right, y=54, w=192
-- Radix hide-others behavior (aria-hidden on app root while menu open) documented and handled in tests
-- Captured 9 screenshots to docs/screenshots/ (login, dashboard, planning, profile, settings, focus timer, mobile dashboard, mobile menu, mobile planning)
-
-Stage Summary:
-- Complete working FlowSchedule clone verified end-to-end
-- Mobile navigation = Radix DropdownMenu align=end with reference-parity geometry (the reference has NO bottom tab bar)
-- Next: write 4 docs (README, AGENTS, CLAUDE, PAD), then git push via SSH wrapper
-
----
-Task ID: 8-10
-Agent: main agent
-Task: Create documentation, smoke script, git commit + push via SSH wrapper, final verification
-
-Work Log:
-- Rewrote README.md (badges, features, tech stack, architecture mermaid, file hierarchy, quick start, API reference, design system, testing, troubleshooting)
-- Rewrote AGENTS.md (commands table, architecture invariants, framework quirks, mobile nav section, reference links)
-- Rewrote CLAUDE.md (frontmatter, six-phase workflow, implementation standards, Tailwind v4 rules, testing strategy, anti-patterns)
-- Rewrote Project_Architecture_Document.md (6 ADRs, layer model, annotated directory, 4 code patterns, data architecture, 5-trap table, mobile menu spec, security architecture, AI architecture, verification ledger)
-- Updated docs/DEPLOYMENT.md for FlowSchedule
-- Removed ORBITAL artifacts (project-management_SKILL.md, parity scripts, wizard scripts, capture scripts)
-- Rewrote scripts/smoke-test.sh for FlowSchedule (25/25 checks pass: health, register/login/bad-password, task CRUD + enum coercion, note CRUD, ownership guards, AI envelopes, logout, all pages)
-- Updated scripts/check-db-state.mjs
-- Committed 95 files: 96d2dda "feat: build FlowSchedule clone (Next.js 16 + React 19 + Prisma/SQLite + Tailwind v4)"
-- Deployed paramiko ssh shim to /home/z/my-project/bin/ssh (python3.13, paramiko 5.0.0 — no OpenSSH binary in sandbox)
-- SSH key fingerprint verified: EFNrr4UZFfdBNTOrO6HoBRaoy4mnnaMvbcyCbfp6wc8 (ssh-ed25519)
-- Wrapper dry-run OK, then real push: 02033b8..96d2dda → main @ git@github.com:nordeim/flow-schedule.git
-- Wrapper verified remote ref == local HEAD; synced refs/remotes/origin/main
-- Operator key shredded (verified inaccessible after destruction)
-
-Stage Summary:
-- FULLY DELIVERED: complete FlowSchedule clone pushed to git@github.com:nordeim/flow-schedule.git @ 96d2dda
-- Final gate: lint clean, tsc clean, 36/36 unit, build green, 29/29 e2e, 25/25 smoke
-- Mobile navigation menu: reference-parity geometry (align=end, right-anchored, measured identical), pinned by e2e specs
-
----
-Task ID: 11-13
-Agent: main agent
-Task: Session 1 — review + remediation, screenshots, skill distillation, commit + push
-
-Work Log:
-- git pull (fast-forward: docs/prompt-to-review.md, root worklog.md); reviewed AGENTS/CLAUDE/README/PAD against the codebase
-- Full gate at base 96d2dda: lint clean, tsc clean, 36/36 unit, build green, 29/29 e2e
-- Re-measured the live reference (agent-browser, saved auth): mobile menu right 374 / top 54 / w 192, trigger right 374 / bottom 50 — byte-identical to the clone's pinned geometry; no drift
-- Diagnosed the 0-byte db/custom.db: stale shell-exported DATABASE_URL (env precedence: shell export > parent .env > repo .env); unset it, db:push + db:seed → db/custom.db 40KiB seeded, health + login verified
-- Wrote docs/remediation-plan-session1.md (audit findings R-1..R-9 + TDD order), validated against the codebase, executed:
-  * T-1 tests/env-example.test.ts (red→green): .env.example de-ORBITAL'd, contract pinned
-  * T-2 tests/site.test.ts (red→green): src/lib/site.ts + metadataBase + /sitemap.xml + /robots.ts — NEXT_PUBLIC_SITE_URL now actually read
-  * vitest.config.ts comment names the real seams
-  * e2e determinism: FS-7 chip-interception fix (header-block click + hydration gate), FS-8 lesson (NEVER rmSync the db in globalSetup — webServer boots first; SQLITE_READONLY_RECOVERY), FS-9 converging spec cleanup via page.request
-- Final gate: lint clean, tsc clean, 44/44 unit, build green (+/robots.txt +/sitemap.xml), 29/29 e2e × 3 consecutive runs, post-run db = exactly 9 seed tasks
-- Re-captured all 9 screenshots (1440×900 desktop, 390×844 mobile; clone menu geometry re-measured 374/54/192 = reference)
-- Wrote docs/session_1-review.md (the operator-authored build narrative lives in docs/session_1.md); distilled flow-schedule_SKILL.md (20 sections + 4 appendices, per to-distill-project-into-skill)
-- Updated README/AGENTS/CLAUDE/PAD for alignment (44 unit tests, new docs, honest NEXT_PUBLIC_SITE_URL wording, 19 build routes)
+- Wrote docs/remediation-plan-session3.md (9 findings: Q-1…Q-7 + D-1/D-2, TDD order,
+  non-goals); validated against the codebase before executing
+- RED: 2 new unit suites (tests/next-config.test.ts, tests/rate-limit.test.ts) + 6
+  new/reworked e2e specs in dashboard.spec.ts — all failed exactly as predicted
+  (7 unit failures incl. import-seam absence; 6 e2e failures incl. double-heading,
+  bg-none container, label+gradient quick-add, visible minutes input, clone-only Done
+  buttons, missing Update Note)
+- GREEN: single-file rewrite of src/components/dashboard/QuickActions.tsx to the
+  decompiled G1e/z1e/W1e/H1e/K1e behavior (container gradient morph + expanding
+  overlay, header replacement, reference tile classes, placeholder-only quick-add
+  with slate-700 submit, minutes-hidden timer with Play/Pause + completion alert,
+  read-only top-5 history, Brainstorm 3-view create/edit/confirm-delete);
+  react-hooks/set-state-in-effect respected via derived-idle timer display
+- GREEN: next.config.ts typescript.ignoreBuildErrors REMOVED (build verified green
+  + standalone e2e boots/passes without it — PAD §11 deferral resolved);
+  rate-limiter throttled expired-bucket sweep (clock-regression safe) + test seam
+- Flakes fixed: Log Activity strict-mode (residue + calendar text → converging
+  cleanup + paragraph-role scoping); Brainstorm full-text measurement → FS-13
+  (getByText matched the still-mounted textarea default-value text node under
+  suite load → role-scoped locators + semantic truncation assertions)
+- Alert discovery: reference's "Please set a valid duration." alert is unreachable
+  dead code (start disabled at minutes=0) — mirrored faithfully, spec pins the
+  disabled state; completion alert verified by a one-off Playwright run (passed)
+- Full gate: lint clean · tsc clean · 53/53 unit · build green (self-type-checked)
+  · 38/38 e2e × 2 consecutive full runs · smoke 25/25
+- Live parity re-verified on BOTH apps (agent-browser): container/tiles/panel
+  classes + computed gradients byte-identical; minutes hidden + lucide-pause while
+  running; mobile-menu geometry re-pinned after the change (trigger 374/50, menu
+  374/54/192)
+- 13 screenshots in docs/screenshots/ (01–10 re-captured + 11/12/13 quickaction
+  open panels) from the remediated dev server
+- Docs realigned: README, PAD (§3/§8/§11/§12), AGENTS.md (commands, conventions,
+  quirks, references), CLAUDE.md, flow-schedule_SKILL.md v1.2.0 (FS-12, FS-13,
+  debugging row, appendices B/C), remediation-plan-session3.md execution record,
+  docs/session_3-review.md, this worklog
 - Commit on main + push via docs/ssh_git_wrapper_v3.py
 
 Stage Summary:
-- Session 1 delivered: remediated codebase, deterministic test suite, session docs, distilled skill, fresh screenshots, all gates green
-- Key new knowledge: env-precedence trap, Playwright webServer-before-globalSetup + SQLite file-handle rule, converging spec cleanup, day-card header clicks
-
----
-Task ID: 14-16
-Agent: main agent
-Task: Session 2 — audit + Planning parity remediation, screenshots, docs, commit + push
-
-Work Log:
-- git pull (fast-forward: docs/session_2.md — the operator's session-1 remediation narrative); reviewed all 5 root docs + session docs + worklogs for alignment
-- Full gate at base 1742785: lint clean, tsc clean, 44/44 unit, build 19 routes, 29/29 e2e, smoke 25/25 — all green
-- Re-measured the live reference (agent-browser, saved auth): mobile menu 374/54/192 (trigger 374/50) byte-identical on both apps; desktop avatar menu items identical; dashboard card set, calendar grid, task-block styles, Quick Action hex gradients byte-identical; canvas gradient endpoints identical (oklab midtone delta pixel-measured 0–3 RGB units — PAD acceptance upheld)
-- Decompiled the reference's Planning component from its bundle (eSe): found 7 parity gaps (P-1 null-init selectedDay + render guard; P-2 selection-following highlight (no today); P-3 no Unscheduled accordion; P-4 decorative Filter (no handler); P-5 display-only chips (clicks bubble); P-6 display-only task items (no buttons/duration); P-7 static Day Statistics placeholder (no data branch))
-- Wrote docs/remediation-plan-session2.md; validated every finding against the codebase; executed TDD:
-  * RED: 6 new planning specs + 1 rewrite + 1 extension — 7 failed exactly as predicted against the pre-fix build
-  * GREEN: single-file rewrite of src/app/(app)/Planning/page.tsx implementing all 7 reference behaviors
-  * dashboard.spec.ts "Add New Task panel" migrated to API verification (reference surfaces unscheduled tasks nowhere)
-- Final gate: lint clean, tsc clean, 44/44 unit, build green, 34/34 e2e × 2 consecutive runs, smoke 25/25
-- Live parity re-verified on BOTH apps (initial + Monday-clicked states): all 7 behaviors match; mobile-menu geometry re-pinned after the change (374/54/192)
-- Re-captured 10 screenshots (01–09 + new 10-planning-selected.png) from the remediated dev server
-- Updated docs: README, PAD (§3.2/§8/§10.1/§11/§12), AGENTS.md (Planning conventions + session-2 references), CLAUDE.md, flow-schedule_SKILL.md v1.1.0 (FS-11 infer-vs-decompile; FS-7 proper resolution; appendices B/C), docs/session_2-review.md, this worklog
-- Commit on main + push via docs/ssh_git_wrapper_v3.py
-
-Stage Summary:
-- Session 2 delivered: Planning page now mirrors the reference's decompiled behavior exactly; e2e 29 → 34 specs; FS-11 lesson (decompile, don't infer) recorded; all gates green × 2 runs
-- Key insight: session-1's FS-7 e2e flake was a symptom of clone-only chip behavior — matching the reference made it structurally impossible
+- Session 3 delivered: Quick Actions open-panel state now mirrors the decompiled
+  reference exactly; e2e 34 → 38 specs; unit 44 → 53; the build type-checks itself;
+  the rate-limiter can no longer leak
+- Key new knowledge: FS-12 (parity = state machine, not screenshot — enumerate and
+  pin every interactive state), FS-13 (textarea default-value text nodes match
+  getByText — scope by role), dead-code mirroring (the unreachable alert is part of
+  the contract)

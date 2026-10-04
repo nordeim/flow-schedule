@@ -9,9 +9,10 @@ const nextConfig: NextConfig = {
   // /Profile, /Settings, /login) — same paths as the reference app, so no
   // SPA rewrites are needed.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // No typescript.ignoreBuildErrors / eslint.ignoreDuringBuilds — the
+  // production build must fail on type/lint errors itself (the scaffold's
+  // bypass flags were removed in session 3; `bun run typecheck` remains
+  // the fast gate).
   reactStrictMode: false,
 };
 

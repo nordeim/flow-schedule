@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–2, 2026-10-04).
-version: 1.1.0
+  codebase-verified (sessions 1–3, 2026-10-04).
+version: 1.2.0
 last_updated: 2026-10-04
-project_state: 44/44 unit tests, 34/34 e2e tests, all gates green
+project_state: 53/53 unit tests, 38/38 e2e tests, all gates green, build self-type-checks
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -448,6 +448,45 @@ pinned by 9 planning specs (`tests/e2e/planning.spec.ts`). When a
 parity question is open, the bundle is the ground truth — "the
 reference wouldn't do that" is not evidence.
 
+### FS-12: Verifying the resting state, not the interactive states (Critical — parity)
+
+**Symptom:** the Quick Actions card was "verified" for two sessions
+while ALL FOUR of its open-panel states diverged from the reference
+(container never morphed to the gradient, the "Quick Actions" heading
+never got replaced, tiles were h-28/rounded-xl instead of
+h-24/rounded-2xl, the quick-add had a visible label + blue-gradient
+submit instead of placeholder-only + slate-700, the timer showed the
+minutes input while running and a RotateCcw "pause" icon, Log Activity
+had clone-only Done buttons, Brainstorm could not edit notes).
+**Root cause:** sessions 0–2 verified what the dashboard shows AT REST
+(tiles + gradients byte-identical) and never exercised the open-panel
+state — the same blind-spot class as FS-11, one interaction deeper.
+**Fix + rule:** parity is a claim over the STATE MACHINE, not a
+screenshot — for every interactive surface enumerate its states
+(resting, open, running, loading, empty, error) and decompile + pin
+each one. The corrected panels (decompiled `G1e`/`z1e`/`W1e`/`H1e`/
+`K1e`) are pinned by 8 dashboard specs; the completion alert was
+verified by a one-off Playwright run. Corollary learned the hard way:
+the reference's own dead code (W1e's "Please set a valid duration."
+alert, unreachable behind `disabled: minutes<=0`) must be MIRRORED,
+not "fixed" — parity includes the dead code.
+
+### FS-13: Playwright getByText matching a textarea's default value (Medium — e2e flake)
+
+**Symptom:** a Brainstorm spec passed in isolation but failed under
+full-suite load: `getByText(/E2E QA note/).first().textContent()`
+measured the FULL note content (37 chars) instead of the truncated
+list preview (33).
+**Root cause:** React renders a controlled `<textarea>`'s value into
+the DOM as its default-value TEXT NODE, and during the view transition
+the still-mounted create-view textarea matches the same pattern —
+under suite load the save's await chain hadn't switched the view yet,
+so `.first()` resolved to the textarea, not the list `<p>`.
+**Fix + rule:** scope list-item assertions by role —
+`getByRole("paragraph").filter({ hasText: … })` never matches a
+textbox; it also makes `toBeVisible()` correctly WAIT for the view
+switch. `getByText` on a page with live form views is a footgun.
+
 ## 10. Debugging Guide
 
 | Symptom | Cause | Fix / where to look |
@@ -462,6 +501,7 @@ reference wouldn't do that" is not evidence.
 | Tasks created in e2e pollute totals | FS-9 | Spec cleanup blocks (already in place) |
 | AI cards show the default quote/summary | SDK 429/error — by design | No action; `dev.log`/`server.log` shows `[ai] … using default` |
 | Menu won't open via `page.evaluate(el.click())` | Radix needs trusted events | Playwright `locator.click()` |
+| Text assertion matches the form, not the list (flaky under load) | FS-13 — getByText matched the textarea's default-value text node | Scope by role: `getByRole("paragraph").filter({ hasText: … })` |
 
 Debugging order: reproduce with the exact command → read `dev.log` /
 `server.log` → isolate with a minimal repro → fix the root cause → add
@@ -472,9 +512,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 44/44
+bun run test          # 53/53
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 34/34 on the production standalone :3100
+bun run test:e2e      # 38/38 on the production standalone :3100
 scripts/smoke-test.sh # 25/25 curl checks (auth, CRUD, AI envelopes, pages)
 ```
 
@@ -788,19 +828,22 @@ The full ADR set with alternatives-rejected lives in
 
 ## Appendix B: Verification Ledger
 
-Session 2 final gate (2026-10-04, after the Planning parity remediation):
+Session 3 final gate (2026-10-04, after the Quick Actions parity
+remediation):
 
 | Check | Result |
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
-| `bun run test` (Vitest) | **44/44** — auth ×8, db-path ×15, domain ×13, env-example ×4, site ×4 |
-| `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml` |
-| `bun run test:e2e` (Playwright) | **34/34** × 2 consecutive runs (was 29; +6 new planning parity specs — see FS-11) |
+| `bun run test` (Vitest) | **53/53** — auth ×8, db-path ×15, domain ×13, env-example ×4, site ×4, next-config ×3, rate-limit ×6 |
+| `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
+| `bun run test:e2e` (Playwright) | **38/38** × 2 consecutive full runs (was 34; +4 new Quick Actions open-panel specs — see FS-12) |
 | `scripts/smoke-test.sh` | 25/25 |
-| Reference parity (mobile menu) | re-measured live on BOTH apps: 374/54/192; trigger 374/50 — byte-identical |
+| Reference parity (mobile menu) | re-measured live on BOTH apps after the session-3 change: 374/54/192; trigger 374/50 — byte-identical, geometry pin held |
+| Reference parity (Quick Actions) | bundle decompile (G1e/z1e/W1e/H1e/K1e) + live DOM on both apps: container classes + gradient morph, tiles h-24/rounded-2xl/p-3/shadow-lg + w-5h-5 icon + text-[11px] label, placeholder-only quick-add with bg-slate-700 submit, minutes hidden while running + Pause icon + disabled-at-0, read-only top-5 history, notes create/edit/confirm-delete — all matched; completion alert verified by a one-off run |
 | Reference parity (Planning) | bundle decompile + live DOM comparison on both apps: null-init selection, selected-day highlight, static stats placeholder, decorative Filter, chip bubbling, display-only items, no Unscheduled — all matched |
 | Reference parity (gradients) | Quick Action tiles byte-identical; canvas endpoints identical, oklab midtone delta measured 0–3 RGB units (accepted) |
+| Rate limiter hygiene | throttled expired-bucket sweep unit-pinned (5,000-key spray bounded; live keys preserved) |
 
 ## Appendix C: Session History
 
@@ -815,14 +858,26 @@ Session 2 final gate (2026-10-04, after the Planning parity remediation):
   docs. See `docs/session_1-review.md` +
   `docs/remediation-plan-session1.md` (the operator's build narrative
   lives in `docs/session_1.md`).
-- **Session 2 (2026-10-04, this skill revision):** audit + Planning
-  parity — decompiled the reference's Planning component from its
-  bundle and fixed 7 behavioral gaps (P-1…P-7: null-init selectedDay,
-  selection highlight, static Day Statistics placeholder, decorative
-  Filter, display-only chips, display-only task items, no Unscheduled
-  section); e2e 29 → 34 specs; FS-11 lesson recorded. See
-  `docs/session_2-review.md` + `docs/remediation-plan-session2.md`
-  (the operator's narrative lives in `docs/session_2.md`).
+- **Session 2 (2026-10-04):** audit + Planning parity — decompiled the
+  reference's Planning component from its bundle and fixed 7 behavioral
+  gaps (P-1…P-7: null-init selectedDay, selection highlight, static Day
+  Statistics placeholder, decorative Filter, display-only chips,
+  display-only task items, no Unscheduled section); e2e 29 → 34 specs;
+  FS-11 lesson recorded. See `docs/session_2-review.md` +
+  `docs/remediation-plan-session2.md` (the operator's narrative lives
+  in `docs/session_2.md`).
+- **Session 3 (2026-10-04, this skill revision):** audit + Quick Actions
+  open-panel parity — decompiled `G1e`/`z1e`/`W1e`/`H1e`/`K1e` from the
+  reference bundle and fixed 9 gaps (Q-1…Q-7 + deferred D-1/D-2):
+  gradient container morph + expanding overlay, heading replacement,
+  tile geometry, placeholder-only quick-add (slate-700 submit),
+  minutes-hidden timer with Play/Pause + completion alert, read-only
+  Log Activity history, Brainstorm note editing with confirm-deletes;
+  `typescript.ignoreBuildErrors` removed (the build type-checks
+  itself); rate-limiter bucket eviction. e2e 34 → 38 specs, unit 44 →
+  53; FS-12/FS-13 lessons recorded. See `docs/session_3-review.md` +
+  `docs/remediation-plan-session3.md` (the operator's narrative lives
+  in `docs/session_3.md`).
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

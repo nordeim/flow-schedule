@@ -284,7 +284,9 @@ src/
 │   │   └── BackgroundBlobs.tsx     # framer-motion drifting blobs
 │   ├── dashboard/
 │   │   ├── WeeklySchedule.tsx      # 80px+16×60px grid, 1px/min blocks
-│   │   ├── QuickActions.tsx        # 4 gradient tiles + inline panels
+│   │   ├── QuickActions.tsx        # 4 tiles + decompiled panels (G1e/z1e/
+│   │   │                           # W1e/H1e/K1e: gradient card morph,
+│   │   │                           # expanding overlay, per-panel views)
 │   │   ├── SkillsMap.tsx           # recharts pie + center total
 │   │   ├── StatusCard.tsx          # All-caught-up / Up Next
 │   │   ├── DailyFocusCard.tsx      # LLM quote card
@@ -581,8 +583,8 @@ during the e2e run — both cards rendered their defaults (by design).
 
 | Level | Tool | Scope | Key specs |
 |---|---|---|---|
-| Unit (44) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper) |
-| E2E (34) | Playwright (production standalone :3100) | The four user surfaces | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (login/register/error/Google-notice), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action panels, timer countdown, dialog prefill), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter) |
+| Unit (53) | Vitest | `src/lib` pure seams | `auth.test.ts` (scrypt round-trip, HMAC tamper rejection), `domain.test.ts` (16 slots, 80/60px, enums, reference gradient hexes), `db-path.test.ts` (URL anchoring), `env-example.test.ts` (.env.example contract), `site.test.ts` (site URL helper), `next-config.test.ts` (no build-bypass flags, standalone, dev origins), `rate-limit.test.ts` (fixed window, key isolation, reset, throttled eviction, live-key preservation) |
+| E2E (38) | Playwright (production standalone :3100) | The four user surfaces | `mobile-navigation.spec.ts` (menu geometry parity, navigation, Escape/focus, logout, Trap 5 shadow pin), `auth.spec.ts` (login/register/error/Google-notice), `dashboard.spec.ts` (calendar hours, task blocks + gradient rgb values, quick action tile geometry, panel-open container morph + header replacement, placeholder-only quick-add with slate-700 submit, minutes-hidden countdown + pause icon + zero-minutes disabled state, read-only Log Activity history, Brainstorm create/edit/confirm-delete, timer countdown, dialog prefill), `planning.spec.ts` (week card, chips, dialog flow, and the decompiled reference behaviors: no panel before a day click, static Day Statistics placeholder, selected-day highlight, chip-click bubbling, display-only task items, decorative Filter) |
 
 E2E infrastructure: `global-setup.ts` pushes + seeds `db/e2e.db`;
 `auth.setup.ts` signs in ONCE (rate-limiter budget) and shares
@@ -617,7 +619,7 @@ menus).
 
 ```bash
 bun run lint && bun run typecheck && bun run test && bun run build && bun run test:e2e
-# lint clean · tsc clean · 44/44 unit · build ✓ · 34/34 e2e
+# lint clean · tsc clean · 53/53 unit · build ✓ (self-type-checked) · 38/38 e2e
 ```
 
 ### 10.2 Common tasks
@@ -651,12 +653,20 @@ bun run lint && bun run typecheck && bun run test && bun run build && bun run te
 
 ## 11. Known Issues & Deferred Work
 
-- `next.config.ts` still ships `typescript.ignoreBuildErrors: true` (the
-  scaffold's legacy). The type gate is `bun run typecheck` — clean today.
-  Removing the ignore flag is safe but untested in the standalone build
-  pipeline (deferred).
+- ~~`next.config.ts` still ships `typescript.ignoreBuildErrors: true`~~
+  **Resolved (session 3):** the flag is removed; the production build
+  now fails on type errors itself (verified: the full build + standalone
+  e2e suite ran green without it; `tests/next-config.test.ts` pins the
+  contract — Next 16 has no eslint-during-builds option at all, so the
+  type flag was the only bypass that existed).
 - The in-memory rate limiter is per-process (single-instance deployment
-  assumption); horizontal scaling needs a shared store.
+  assumption); horizontal scaling needs a shared store. **Session 3 added
+  a throttled expired-bucket sweep** (`rateLimit` evicts stale entries at
+  most once per window — clock-regression safe) so the map can no longer
+  leak forever under a distributed key spray; the live-key semantics are
+  unchanged and unit-pinned. A shared store remains deferred deliberately:
+  it is architecturally incoherent before a Postgres migration (SQLite is
+  single-writer — scaling the limiter without scaling the DB buys nothing).
 - `POST /api/auth/register` has no email verification (single-workspace
   self-hosting assumption — the reference's platform handles it).
 - The `/Planning` "Filter" button is decorative — exactly like the
@@ -667,27 +677,32 @@ bun run lint && bun run typecheck && bun run test && bun run build && bun run te
 - Unscheduled tasks are not surfaced anywhere in the UI — exactly like
   the reference (no "Unscheduled" section exists in its bundle); they
   remain reachable via the API.
+- The Focus Timer's "Please set a valid duration." alert is unreachable
+  dead code — the start control is disabled at minutes=0 (the reference's
+  own W1e ships both; the clone mirrors the pair faithfully).
 
 ---
 
 ## 12. Verification Ledger
 
-Claims made in this PAD, with evidence (all executed 2026-10-04; session-2
-rows re-executed after the Planning parity remediation):
+Claims made in this PAD, with evidence (all executed 2026-10-04; session-3
+rows re-executed after the Quick Actions parity remediation):
 
 | Claim | Status | Evidence |
 |---|---|---|
 | lint clean | Verified | `bun run lint` → zero errors |
 | typecheck clean | Verified | `bun run tsc --noEmit` → clean |
-| Unit tests pass | Verified | `bun run test` → 44/44 |
-| Production build succeeds | Verified | `bun run build` → 19 routes (8 static incl. `/sitemap.xml` + `/robots.txt`, 11 API) |
-| E2E passes | Verified | `bun run test:e2e` → 34/34 (two consecutive runs) through live SDK 429s (fallbacks by design) |
+| Unit tests pass | Verified | `bun run test` → 53/53 (44 + next-config contract + rate-limit window/eviction) |
+| Production build succeeds WITHOUT the type-bypass flag | Verified | `bun run build` (typescript.ignoreBuildErrors removed) → 19 routes (8 static incl. `/sitemap.xml` + `/robots.txt`, 11 API) |
+| E2E passes | Verified | `bun run test:e2e` → 38/38 (two consecutive full runs) through live SDK 429s (fallbacks by design) |
 | Smoke suite | Verified | `scripts/smoke-test.sh` → 25/25 |
-| Mobile menu geometry parity | Verified | Live re-measurement on BOTH apps (2026-10-04, 390×844): menu right 374 = trigger right 374, y=54, w=192 — byte-identical |
+| Mobile menu geometry parity | Verified | Live re-measurement on BOTH apps (2026-10-04, 390×844, re-pinned after the session-3 change): menu right 374 = trigger right 374, y=54, w=192 — byte-identical |
 | Planning page reference parity | Verified | Reference component decompiled from its bundle (`eSe` in `bundle.js`) + live DOM comparison of both apps: null-init selectedDay, selection-following highlight, static Day Statistics placeholder, decorative Filter, display-only chips/task items, no Unscheduled section — all matched; pinned by 9 planning e2e specs |
 | Quick Action gradient parity | Verified | Computed-style comparison: byte-identical inline hex gradients (`rgb(14,165,233)→rgb(37,99,235)` etc.) on both apps |
+| **Quick Actions open-panel parity** | Verified | **Session 3:** container/tiles/panels decompiled from the reference bundle (`G1e`/`z1e`/`W1e`/`H1e`/`K1e`) + live DOM corroboration on both apps: container `p-4 … overflow-hidden min-h-[280px]` with background morph to the action gradient, tiles `h-24 rounded-2xl p-3 shadow-lg` + icon `w-5 h-5 mb-1.5` + label `text-[11px]`, placeholder-only quick-add with `bg-slate-700` submit, minutes input hidden while running + Pause icon, read-only top-5 history, notes create/edit/confirm-delete — all matched and pinned by 8 dashboard e2e specs; the completion alert verified by a one-off Playwright run |
 | Canvas gradient parity | Verified | Computed-style + pixel sampling: endpoints byte-identical; oklab-vs-sRGB midtone delta measured 0–3 RGB units (documented acceptance, ADR-004) |
 | Reference app facts (routes, enums, geometry, gradients, prompts) | Verified | Extracted from the reference's deployed bundle + live authenticated DOM/API probing (sessions recorded in the worklog) |
 | LLM fallbacks fire under 429 | Verified | e2e logs: "[ai] daily focus generation failed, using default" + suite green |
 | SQLite path seam | Verified | `tests/db-path.test.ts` (15 cases) + dev/e2e/prod all open the same file per environment |
-| Screenshots | Verified | 10 captures in `docs/screenshots/` from the running dev server (remediated codebase) |
+| Screenshots | Verified | 13 captures in `docs/screenshots/` from the running dev server (remediated codebase; incl. the three quick-action open panels) |
+| Rate-limiter eviction (D-2) | Verified | `tests/rate-limit.test.ts`: 5,000-key spray keeps the map bounded; expired buckets fully evicted on the next window; live keys preserved through a sweep |
