@@ -1055,7 +1055,50 @@ test.describe("dashboard", () => {
     expect(rawList).not.toMatch(/"duration_minutes":45[,}\]]/);
     expect(rawList).not.toMatch(/"duration_minutes":45\.0\.0/);
 
+    // Session 15 (DW-1): the RAW date tokens — the reference's Python
+    // backend serializes its server-generated datetimes at µs precision
+    // with a per-route Z asymmetry (probed live on its own Task/Note
+    // traffic): read/update responses ship "created_date":
+    // "2026-10-04T21:28:23.793000" (6 digits, NO Z), create responses
+    // "2026-10-05T02:11:34.297127Z" (6 digits, WITH Z). The clone pads
+    // its ms tokens to the same 6-digit forms. start_time/end_time
+    // (client-supplied) stay ms+Z on BOTH apps.
+    expect(rawList).toMatch(
+      /"created_date":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}"/,
+    );
+    expect(rawList).toMatch(
+      /"updated_date":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}"/,
+    );
+    // The read wire never carries the ms+Z form on the server-generated
+    // tokens, and no token double-formats.
+    expect(rawList).not.toMatch(/"created_date":"\d{4}[^"]*Z"/);
+    expect(rawList).not.toMatch(/"updated_date":"\d{4}[^"]*Z"/);
+    expect(rawList).not.toMatch(/"created_date":"[^"]*\.\d{9}/);
+    // The client-supplied dates keep the reference's ms+Z form.
+    expect(rawList).toMatch(
+      /"start_time":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"/,
+    );
+
+    // The CREATE wire (the POST response text): 6-digit dates WITH Z.
+    const rawCreated = await (
+      await page.request.post("/api/tasks", {
+        data: {
+          title: "E2E wire task raw",
+          duration_minutes: 15,
+        },
+      })
+    ).text();
+    expect(rawCreated).toMatch(
+      /"created_date":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z"/,
+    );
+    expect(rawCreated).toMatch(
+      /"updated_date":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z"/,
+    );
+    expect(rawCreated).toMatch(/"duration_minutes":15\.0/);
+    const rawCreatedTask = JSON.parse(rawCreated)?.data?.task as { id: string };
+
     await page.request.delete(`/api/tasks/${task.id}`);
+    await page.request.delete(`/api/tasks/${rawCreatedTask?.id}`);
   });
 });
 

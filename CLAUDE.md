@@ -148,8 +148,16 @@ equivalents at identical URLs and JSON shapes.
   (`src/lib/api.ts` → `floatFormatDurations` in `serialize.ts`): the
   integer duration tokens ship as `"duration_minutes":60.0`,
   byte-matching the reference's Python-backed entity wire
-  (session-12 P-1, closed). Only the 3 task-serializing responses
-  use `okWire`; every other route keeps `ok()`.
+  (session-12 P-1, closed). Only the task- and note-entity responses
+  use `okWire`/`okWireCreate`; every other route keeps `ok()`.
+- **The date-token wire (session 15, DW-1)**: the server-generated
+  date tokens (`created_date`/`updated_date`) ship as 6-digit µs
+  forms matching the reference's Python datetimes — no Z on read/
+  update responses (`okWire`: GET/PATCH tasks + notes), Z on create
+  responses (`okWireCreate`, default 201: POST tasks + notes) — via
+  `formatWireDates` (`serialize.ts`). `start_time`/`end_time`
+  (client-supplied, ms+Z) are never touched; the client keeps the
+  strings opaque.
 
 ## Development Workflow
 
@@ -171,7 +179,7 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (121 tests) |
+| `bun run test` | Vitest unit (133 tests) |
 | `bun run test:e2e` | Playwright e2e (67 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
@@ -182,7 +190,7 @@ Single e2e: `bun run test:e2e -- -g "mobile account menu"`.
 
 | Level | Tool | Location | Notes |
 |-------|------|----------|-------|
-| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path v3 (incl. the repo-.env authority rule), .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializer (**pinned to the CAPTURED reference wire — created_date/updated_date/is_sample/created_by, the 14/9-key shapes**), the duration float-format wire (session 14, session-12 P-1), the prisma-CLI wrapper contract |
+| Unit | Vitest | `tests/*.test.ts` | Auth crypto, domain constants (incl. the skills color map + name transform), AI fallback content (Mark Twain set), db-path v3 (incl. the repo-.env authority rule), .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializer (**pinned to the CAPTURED reference wire — created_date/updated_date/is_sample/created_by, the 14/9-key shapes**), the duration float-format wire (session 14, session-12 P-1), the date-token µs wire (session 15, DW-1 — route-keyed Z, start_time untouched), the prisma-CLI wrapper contract |
 | E2E | Playwright (67 specs — the planning pins incl. the createdAt-desc order + the DIV badges + the plain-DIV day cards (session 9, F-2) + **the dialog request-body interception pin: end_time client-computed + verbatim description (session 12, W-3/W-4)**; the dashboard pins incl. the recharts 2.x DOM shape, the new-task-first semantics, the enter-animation pin, the classic dialog/select classes, the single lucide-trash2 class, **the captured 14-key response wire shape (session 12, W-1/W-2)**, the strict formatDistanceToNowStrict relative times (session 10, F-2), the zero-data-slot DOM contract + the uncapped title input (session 10, F-1/F-3), the Log Activity top-5 slice + the Brainstorm no-op/order pins (session 11, G-1/G-2/G-3)) | `tests/e2e/*.spec.ts` | Mobile-menu geometry parity (animation-settled), auth (the reference's separate sign-up / forgot-password views, the red/green alert cards, post-login landing at "/", the session guards, the custom 404), dashboard (incl. the decompiled Quick Actions open-panel states AND the decompiled sidebar-card states: Next Up + functional Mark Complete, skills-map legend/tooltip, AI-card icons/chips, DailyFocus vertical layout, the content-sized Refresh button), the full-bleed container, day-row spacing, the task-dialog delete confirm + "Create Task"/"Update Task" submit, planning — including the decompiled reference behaviors (null-init selectedDay, the always-visible Card structure — no accordion, no heading role, static stats placeholder, decorative Filter with mr-2 icon, the clickable-DIV day cards) |
 
 - E2E runs against the **production standalone** on `:3100` with its own

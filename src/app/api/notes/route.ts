@@ -2,7 +2,11 @@
 // reference (session 12 wire capture): title (nullable), content, tags
 // (array on the wire — the storage JSON string is unwrapped by
 // serializeNote), plus created_date/updated_date/is_sample/created_by.
-import { fail, ok, readJson, requireUser } from "@/lib/api";
+// Session 15 (DW-1): the Note wire carries the same server-generated
+// date tokens as the Task wire (µs-padded, no Z on reads, Z on creates
+// — probed on the reference's own Note traffic), so the entity
+// responses ship the wire forms via okWire/okWireCreate.
+import { fail, okWire, okWireCreate, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { serializeNote } from "@/lib/serialize";
 
@@ -15,7 +19,7 @@ export async function GET() {
     // The reference's fn.Note.list("-created_date") — newest first.
     orderBy: { createdAt: "desc" },
   });
-  return ok({ notes: notes.map((n) => serializeNote(n, author)) });
+  return okWire({ notes: notes.map((n) => serializeNote(n, author)) });
 }
 
 export async function POST(req: Request) {
@@ -51,8 +55,8 @@ export async function POST(req: Request) {
       userId: auth.user.id,
     },
   });
-  return ok(
+  // The create-response wire (session 15, DW-1): µs dates WITH Z.
+  return okWireCreate(
     { note: serializeNote(note, { id: auth.user.id, email: auth.user.email }) },
-    201,
   );
 }

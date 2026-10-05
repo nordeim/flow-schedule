@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–14, 2026-10-05).
-version: 2.3.0
+  codebase-verified (sessions 1–15, 2026-10-05).
+version: 2.4.0
 last_updated: 2026-10-05
-project_state: 121/121 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the seed re-anchors its sample week across week boundaries
+project_state: 133/133 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -858,6 +858,45 @@ task routes now ship float-formatted duration tokens via `okWire`
 escaped string content because `\"` differs from `"`), pinned by
 unit + a raw-response-text e2e assertion.
 
+### FS-27: The server-generated date wire is a Python artifact too (Medium — wire parity)
+
+**Symptom:** the entity wire's KEY SET, the float-formatted durations,
+and the field values all matched, but the raw response TEXT still
+differed byte-for-byte from the reference's own traffic: the
+reference's `created_date` read `"2026-10-05T02:11:34.297127Z"` on
+POST responses and `"2026-10-04T21:28:23.793000"` (no Z) on GET/PUT
+responses, while the clone emitted `toISOString()` — 3-digit ms + Z
+on every route.
+**Root cause:** the platform's Python backend serializes its
+SERVER-GENERATED datetimes at microsecond precision with a per-route
+Z asymmetry (create responses pass the in-memory aware datetime —
+µs + Z; list/update responses serialize the stored row — µs, no Z),
+while client-supplied dates (start_time/end_time) round-trip as the
+JS-style ms+Z strings the client sent. JS has no µs clock and
+`toISOString()` emits ms.
+**Fix + rules (session 15):** probe all six surfaces (Task/Note ×
+POST/GET/PUT) with the full-body XHR capture + the captured auth
+headers, then reproduce the FORMS at the okWire text seam —
+`formatWireDates(json, mode)` (`src/lib/serialize.ts`) pads the
+3-digit ms token to 6 digits and strips/keeps the Z per mode;
+`okWire` = read mode (GET/PATCH tasks + notes), `okWireCreate` =
+create mode + default 201 (POST tasks + notes). The regex keys on the
+`created_date|updated_date` property tokens so start_time/end_time
+(ms+Z, already byte-matching) are never touched; escaped string
+content is safe (the `\"` before the name breaks the property-token
+match — the same mechanism as the duration float). The digits beyond
+ms are `.000` — form parity, storage-precision residual (the `60.0`
+class: SQLite and the JS clock store milliseconds). The client keeps
+the strings opaque — verify ZERO consumers parse them before shipping
+(grep mapTask/mapNote + the components). **Mutation-harness lesson
+(the same session): a harness must take ONE canonical backup per file
+BEFORE the first mutation — a per-mutation backup lets a second
+mutation on the same file capture the first's mutated state and
+restore it; after ANY mutation run, re-run the pin suite to prove the
+tree was restored (a `git diff --stat` is NOT enough — the corrupted
+first run's source pins still passed because they read the corrupted
+text, and only the e2e caught the compiled divergence).**
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1533,6 +1572,27 @@ parity remediation):
   CALL, not the import). Unit 102 → 121, e2e 67 (×2 consecutive).
   See `docs/session_14-review.md` +
   `docs/remediation-plan-session14.md`.
+- **Session 15 (2026-10-05, v2.4.0):** the session-14 §5a suggested
+  target — the failure-path paired probe — CLOSED with parity
+  confirmed (the reference's InvokeLLM 429 catch rendered the Mark
+  Twain set, byte-identical to the clone's SDK-429 render the same
+  morning; the response-override harness on one side, the live SDK
+  rate-limit on the other). The full-body XHR capture (with request
+  headers) surfaced DW-1: the entity DATE-token wire — the reference's
+  Python backend ships server-generated created_date/updated_date at
+  6-digit µs (POST WITH Z, GET/PUT WITHOUT Z — six surfaces probed).
+  Fixed pin-first: `formatWireDates` (read/create modes) +
+  `okWireCreate` in `src/lib/api.ts` + the notes routes joining the
+  wire seam; `tests/wire-dates.test.ts` (12 pins) + the raw-text e2e
+  date pins; mutations M-1..M-5 all RED — plus the harness-backup
+  lesson (the first run corrupted api.ts; a canonical per-file backup
+  + a post-run pin re-run is now the rule). The mobile menu
+  re-measured LIVE on the reference (Playwright trusted clicks;
+  agent-browser has no Linux viewport control): identical to the pins
+  — no drift, no Tailwind v4 regression. A structural DOM diff of
+  both live dashboards: match (data-driven diffs only). Unit
+  121 → 133, e2e 67 (×2 consecutive). See
+  `docs/session_15-review.md` + `docs/remediation-plan-session15.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

@@ -103,6 +103,39 @@ export function floatFormatDurations(json: string): string {
   );
 }
 
+// Session 15 (DW-1): the reference's Python backend serializes its
+// SERVER-GENERATED datetimes (created_date/updated_date) at microsecond
+// precision, with a per-route Z asymmetry (all six surfaces probed live on
+// the reference's own Task/Note traffic):
+//   POST create responses:      "created_date":"2026-10-05T02:11:34.297127Z"
+//   GET list / PUT-update:      "created_date":"2026-10-04T21:28:23.793000"
+// JS toISOString() emits 3-digit ms + Z. The byte-form is a documented
+// parity surface (FS-23/FS-24 — the duration-float ruling, session 14),
+// so this text-level transform pads the ms token to 6 digits and —
+// keyed by the RESPONSE mode — keeps the Z (create responses, shipped
+// via okWireCreate) or strips it (read/update responses, okWire).
+// The digits beyond ms are ".000" (the clone's clock and SQLite store
+// milliseconds) — form parity, storage-precision residual, the same
+// class as "duration_minutes":60.0.
+// start_time/end_time (CLIENT-supplied dates: ms+Z on the reference too)
+// are never touched — the regex keys on the property names, exactly like
+// floatFormatDurations. Safety: escaped string content (a description
+// quoting the token) serializes as \"created_date\":\" — the backslash
+// before the closing quote breaks the property-token match, the same
+// mechanism the duration transform relies on. Null values and
+// already-6-digit forms fail the \.\d{3}Z pattern and pass through
+// (idempotent by construction).
+export function formatWireDates(
+  json: string,
+  mode: "read" | "create",
+): string {
+  return json.replace(
+    /("(?:created_date|updated_date)"):"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})Z"/g,
+    (_match, prop: string, date: string) =>
+      mode === "create" ? `${prop}:"${date}000Z"` : `${prop}:"${date}000"`,
+  );
+}
+
 export function serializeTask(task: TaskRow, author: WireAuthor): WireTask {
   return {
     id: task.id,

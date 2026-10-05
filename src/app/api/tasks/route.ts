@@ -7,7 +7,7 @@
 // description verbatim (W-4 — "" stays ""); both are accepted here.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fail, okWire, readJson, requireUser } from "@/lib/api";
+import { fail, okWire, okWireCreate, readJson, requireUser } from "@/lib/api";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
 import { serializeTask, type WireAuthor } from "@/lib/serialize";
 
@@ -102,8 +102,9 @@ export async function POST(req: Request) {
     },
   });
 
-  return okWire(
+  // The create-response wire (session 15, DW-1): the reference's POST
+  // keeps the Z on its µs date tokens — okWireCreate's create mode.
+  return okWireCreate(
     { task: serializeTask(task, { id: auth.user.id, email: auth.user.email }) },
-    201,
   );
 }

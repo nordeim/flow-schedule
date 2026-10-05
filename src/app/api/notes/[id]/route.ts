@@ -1,5 +1,8 @@
 // /api/notes/[id] — PATCH + DELETE.
-import { fail, ok, readJson, requireUser } from "@/lib/api";
+// Session 15 (DW-1): the PATCH response carries the read-mode date wire
+// (µs-padded, no Z — the reference's PUT-update form), so it ships via
+// okWire like the other entity reads.
+import { fail, ok, okWire, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { serializeNote } from "@/lib/serialize";
 
@@ -44,7 +47,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const note = await db.note.update({ where: { id }, data });
-  return ok({ note: serializeNote(note, author) });
+  return okWire({ note: serializeNote(note, author) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

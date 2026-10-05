@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (121 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, and the seed's sample-week re-anchoring (E-1)) |
+| `bun run test` | Vitest unit suites (133 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, and the seed's sample-week re-anchoring (E-1)) |
 | `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -352,8 +352,29 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   already-fractional tokens pass through; escaped string content is
   regex-safe (the `"` escaping differs from the property token).
   Parsed JSON reads 60.0 and 60 identically — the e2e pins the RAW
-  text form. Do NOT switch other routes to `okWire` (the Note wire
-  has no number fields).
+  text form. Do NOT switch other routes to `okWire`.
+- **The date-token wire is µs-formatted, route-keyed (session 15,
+  DW-1 / FS-27)**: the reference's Python backend serializes its
+  SERVER-GENERATED datetimes (created_date/updated_date) at 6-digit
+  microsecond precision — POST create responses WITH Z
+  (`"created_date":"…297127Z"`), GET list + PUT/PATCH update
+  responses WITHOUT Z (`"created_date":"…297000"`, the PUT's
+  updated_date carrying fresh µs) — probed on all six Task/Note
+  surfaces. The clone reproduces the FORMS at the same okWire text
+  seam: `formatWireDates(json, mode)` pads the 3-digit ms token to 6
+  digits and strips/keeps the Z per mode. `okWire` = read mode (GET /
+  PATCH tasks + notes); `okWireCreate` = create mode + default 201
+  (POST tasks + notes). start_time/end_time (client-supplied dates —
+  ms+Z on the reference too) are NEVER touched — the regex keys on
+  the property names. The digits beyond ms are `.000` (SQLite and the
+  JS clock store milliseconds — form parity, storage-precision
+  residual, the `60.0` class). The client keeps the strings opaque
+  (mapTask/mapNote pass them through; zero consumers parse them).
+  A mutation-harness lesson from this session: after ANY mutation
+  run, re-run the pin suite to prove the tree was restored — a
+  `git diff --stat` is NOT enough (the first harness's per-mutation
+  backup corrupted api.ts when two mutations touched the same file;
+  the build compiled the corrupted tree and the e2e caught it).
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -574,6 +595,13 @@ deliberately if the reference re-measures differently.
   RS-1..RS-4 schema-shape parse fixes, the quote-only focus guard;
   session-12 P-1 closed — the float-formatted duration wire via
   `okWire`; FS-26).
+- `docs/session_15-review.md` + `docs/remediation-plan-session15.md` —
+  the session-15 record (the failure-path paired probe closing the
+  last AI surface — the reference's 429 catch renders the same Mark
+  Twain set; the entity DATE-token wire — DW-1/FS-27: µs forms,
+  route-keyed Z — closed via `formatWireDates`/`okWireCreate`; the
+  mutation-harness backup lesson; the live mobile-menu re-measure
+  matching the pins exactly).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

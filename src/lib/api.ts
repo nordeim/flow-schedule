@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { getSessionUser, type SessionUser } from "@/lib/auth";
-import { floatFormatDurations } from "@/lib/serialize";
+import { floatFormatDurations, formatWireDates } from "@/lib/serialize";
 
 export type ApiError = { ok: false; error: { code: string; message: string } };
 export type ApiOk<T> = { ok: true; data: T };
@@ -14,18 +14,41 @@ export function ok<T>(data: T, status = 200) {
   return NextResponse.json<ApiOk<T>>({ ok: true, data }, { status });
 }
 
-// okWire (session 14): the envelope helper for responses that can
-// carry a Task wire — same { ok, data } envelope as ok(), but the
-// body is serialized as TEXT and passed through
-// floatFormatDurations so the integer duration tokens read
-// "duration_minutes":60.0, matching the reference's Python-backed
-// entity wire byte for byte (session-12 P-1, closed this session).
-// Consumers parse identically (JSON 60.0 === 60); only the raw
-// response text differs. Used by GET/POST /api/tasks and PATCH
-// /api/tasks/[id] — the only responses carrying serialized tasks.
+// okWire (session 14) + the date mode (session 15): the envelope helpers
+// for responses that can carry a Task/Note wire — same { ok, data } envelope
+// as ok(), but the body is serialized as TEXT and passed through the
+// wire-format transforms:
+//   - floatFormatDurations: the integer duration tokens read
+//     "duration_minutes":60.0, matching the reference's Python-backed
+//     entity wire byte for byte (session-12 P-1, closed session 14);
+//   - formatWireDates (session 15, DW-1): the server-generated
+//     created_date/updated_date tokens read 6-digit µs — WITHOUT Z on
+//     read/update responses (okWire — the reference's GET list and
+//     PUT-update wire forms), WITH Z on create responses (okWireCreate —
+//     the reference's POST wire form). Consumers parse identically
+//     (JSON strings either way; the clone's client keeps them opaque);
+//     only the raw response text differs. Used by the entity routes:
+//     GET/POST /api/{tasks,notes} and PATCH /api/{tasks,notes}/[id].
 export function okWire<T>(data: T, status = 200) {
-  const json = floatFormatDurations(
-    JSON.stringify({ ok: true, data } satisfies ApiOk<T>),
+  const json = formatWireDates(
+    floatFormatDurations(JSON.stringify({ ok: true, data } satisfies ApiOk<T>)),
+    "read",
+  );
+  return new NextResponse(json, {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+// The CREATE-response variant (session 15, DW-1): the reference's POST
+// create responses keep the Z on their µs date tokens —
+// "created_date":"2026-10-05T02:11:34.297127Z" — so the POST routes use
+// this helper (default 201) while every read/update response uses
+// okWire's no-Z form.
+export function okWireCreate<T>(data: T, status = 201) {
+  const json = formatWireDates(
+    floatFormatDurations(JSON.stringify({ ok: true, data } satisfies ApiOk<T>)),
+    "create",
   );
   return new NextResponse(json, {
     status,

@@ -1059,3 +1059,105 @@ Stage Summary:
   checks, not truthiness), the M-3 pin-strength lesson (a source pin
   must match the CALL, not the import), and the raw-text token
   extraction as the byte-diff tool that closes P-class observations
+
+---
+Task ID: 31
+Agent: main agent
+Task: Session 15 — failure-path paired probe + the entity date-token
+wire (DW-1) audit and remediation
+
+Work Log:
+- git pull (fast-forward: main 8378b85 → 89b9c7d, adds
+  docs/session_15.md — the operator's narrative of the session-14
+  remediation); reviewed session_14-review.md,
+  remediation-plan-session14.md, worklog.md, session_15.md — aligned
+- Full base gate: lint clean · typecheck clean · 121/121 unit ·
+  build 19 routes · 67/67 e2e (2.0 m) — the codebase matched its
+  documented state exactly; mobile + desktop menu pins green
+  (no Tailwind v4 regression)
+- Read skills/skills-catalog.md; used: agent-browser (reference login
+  + XHR capture/probes), clone-app-pat-pro (measured facts), tdd +
+  tdd-workflow (red → green → mutation), code-review-and-audit,
+  testing-patterns, nextjs16-tailwind4 (trap re-check)
+- AUDIT — the session-14 §5a suggested target, the failure-path
+  paired probe: installed the response-override harness on the
+  reference (status 429 + rate-limit body on the InvokeLLM XHR),
+  triggered the daily-focus re-fetch via a quick-add mutation → the
+  reference rendered the Mark Twain fallback
+  ("The secret of getting ahead is getting started." / - Mark Twain /
+  "I am focused, productive, and capable of achieving my goals
+  today."); the clone's dev server hit the z-ai SDK's live 429 the
+  same morning and rendered the byte-identical DEFAULT_FOCUS →
+  PARITY CONFIRMED, the last unpinned AI surface closed (no action)
+- AUDIT — DW-1 (the new find): the full-body XHR capture (with
+  request-header capture: Bearer/X-App-Id) + direct API probes
+  (POST/PUT via the captured auth) on all six Task/Note surfaces:
+  the reference's Python backend ships server-generated
+  created_date/updated_date at 6-digit µs — POST create responses
+  WITH Z ("2026-10-05T02:11:34.297127Z"), GET list + PUT-update
+  responses WITHOUT Z ("2026-10-04T21:28:23.793000"; the PUT's
+  updated_date fresh µs, its created_date ms-truncated);
+  start_time/end_time (client-supplied) are ms+Z — already matching
+  the clone. Consumer safety verified (mapTask/mapNote opaque; zero
+  parsers)
+- AUDIT — the mobile menu re-measured LIVE on the reference at
+  390x844 (Playwright trusted clicks; agent-browser has no Linux
+  viewport control — the window-size arg is WM-clamped): trigger
+  338/14/36x36 right 374, menu 182/54/192x164, items [Profile,
+  Settings, Logout], animation-name enter — identical to the clone's
+  e2e pins, no drift; a structural DOM diff of both live dashboards
+  at 1440x900: match (only data-driven diffs)
+- Remediated DW-1 pin-first: tests/wire-dates.test.ts (12 pins —
+  the pure transform read/create modes, start_time/end_time
+  untouched, escaped-content safety, idempotence, the float
+  composition, the okWire/okWireCreate CALL-form seam pins, the
+  route call sites) RED 11/12 → formatWireDates (src/lib/
+  serialize.ts — property-keyed regex, ms padded to µs, route-keyed
+  Z) + okWireCreate (api.ts, create mode, default 201) + the route
+  switches (POST tasks/notes → okWireCreate; GET/PATCH notes →
+  okWire, joining the task reads) GREEN; the raw-text date pins
+  folded into the e2e G-4/W-1/W-2 wire spec (µs no-Z reads / µs+Z
+  creates / ms+Z start_time)
+- MUTATION (RED) evidence M-1..M-5 (the harness outside the repo):
+  identity transform → 6 pins; float-only okWire → 7; read-mode
+  create → 7; route revert → 8; notes ok revert → 9. THE HARNESS
+  LESSON: the first run's per-mutation backup corrupted api.ts when
+  M-3 re-backed-up the file M-2 had mutated — git diff --stat did
+  not flag it, the unit source pins PASSED on the corrupted text,
+  and only the e2e caught the compiled divergence (floats shipped,
+  dates didn't). Fixed (canonical per-file backup + a mandatory
+  post-run pin re-run), all mutations re-confirmed RED, tree
+  verified restored (12/12 pins)
+- Gate: lint clean · tsc clean · 133/133 unit (121 → 133: +12
+  wire-dates) · build 19 routes · 67/67 e2e x2 consecutive
+  (1.9 m + 1.9 m) · live dev-server wire verified: GET
+  "2026-10-05T00:20:32.982000" (µs no Z) + 30.0/120.0/60.0/90.0
+  floats; POST "…498000Z" (µs + Z) + 25.0; PATCH created .498000
+  (ms-truncated) + updated .543000 (fresh); notes same — all six
+  forms byte-matching the probes
+- All 20 screenshots re-captured; reference-account hygiene: the 3
+  S15 probe entities deleted via the captured auth headers (9 parity
+  tasks + 3 notes remain, 0 leftovers)
+- Docs realigned: README (the date-wire + counts), AGENTS.md (FS-27 +
+  the harness lesson), CLAUDE.md (the date-wire contract), PAD
+  (§4.1 wire table + §8 counts + 10 ledger rows),
+  flow-schedule_SKILL.md v2.4.0 (FS-27 + the session-15 history),
+  docs/session_15-review.md, this plan's execution record, this
+  worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 15 delivered: the failure-path paired probe CLOSED with
+  parity confirmed (both apps render the byte-identical Mark Twain
+  fallback under the same 429 failure class — the last unpinned AI
+  surface), and the entity DATE-token wire brought to byte parity
+  (DW-1/FS-27: the reference's Python µs forms — no Z on reads, Z on
+  creates — reproduced at the okWire seam via formatWireDates +
+  okWireCreate, with the notes routes joining the wire seam).
+  Unit 121 → 133, e2e 67 (x2 consecutive)
+- Key new knowledge: FS-27 (the server-generated date wire is a
+  Python artifact — three date serialization forms: client-supplied
+  ms+Z, create µs+Z, read µs no-Z; reproduce the FORMS at the text
+  seam, document the .000 storage-precision residual), and the
+  mutation-harness backup lesson (one canonical per-file backup; a
+  git diff --stat is NOT restore-verification — re-run the pins)
