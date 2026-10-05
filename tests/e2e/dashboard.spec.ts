@@ -740,6 +740,61 @@ test.describe("dashboard", () => {
     await expect(dialog).toBeHidden();
   });
 
+  test("task dialog field geometry matches the reference (S22-F1)", async ({ page }) => {
+    // Session 22: the dialog's field pattern is
+    // <div class="space-y-2"><label/><input|textarea|button/></div> — the
+    // inline <label> cannot carry v4's space-y margin-block-end (vertical
+    // margins are ignored on inline boxes), so all six label→field gaps
+    // collapsed to the 4px line-box leading where the reference (v3's
+    // margin-top on the following element) measures 12px. The globals.css
+    // v3-compat rule (.space-y-2 > label + * { margin-block-start: 0.5rem })
+    // restores it; this computed-geometry pin guards it (all six pairs,
+    // measured from the label's rect bottom to the next element sibling's
+    // rect top — the same probe that live-measured the reference).
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // Geometry-measuring specs settle animations FIRST (session 8, E-C):
+    // the dialog zooms in (150 ms) and getBoundingClientRect includes the
+    // transform — measuring mid-animation reads the scaled box.
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[role="dialog"]');
+      if (!el) return false;
+      const anims = el.getAnimations();
+      return anims.length === 0 || anims.every((a) => a.playState === "finished");
+    });
+    const gaps = await page.evaluate(() => {
+      const dlg = document.querySelector('[role="dialog"]');
+      if (!dlg) return [];
+      const labels = [...dlg.querySelectorAll("label")];
+      return labels.map((label) => {
+        const next = label.nextElementSibling;
+        if (!next) return null;
+        const lb = label.getBoundingClientRect();
+        const nb = next.getBoundingClientRect();
+        return Math.round(nb.y - (lb.y + lb.height));
+      });
+    });
+    expect(gaps.filter((g) => g !== null).length).toBe(6);
+    for (const gap of gaps) {
+      if (gap === null) continue;
+      expect(Math.abs(gap - 12)).toBeLessThanOrEqual(1);
+    }
+    // The create-mode dialog's total height is the reference's 526: the
+    // Select fields' hidden native <select> makes the trigger a
+    // :not(:last-child) under v4 (margin-block-end 8 → each Select field
+    // +8px) — the compat rule zeroes it (ref trigger mt 8 / mb 0,
+    // live-measured).
+    const dialogHeight = await page.evaluate(() =>
+      Math.round(document.querySelector('[role="dialog"]')!.getBoundingClientRect().height),
+    );
+    expect(Math.abs(dialogHeight - 526)).toBeLessThanOrEqual(2);
+    await page.keyboard.press("Escape");
+  });
+
   test("task dialog create-flow submits the client-computed end_time + verbatim description (W-3/W-4)", async ({ page }) => {
     // Session 21: this pin RELOCATED from planning.spec (the "Add Task
     // dialog creates a scheduled task" spec retired there when the

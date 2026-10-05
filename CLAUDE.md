@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs-single-app
 version: 1.0.0
-last_updated: 2026-10-04
+last_updated: 2026-10-06
 ---
 
 # FlowSchedule — Weekly Schedule Planner
@@ -107,6 +107,21 @@ equivalents at identical URLs and JSON shapes.
 - No `space-y-*` container may carry children with explicit mt/mb
   utilities (Trap 4 — the selector rewrite flips which side gets the
   margin and drops specificity to zero).
+- **The space-y FIELD-GEOMETRY compat rules are load-bearing (session 22,
+  S22-F1/S22-F2 — FS-34)**: v4's `:where(.space-y-N > :not(:last-child))
+  { margin-block-end }` lands the margin on the INLINE `<label>` of the
+  classic-shadcn field pattern (CSS ignores vertical margins on inline
+  boxes — the label→field gap collapses) and loses to the reference's own
+  `-mb-2` back-link at zero specificity; Radix's hidden native `<select>`
+  also makes the SelectTrigger a `:not(:last-child)` (+8px per Select
+  field). The v3-compat rules in `globals.css`
+  (`.space-y-1\.5 > label + *`, `.space-y-2 > label + *` and its
+  `:not(:last-child)` mb-zero, `.space-y-4 > .-mb-2 + *` + the
+  `sm:space-y-6` media variant) restore v3's margin side — the DOM stays
+  byte-identical. Pinned by `tests/space-y-compat.test.ts` (source) +
+  the auth.spec/dashboard.spec computed-geometry specs; do NOT remove or
+  "simplify" them, and measure COMPUTED GEOMETRY (settled animations),
+  not class strings, when auditing field layouts.
 - Quick Action gradients stay as inline-style hex gradients (Trap 3 —
   sidesteps in-oklab interpolation drift and matches the reference).
 
@@ -207,8 +222,8 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (159 tests) |
-| `bun run test:e2e` | Playwright e2e (90 specs, needs prior build) |
+| `bun run test` | Vitest unit (165 tests) |
+| `bun run test:e2e` | Playwright e2e (94 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
 Single test: `bunx vitest run tests/auth.test.ts`.

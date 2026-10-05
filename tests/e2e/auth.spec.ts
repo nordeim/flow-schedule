@@ -216,3 +216,89 @@ test.describe("authenticated route guards (reference redirects to /login)", () =
     await expect(page).toHaveURL(/\/login$/);
   });
 });
+
+test.describe("login field geometry (the reference's measured spacing, S22-F1/S22-F2)", () => {
+  // Session 22: class parity did NOT imply geometry parity. The reference's
+  // field pattern is <div class="space-y-1.5"><label/><div class="relative">
+  // input</div></div> — the <label> renders display:inline, so Tailwind v4's
+  // space-y rewrite (:where(.space-y-1\.5 > :not(:last-child)) { margin-block-end })
+  // lands the 6px margin on the INLINE label where CSS ignores vertical
+  // margins — the label→input gap collapsed to the line-box leading (4px)
+  // where the reference (v3's margin-top on the following block) measures
+  // 10px. Likewise the BackToSignIn link's own -mb-2 (the reference's class)
+  // beat v4's :where() zero-specificity margin, raising the view's h2 into
+  // the link's band (v3: the h2's margin-top collapsed with -mb-2 → 8px
+  // effective on sign-up, 16px on forgot at ≥sm). The globals.css v3-compat
+  // rules restore both; these computed-geometry pins guard them.
+  //
+  // Reference values (live-measured on the reference at 1440×900, both
+  // engines probed): login label→input gap 10px on every field; the
+  // sign-up h2 sits 8px below the back-link's bottom edge; the forgot h2
+  // sits 16px below it (the sm:space-y-6 variant).
+
+  const fieldGaps = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const inputs = [...document.querySelectorAll("input:not([type=hidden])")];
+      return inputs.map((input) => {
+        // the field's label: the closest preceding label in the same field div
+        const field = input.closest("div.space-y-1\\.5");
+        const label = field ? (field.querySelector("label") as HTMLElement | null) : null;
+        if (!label) return null;
+        const lb = label.getBoundingClientRect();
+        const ib = input.getBoundingClientRect();
+        return Math.round(ib.y - (lb.y + lb.height));
+      });
+    });
+
+  const h2OffsetFromBackLink = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const back = [...document.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Back to sign in"),
+      );
+      const h2 = document.querySelector("h2");
+      if (!back || !h2) return null;
+      const bb = back.getBoundingClientRect();
+      const hb = h2.getBoundingClientRect();
+      return Math.round(hb.y - bb.bottom);
+    });
+
+  test("sign-in view: the label→input gaps are the reference's 10px", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("heading", { name: "Welcome to FlowSchedule" }).waitFor();
+    const gaps = (await fieldGaps(page)).filter((g) => g !== null);
+    expect(gaps.length).toBe(2);
+    for (const gap of gaps) {
+      expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("sign-up view: the three field gaps + the h2 offset match the reference", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await page.getByRole("heading", { name: "Create your account" }).waitFor();
+    const gaps = (await fieldGaps(page)).filter((g) => g !== null);
+    expect(gaps.length).toBe(3);
+    for (const gap of gaps) {
+      expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+    // The reference: v3 margin-top 16 collapses with the link's -mb-2 → 8px.
+    const offset = await h2OffsetFromBackLink(page);
+    expect(offset).not.toBeNull();
+    expect(Math.abs(offset! - 8)).toBeLessThanOrEqual(1);
+  });
+
+  test("forgot view: the field gap + the h2 offset match the reference (sm:space-y-6)", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Forgot password?" }).click();
+    await page.getByRole("heading", { name: "Reset your password" }).waitFor();
+    const gaps = (await fieldGaps(page)).filter((g) => g !== null);
+    expect(gaps.length).toBe(1);
+    for (const gap of gaps) {
+      expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+    // The reference at ≥sm: v3 margin-top 24 collapses with -mb-2 → 16px.
+    const offset = await h2OffsetFromBackLink(page);
+    expect(offset).not.toBeNull();
+    expect(Math.abs(offset! - 16)).toBeLessThanOrEqual(1);
+  });
+});

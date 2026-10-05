@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–20, 2026-10-05).
-version: 2.10.0
-last_updated: 2026-10-05
-project_state: 159/159 unit tests, 90/90 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), the Planning Add Task no-op closed (S21-F1: the reference's eSe ships NO dialog state and NO onClick — the button is decorative like the Filter button; the dialog lives ONLY on the Dashboard calendar, where its W-3/W-4 request-contract pin now lives), the matched-data raster diff closed at noise level (/Planning 0.057% — /Dashboard 0.737% ALL inside the Daily Focus LLM region), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+  codebase-verified (sessions 1–22, 2026-10-06).
+version: 2.11.0
+last_updated: 2026-10-06
+project_state: 165/165 unit tests, 94/94 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), the Planning Add Task no-op closed (S21-F1: the reference's eSe ships NO dialog state and NO onClick — the button is decorative like the Filter button; the dialog lives ONLY on the Dashboard calendar, where its W-3/W-4 request-contract pin now lives), the space-y engine drift closed (S22-F1/S22-F2: the v3-compat rules in globals.css — the inline-label margin collapse on the login/dialog field gaps AND the -mb-2 back-link specificity flip — pinned by the computed-geometry e2e family + the source pins; the login + dialog geometry now byte-matches the reference), the matched-data raster diff closed at noise level (/Planning 0.057% — /Dashboard 0.715% ALL inside the Daily Focus LLM region — the login error state 0.098%), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -138,8 +138,8 @@ Demo credentials (seed): `demo@flowschedule.app` / `demo1234`.
 | `bun run build` | Production build + assembles `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit — 159 tests |
-| `bun run test:e2e` | Playwright — 90 specs; **requires prior `bun run build`** |
+| `bun run test` | Vitest unit — 165 tests |
+| `bun run test:e2e` | Playwright — 94 specs; **requires prior `bun run build`** |
 | `bun run db:push` / `bun run db:seed` | Schema sync / idempotent seed |
 | `scripts/smoke-test.sh` | 30-check curl suite over the standalone server |
 
@@ -1113,6 +1113,46 @@ matched-data raster diffs hide the layer identically on both apps
 and phase-align the WAAPI indicators via `currentTime % duration`
 windows.
 
+### FS-34: Class parity is not geometry parity — the engine is part of the contract (Critical — Tailwind v4 parity)
+
+**Symptom (session 22, S22-F1/S22-F2):** the clone's login fields and
+TaskDialog fields rendered 4px label→input gaps where the reference
+measures 10/12px (every field pair, live-measured on both apps), and
+the sign-up/forgot view headings rose into the back-link's band —
+while every class string was BYTE-IDENTICAL to the reference's
+captured DOM. Two engine-level failure modes of the v4 space-y
+rewrite: (a) **the inline-label nullification** — v4's
+`:where(.space-y-N > :not(:last-child)) { margin-block-end }` lands
+the inter-child margin on the `<label>`, and CSS IGNORES vertical
+margins on inline boxes, so the gap collapsed to the line-box
+leading; v3 emitted margin-top on the FOLLOWING block sibling
+(effective). (b) **the negative-margin specificity flip** — the
+reference's own `-mb-2` back-link beat v4's `:where()`
+zero-specificity margin (v3's margin-top on the FOLLOWING h2 had
+margin-COLLAPSED with the -mb-2: 16−8 / 24−8 = 8/16px effective; v4
+renders −8 and the heading overlaps the link). A third variant
+surfaced mid-fix: Radix's Select appends a visually-hidden native
+`<select>` AFTER the trigger, making the trigger `:not(:last-child)`
+— v4's margin-block-end inflated each Select field 8px.
+**Why class diffs missed it:** the class-tree diffs compare STRINGS;
+the rendered layout depends on the engine's selector semantics.
+19 sessions of pins never measured the login/dialog field geometry.
+**Fix + rules (session 22):** v3-compat rules in globals.css scoped
+to the broken patterns (`.space-y-1\.5 > label + *`,
+`.space-y-2 > label + *` { margin-block-start },
+`.space-y-2 > label + *:not(:last-child)` { margin-block-end: 0 },
+`.space-y-4 > .-mb-2 + *` + the `sm:space-y-6` media variant) — the
+DOM stays byte-identical (the pinned-cursor/-shadow-sm precedent),
+and the margin-SIDE restore reproduces v3's margin-collapsing
+arithmetic exactly. Pin with COMPUTED GEOMETRY (label rect bottom →
+next-sibling rect top), not class strings — and settle animations
+before measuring (getBoundingClientRect includes transforms).
+**Generalized:** when the reference and the clone run different
+utility-engine generations, every layout surface needs at least one
+computed-geometry pin; a class-string match proves only that the
+AUTHORING matches, not the rendering. Matched-data raster diffs on
+the un-pinned surfaces (the login views) are the cheapest catch-all.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1188,7 +1228,7 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 159/159
+bun run test          # 165/165
 bun run build         # green; .next/standalone assembled
 bun run test:e2e      # 90/90 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
@@ -1525,6 +1565,34 @@ parity remediation):
 
 ## Appendix C: Session History
 
+- **Session 22 (2026-10-06, this skill revision):** the space-y
+  engine-parity pass (the session-21 §5 suggested targets executed:
+  the /Profile + /Settings raster close — 0.009% both — and the
+  login-page populated-state raster diff, which SURFACED the drift).
+  **S22-F1 (fixed)**: Tailwind v4's space-y rewrite lands the
+  inter-child margin on the INLINE `<label>` of the classic-shadcn
+  field pattern, where CSS ignores vertical margins — every
+  label→field gap collapsed (login 10px→4px on six fields, TaskDialog
+  12px→4px on six) while the class strings stayed byte-identical to
+  the reference's captured DOM. **S22-F2 (fixed)**: the
+  BackToSignIn's own `-mb-2` (the reference's class) beat v4's
+  `:where()` zero-specificity margin — the sign-up/forgot headings
+  rose 16/24px into the back-link's band (v3's margin-top on the
+  FOLLOWING h2 margin-collapsed with the −mb-2 → 8/16px effective).
+  A third variant fixed with them: Radix's hidden native `<select>`
+  makes the SelectTrigger `:not(:last-child)` → v4's margin-block-end
+  inflated each dialog Select field 8px. The fix: four v3-compat
+  rules in globals.css (the DOM untouched); the pins: 3 auth.spec +
+  1 dashboard.spec computed-geometry specs + 6 source pins
+  (tests/space-y-compat.test.ts). Mutations M-1..M-5 all RED
+  surgical. T-4 live: the login cards now byte-match the reference
+  (y/h/gaps on all three views); the dialog internals byte-match
+  (526 = 526, every element y/h); the login-error raster 2.948% →
+  0.098%. Non-findings: the mobile menu byte-identical live on both
+  apps (the standing priority — no v4 regression); Planning 0.057%;
+  the reset-sent alert text = the documented session-5 ruling. Unit
+  159 → 165, e2e 90 → 94 (×2 consecutive). See
+  `docs/session_22-review.md` + `docs/remediation-plan-session22.md`.
 - **Session 21 (2026-10-05, this skill revision):** the Planning
   handler-parity pass (the session-20 §5 suggested targets (a)+(b)
   executed: the matched-data raster diff and the Planning multi-week
