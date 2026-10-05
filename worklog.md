@@ -1420,3 +1420,23 @@ commit + SSH push to main.
   ruling) + the pin-engineering lessons (the rAF waitForFunction
   capture vs the ~0.5 s locator latency; the +100 ms delay read; the
   in-page differential for exit timing)
+
+---
+Task ID: S20 (flow-schedule session 20)
+Agent: Z (main)
+Task: flow-schedule session-20 — refresh workspace, review docs, audit the session-19 state, execute the default-theme drift pass (the session-19 §5 targets (a)+(b)), remediate via TDD, docs + screenshots + commit + SSH push to main.
+
+Work Log:
+- Workspace carried forward (no reset); git pull 30bb684 → ab8ddc8 (docs/session_20.md only); base gate green: lint ✓ · tsc ✓ · 153/153 unit · build (19 routes) · 85/85 e2e (2.9 m)
+- Audited session-19 commit 30bb684 (the BL-1 seam + the pin families) — clean; reference hygiene re-list at START: 9 parity tasks + 3 notes, 0 leftovers
+- The session-19 §5 targets executed: Settings/Profile deep-diff (structure byte-identical on both apps) + the AI Summary populated diff (class contract byte-identical; the LLM wording = the nature-of-LLM ruling)
+- F-1 found via the content-sized h3 widths (~15% glyph drift): tailwindcss@4.3.3's default --font-sans is the v3-compat -apple-system list; the reference renders the v4.0-era ui-sans stack (its own stylesheet's preflight rule, byte-extracted + measured live). 19 sessions of block-geometry pins were font-metric-blind
+- C-1 found by the completeness audit: 13 used-but-unpinned color tokens, 11 drifted (up to 34 G-units — red-700, purple-700/800/900, pink-700, indigo-700, yellow-700, gray-400/500, green-200, red-200); dev's oklch and prod's hex measured IDENTICAL computed colors
+- TDD: T-1 RED (4 e2e theme-palette pins + 6 unit source pins incl. the used ⊆ pinned completeness invariant — all failed at base exactly as predicted); the fix (the --font-sans/--font-mono pins + the 13 color hexes in @theme inline); the live pin caught pink-700 = #be185d (the reference's OWN value, one B-unit off the v3 hex — the rendered-contract ruling)
+- T-2 mutations M-1..M-4 all RED surgical (the font-pin drop, the purple-900 drop, the red-700 value regression, the gray-400 revert); restore checksum-verified
+- T-3: 159/159 unit · 89/89 e2e ×2 consecutive; T-4 LIVE: the glyph-metric closure (h3 "Theme" 68.3 px = the reference 68.3; the paragraph 312.1 = 312.1; the mood colors byte-matching); the mobile menu re-measured live on BOTH apps (byte-identical — the standing priority); T-5: 22 screenshots re-captured; T-6: SKILL v2.9.0 (FS-32) + README/CLAUDE/AGENTS/PAD (Trap 6 + the ledger rows) + the validation report + review + plan docs
+- T-7: committed + pushed via docs/ssh_git_wrapper_v3.py (remote verified == HEAD, operator key shredded)
+
+Stage Summary:
+- Session 20 delivered: the Tailwind default-theme drift closed (F-1 the font stack, C-1 the 13 palette tokens — the "Tailwind v4 bug" the operator flagged), the completeness invariant (PIN-1) making the pin set CLOSED, the Settings/Profile + AI-card surfaces verified at structure parity, the glyph-metric closure verified live. Unit 153 → 159, e2e 85 → 89 (×2). Pushed to main.
+- Harness scripts persisted in /home/z/my-project/scripts/ (the pages probe, the font probe, the color-rule extractors, the injected-class probe, the live color diff, the AI-card + mobile-menu probe, the mutation harness, the capture script)

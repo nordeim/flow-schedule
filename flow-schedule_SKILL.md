@@ -7,9 +7,9 @@ description: >
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
   codebase-verified (sessions 1–19, 2026-10-05).
-version: 2.8.0
+version: 2.9.0
 last_updated: 2026-10-05
-project_state: 153/153 unit tests, 85/85 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 159/159 unit tests, 89/89 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -1038,6 +1038,46 @@ configs themselves are source-pinned (`tests/panel-motion.test.ts`,
 the ai-prompt pattern) so a numeric "cleanup" fails before the e2e
 family is the last line of defense.
 
+### FS-32: Tailwind MINOR versions drift the DEFAULT theme — pin every used token, and enforce used ⊆ pinned (High — theme parity)
+
+**Symptom (session 20, F-1/C-1):** the clone passed 19 sessions of
+byte-identical geometry pins while its TYPOGRAPHY had never matched —
+tailwindcss@4.3.3 (locked since session 0) ships a default
+`--font-sans` that differs from the reference's v4.0-era build (the
+v3-compat `-apple-system, BlinkMacSystemFont, ...` list vs the
+reference's `ui-sans-serif, system-ui, ...`), resolving a DIFFERENT
+physical font on fontconfig systems (~15% glyph-width drift, measured).
+And 13 palette tokens the app uses were never @theme-pinned — v4.3.3's
+oklch conversions render up to 34 G-channel units off the reference's
+hexes (its stylesheet emits the v3 values, e.g. `.text-red-700 {
+color: rgb(185 28 28) }` vs the clone's rgb(191,0,15)).
+**Why 19 sessions missed it:** block-geometry pins are font-metric-
+blind (container/padding-sized boxes don't move with glyph widths),
+class-string pins are value-blind (the class names don't change when
+the TOKEN values do), and the session-0 pinning enumerated the scales
+it knew about — no invariant asserted used ⊆ pinned, so 13 tokens
+accumulated unpinned across new components.
+**Method:** the computed values ARE the parity surface —
+`getComputedStyle(el).fontFamily` (a serialized string — deterministic,
+no raster) and `.color`/`.backgroundColor` (the rgb(...) serialization
+pins the AUTHORED form too: a hex pin serializes rgb(...) like the
+reference; an oklch default serializes lab(...) and fails). Dev's
+oklch and prod's converted hex render IDENTICALLY (both measured the
+same computed lab) — the production standalone stays the pin surface.
+**The reference's palette is not byte-v3 everywhere:** its pink-700 is
+`#be185d` (rgb(190 24 93), measured live AND in its stylesheet's own
+rule) — ONE B-unit off the v3 hex `#be185c`. Every pin is the
+REFERENCE's measured value, never an assumed v3 lookup.
+**The fix + the guard:** pin `--font-sans` (and `--font-mono` as a
+guard — identical in both eras, used by the timer display) + the 13
+color tokens in `@theme inline`; add the completeness invariant as a
+unit pin (`tests/tailwind-theme-pins.test.ts` scans src/ for
+color-class tokens and asserts each is pinned) so a future component
+using an unpinned token fails at authoring time, BEFORE the next
+minor bump drifts it. e2e pins: `tests/e2e/theme-palette.spec.ts`
+(4 tests — the font stack, the mood ramp, the chips, the planning
+badges). Mutations M-1..M-4 all RED surgical.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1113,9 +1153,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 153/153
+bun run test          # 159/159
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 85/85 on the production standalone :3100
+bun run test:e2e      # 89/89 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -1450,6 +1490,32 @@ parity remediation):
 
 ## Appendix C: Session History
 
+- **Session 20 (2026-10-05, this skill revision):** the Tailwind
+  default-theme drift pass (the session-19 §5 suggested targets (a)+(b)
+  executed: the Settings/Profile deep-diff — structure byte-identical —
+  and the AI Summary card's populated-state diff — structure
+  byte-identical). **F-1 (fixed)**: the clone's default font stack was
+  v4.3.3's v3-compat `-apple-system` list; the reference renders the
+  v4.0-era `ui-sans-serif, system-ui` stack — ~15% glyph-width drift on
+  fontconfig systems, invisible to 19 sessions of block-geometry pins.
+  **C-1 (fixed)**: 11 of 13 used-but-unpinned palette tokens rendered
+  v4.3.3's oklch conversions — up to 34 G-channel units off (the AI
+  mood text, the login alert, the planning badges, the weekly bar);
+  pink-700 pinned to the reference's OWN `#be185d` (one unit off the
+  v3 hex — the rendered contract, not an assumed lookup). **PIN-1**:
+  the used ⊆ pinned completeness invariant as a unit pin — the guard
+  the 13-token gap proved missing. Pinned:
+  `tests/e2e/theme-palette.spec.ts` (4 pins — the computed font stack,
+  the mood ramp, the chips, the planning badges) +
+  `tests/tailwind-theme-pins.test.ts` (6 source pins incl. the
+  invariant). Mutations M-1..M-4 all RED surgical (the font-pin drop,
+  the purple-900 drop, the red-700 value regression, the gray-400
+  revert). Also: the mobile menu re-measured live on BOTH apps
+  (byte-identical — the standing priority); the reference hygiene
+  re-list: 9 tasks + 3 notes, 0 leftovers; the h3 glyph-metric closure
+  verified live (68.3/312.1 px — byte-matching the reference). Unit
+  153 → 159, e2e 85 → 89 (×2 consecutive). See
+  `docs/session_20-review.md` + `docs/remediation-plan-session20.md`.
 - **Session 19 (2026-10-05, this skill revision):** the framer-motion
   animation-timing pass (the session-18 §5 suggested target (a)) —
   the Quick Actions panel entrance/exit family + the background blobs

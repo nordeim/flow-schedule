@@ -311,3 +311,63 @@ assertions must read the right property per stack. (c) Next 16's dev-origin
 protection silently blocks dev chunks for the `127.0.0.1` origin (unhydrated page,
 native form GET fallbacks) — `allowedDevOrigins: ["127.0.0.1"]` in next.config.ts
 restores both origins.
+
+## Trap 6 — MINOR-version default-theme drift (session 20, F-1/C-1, FS-32)
+
+**The discovery (measured, not assumed):** the session-20 Settings/Profile
+deep-diff found the clone's content-sized h3 text widths ~15% NARROWER than
+the reference's — the first font-metric-dependent surfaces ever measured.
+The root cause: `tailwindcss@4.3.3` (bun.locked since session 0) ships a
+default `--font-sans` that DIFFERS from the reference's v4.0-era build —
+v4.3.3's default is the v3-compat stack (`-apple-system,
+BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
+Arial, sans-serif, ...`, verified in `node_modules/tailwindcss/theme.css`),
+while the reference's stylesheet carries the v4.0-era preflight default
+(`ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", ...`,
+byte-extracted from its own CSS + measured live via getComputedStyle). On
+fontconfig systems the two stacks resolve DIFFERENT physical fonts
+(DejaVu-class vs Liberation-class metrics). 19 sessions of block-geometry
+pins never caught it: container/padding-sized boxes don't move with glyph
+metrics.
+
+**The palette side (C-1):** 13 color tokens the app uses were never
+@theme-pinned (the session-0 trap-2 pinning enumerated 58 tokens; the
+completeness was never enforced). 11 of the 13 render v4.3.3's
+oklch→sRGB conversions — up to 34 G-channel units off the reference's
+hexes (the reference's stylesheet emits its own values, e.g.
+`.text-red-700 { color: rgb(185 28 28) }` vs the clone's rgb(191,0,15)).
+Dev's oklch and prod's Lightning-converted hex measured IDENTICAL computed
+colors — the drift is mode-independent. One nuance the live pin caught:
+the reference's pink-700 is `#be185d` (rgb(190 24 93)) — ONE B-unit off
+the v3 hex `#be185c`; the reference's palette is not byte-v3 everywhere,
+so every pin is the reference's MEASURED value, never an assumed v3
+lookup.
+
+**Fix (all in `src/app/globals.css` `@theme inline`, the ADR-005
+precedent):**
+
+```css
+--font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+  "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  "Liberation Mono", "Courier New", monospace; /* the guard — identical
+  in both eras; the Focus Timer display uses it */
+--color-blue-100: #dbeafe;  /* …the 13 tokens, the reference's hexes */
+```
+
+**Pinned by** `tests/e2e/theme-palette.spec.ts` (the computed font-family
+string + the exact computed rgb(...) serializations on the mood ramp, the
+chips, the planning badges — asserting the rgb(...) FORM pins the authored
+form too: a hex pin serializes rgb(...) like the reference; an oklch
+default serializes lab(...) and fails) + `tests/tailwind-theme-pins.test.ts`
+(the source pins + the **used ⊆ pinned completeness invariant** — the scan
+of src/ for color-class tokens asserting each is pinned, so a future
+component using an unpinned token fails at authoring time, BEFORE the next
+minor bump drifts it).
+
+**The general lesson (FS-32):** Tailwind minor versions change DEFAULT
+theme values — v4.3.3's font stack and per-step palette hexes both differ
+from v4.0's. Pinning the traps you discovered at migration time is
+necessary but not sufficient; the invariant (used ⊆ pinned) is what makes
+the pin set CLOSED. The computed-value surfaces (getComputedStyle) are
+deterministic parity pins — no raster, no timing.

@@ -82,6 +82,22 @@
      heavier). Pin the v3 value so shadow-sm matches the reference. */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 
+  /* Trap 6 (session 20, F-1) — Tailwind MINOR-version default drift:
+     v4.3.3 (locked since session 0) ships a v3-compat default --font-sans
+     (-apple-system, BlinkMacSystemFont, ...) while the reference's
+     v4.0-era build ships the ui-sans stack — measured live on both apps
+     and byte-extracted from the reference's own preflight rule
+     (font-family:ui-sans-serif,system-ui,sans-serif,...). On fontconfig
+     systems the two stacks resolve DIFFERENT physical fonts (~15%
+     glyph-width drift measured on content-sized text). Pin the
+     reference's measured stack. --font-mono is byte-identical in v4.0
+     and v4.3.3 AND to the reference's .font-mono resolution — pinned as
+     a guard (the Focus Timer display uses it). --font-serif is unused.
+     Pinned by tests/tailwind-theme-pins.test.ts + the theme-palette
+     e2e family. */
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
   /* Trap 2 — pin the v3-era slate scale (v4's oklch palette drifts
      1–3 sRGB units per channel). Values are the v3 hexes. */
   --color-slate-50: #f8fafc;
@@ -153,6 +169,33 @@
   --color-teal-400: #2dd4bf;
 
   --color-cyan-400: #22d3ee;
+
+  /* Trap 6 (session 20, C-1) — the 13 used-but-unpinned tokens. The
+     session-0 pinning covered 58 tokens but missed these; v4.3.3's
+     oklch palette renders them up to 34 units per channel off the
+     reference's v3 hexes (its stylesheet emits the v3 values, e.g.
+     .text-red-700 { color: rgb(185 28 28) }). All pinned to the
+     reference's measured hexes — including blue-100/pink-50 (identical
+     TODAY, locked against the NEXT minor bump). The completeness
+     invariant (tests/tailwind-theme-pins.test.ts) asserts
+     used-tokens ⊆ pinned-tokens so the set can never silently
+     regress. */
+  --color-blue-100: #dbeafe;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-green-200: #bbf7d0;
+  --color-indigo-700: #4338ca;
+  --color-pink-50: #fdf2f8;
+  /* pink-700: the reference's own value is #be185d (rgb(190 24 93),
+     measured live AND in its stylesheet's .text-pink-700 rule) — ONE
+     B-unit off the v3 hex #be185c. The rendered contract wins. */
+  --color-pink-700: #be185d;
+  --color-purple-700: #7e22ce;
+  --color-purple-800: #6b21a8;
+  --color-purple-900: #581c87;
+  --color-red-200: #fecaca;
+  --color-red-700: #b91c1c;
+  --color-yellow-700: #a16207;
 }
 
 @layer base {
