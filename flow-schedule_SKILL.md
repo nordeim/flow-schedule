@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–17, 2026-10-05).
-version: 2.6.0
+  codebase-verified (sessions 1–18, 2026-10-05).
+version: 2.7.0
 last_updated: 2026-10-05
-project_state: 143/143 unit tests, 76/76 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 143/143 unit tests, 81/81 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -965,6 +965,37 @@ reference lacks (e.g. the clone's "Open account menu" trigger label) is
 a sanctioned a11y affordance — zero visual/behavioral footprint — but
 a body-level RENDERING-HINT class is a parity defect.**
 
+### FS-30: The display-flip timeline is a parity surface — and the decompile is a hypothesis, the live measurement is the contract (High — timed-interaction parity)
+
+**Symptom (session 18, FT-1):** the Focus Timer's completed display.
+The clone's display snapped to the full duration the moment the timer
+completed; the reference leaves **00:00** (the terminal state). The
+divergence was INVISIBLE to 16 sessions of static/diff passes because
+it only manifests at the completion edge — and the session-3 decompile
+comment had misread the reference as an "idle effect that snaps
+remaining back," which reproduces the PAUSE semantics but not the
+COMPLETION semantics (both paths flip `running` false; only the live
+timeline separates them).
+**Method (the finding tool): an in-page MutationObserver with
+performance.now() timestamps** records every display flip at
+sub-second precision with zero round-trip latency — cadence (~1000 ms
+interval), the pause snap (+99–166 ms), the resume origin (restart from
+full), the edit-while-paused follow (+13 ms), the completion alert
+timing (~60.2 s), and the terminal display. Drive BOTH apps with the
+same sequence and diff the timelines.
+**The ruling line (the W1e state machine): the display is the
+`remaining` STATE.** The snap-to-full happens ONLY in the TOGGLE
+handler (both directions) and the minutes-change handler; the
+completion path never touches it — leaving 00:00 as the honest terminal
+display. Implement exactly that; cite the MEASUREMENT in the comment,
+not the decompile.
+**The suite tool: `page.clock`** — `install()` before `page.goto`,
+then `runFor(62_000)` (NOT `fastForward` — fastForward fires each due
+timer AT MOST ONCE and pauses the clock; an interval must fire
+REPEATEDLY, so use runFor). The 60-second interaction path becomes a
+<2 s pin; the blocking `window.alert` is dismissed via the dialog
+handler. The one-off-real-time-verification era is over.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1701,6 +1732,27 @@ parity remediation):
   Probe" leftover found + deleted (the verify-don't-trust rule). Unit
   143 (unchanged), e2e 67 → 76 (×2 consecutive). See
   `docs/session_17-review.md` + `docs/remediation-plan-session17.md`.
+- **Session 18 (2026-10-05, v2.7.0):** the session-17 §5 suggested
+  target — the timed-interaction pass (the Focus Timer countdown at
+  sub-second precision on both apps) — executed via an in-page
+  MutationObserver + performance.now() timeline across five sequences
+  (start/pause/resume/reset, pause-then-edit, close/reopen, the real
+  60-second completion path, the parse edges): 13 of 14 semantics
+  byte-identical; ONE divergence (FT-1: the completed display — the
+  reference leaves 00:00 as the terminal state; the clone's derived
+  display snapped to full). Root cause: session-3's decompile misread
+  the reference's display as derived (the "idle effect" claim) — the
+  measured truth is the `remaining` STATE with the snap in the TOGGLE
+  handler (both directions). Fixed state-driven + pinned the whole W1e
+  timed contract in `tests/e2e/focus-timer.spec.ts` (5 pins incl. the
+  completion path via `page.clock` `runFor` — the session-3 ~65 s
+  one-off is now a <2 s suite pin; runFor not fastForward: intervals
+  must fire repeatedly). Mutations M-1/M-2/M-3 all RED (M-1 the derived
+  revert → the completion pin, surgical; M-2/M-3 the toggle-reset
+  removals → the pause-family pins); restore verified green + checksum.
+  Reference hygiene re-listed: 9 parity tasks, 0 leftovers. Unit 143
+  (unchanged), e2e 76 → 81 (×2 consecutive). See
+  `docs/session_18-review.md` + `docs/remediation-plan-session18.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

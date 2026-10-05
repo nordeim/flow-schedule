@@ -284,17 +284,21 @@ function AddTaskPanel({ onCancel, formColor }: PanelProps) {
 
 function FocusTimerPanel({ onCancel, formColor }: PanelProps) {
   const [minutes, setMinutes] = React.useState(25);
+  // The DISPLAY is this STATE — session-18's live sub-second measurement
+  // of the reference (the display-flip timeline via an in-page
+  // MutationObserver) proved it: the completed state reads 00:00 (the
+  // terminal display the reference leaves after the alert), and the
+  // snap-to-full happens ONLY in the toggle (both directions) and the
+  // minutes-change handler — never in the completion path. The old
+  // derived display (running ? remaining : minutes*60) matched the
+  // pause semantics but wrongly snapped the completed state to full
+  // (FT-1, fixed session 18).
   const [remaining, setRemaining] = React.useState(25 * 60);
   const [running, setRunning] = React.useState(false);
 
-  // Reference W1e semantics, translated without effect-body setState
-  // (react-hooks/set-state-in-effect):
-  //   - idle display = minutes*60 (derived); starting resets to full;
-  //     pausing shows the full duration again (the reference's idle effect
-  //     snaps remaining back to minutes*60);
-  //   - running display = the countdown; reaching 0 stops + alerts.
-  const display = running ? remaining : minutes * 60;
-
+  // Countdown: a 1 s interval decrements; reaching 0 stops + alerts
+  // (measured live: the first tick lands ~1.1 s after the click; the
+  // cadence is interval-based at ~1000 ms on both apps).
   React.useEffect(() => {
     if (!running) return;
     const t = setInterval(() => {
@@ -310,12 +314,17 @@ function FocusTimerPanel({ onCancel, formColor }: PanelProps) {
     return () => clearInterval(t);
   }, [running]);
 
+  // Reference W1e toggle (measured live, session 18): BOTH directions
+  // reset the display to the full duration — starting restarts from
+  // minutes*60, and PAUSING SNAPS the display back to minutes*60
+  // (+100–170 ms after the click on both apps). Only the completion
+  // path leaves the 00:00 terminal state.
   const toggle = () => {
     if (!running && minutes <= 0) {
       window.alert("Please set a valid duration.");
       return;
     }
-    if (!running) setRemaining(minutes * 60);
+    setRemaining(minutes * 60);
     setRunning(!running);
   };
 
@@ -342,7 +351,7 @@ function FocusTimerPanel({ onCancel, formColor }: PanelProps) {
 
   return (
     <motion.div className={`p-4 space-y-4 rounded-2xl text-center ${formColor}`} {...panelMotion}>
-      <div className="text-5xl font-mono text-slate-700 tabular-nums">{fmt(display)}</div>
+      <div className="text-5xl font-mono text-slate-700 tabular-nums">{fmt(remaining)}</div>
       {!running && (
         <div className="flex items-center justify-center gap-2">
           <Input

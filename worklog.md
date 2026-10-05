@@ -1264,3 +1264,81 @@ Work Log:
 Stage Summary:
 - Session 17 delivered: the layout-band pin family (the tablet band + the overflow invariant at every band — the Tailwind v4 responsive-class regression guard) + the classless body (BD-1). Zero functional regressions; the audit frontier stays closed. Unit 143, e2e 67 → 76 (×2)
 - Key new knowledge: FS-29 (pin the layout BANDS — the md edge via computed display, the overflow metric on documentElement; and the mutation-design lesson: an overflow mutation inside the clipping layer SURVIVES — mutate the ROOT's width) + the BD-1 ruling (diff the BODY class: a rendering-hint class is a parity defect, an aria-label the reference lacks is a sanctioned a11y affordance)
+
+---
+Task ID: 34 (flow-schedule session 18)
+Agent: Z (main)
+Task: flow-schedule session-18 — execute the session-17 §5 suggested target (a) (the timed-interaction pass: the Focus Timer countdown at sub-second precision on both apps), audit the session-17 remediation at the fresh workspace, remediate FT-1 via TDD, docs + screenshots + push to main.
+
+Work Log:
+- Workspace RESET between sessions — fresh `git clone` + the documented
+  bootstrap: cp .env.example .env · bun install (one transient tarball
+  retry) · db:push + db:generate + db:seed (9 tasks + 2 notes, the
+  db-path v3 contract holding); base gate fully green: lint · tsc ·
+  143/143 unit · build (19 routes) · 76/76 e2e (2.1 m)
+- Session-17 remediation (024b59f) audited at source level (the 9-pin
+  viewport family green in the base run; the classless body present);
+  the two doc commits are docs-only
+- The timed-interaction pass: the Focus Timer (W1e) measured live on
+  BOTH apps across FIVE sequences at sub-second precision — an in-page
+  MutationObserver + performance.now() display-flip timeline (harness
+  outside the repo): (A) start → pause → resume → reset, (B) pause →
+  edit minutes → resume, (C) close/reopen while running, (D) the real
+  60-second completion path, (E) the parse edges. 13/14 semantics
+  byte-identical; ONE divergence — FT-1: the completed display (the
+  reference leaves 00:00 TERMINAL; the clone's derived
+  running?remaining:minutes*60 display snapped to 01:00)
+- Root cause: session-3's decompile misread the reference ("the idle
+  effect snaps remaining back") — the measured truth: the display IS
+  the remaining STATE, the snap-to-full lives in the TOGGLE (both
+  directions) + the minutes-change handler; only the completion path
+  leaves 00:00
+- Reference hygiene re-list at session START (the verify-don't-trust
+  rule): 9 parity tasks, 0 leftovers (the entity list captured from the
+  live login traffic — base44.app/api/apps/.../entities/Task)
+- T-1 RED: tests/e2e/focus-timer.spec.ts (5 pins — pause snap + resume
+  restart, edit-while-paused, the completion terminal display via
+  page.clock, close/reopen reset) — the completion pin failed exactly
+  as predicted (Expected "00:00", Received "01:00"); tooling lesson:
+  page.clock.runFor (NOT fastForward — fires each timer at most once
+  + pauses the clock)
+- T-2 MUTATION (harness outside the repo, ONE canonical backup,
+  production rebuild per mutation): M-1 the derived-display revert →
+  RED 1 (surgical — the completion pin); M-2 the pause-snap removal →
+  RED 3; M-3 both toggle resets removed → RED 3; restore verified 6/6
+  green + checksum-identical
+- T-3 GREEN + GATE: the fix (display = remaining state; the toggle
+  resets on BOTH directions; the comment cites the measurement) —
+  lint · tsc · 143/143 unit · build (19 routes) · 81/81 e2e ×2
+  consecutive (76 → 81)
+- T-4 LIVE: the clone's completion path re-measured —
+  displayAfterDismiss "00:00" (was 01:00), alert + controls
+  byte-matching the reference; harness lessons: drain the spawn pipes
+  (an unread stdout pipe blocks the dev server mid-compile), kill the
+  whole process group (the next dev child survives a wrapper SIGKILL)
+- T-5: all 22 screenshots re-captured; 06-focus-timer.png
+  dimension-identical to HEAD (the fix touches no standing visual
+  surface); VLM rate-limited ×2 (stopped per discipline)
+- T-6 DOCS: SKILL v2.7.0 (FS-30 + the changelog + counts), README,
+  CLAUDE, AGENTS, PAD (§8 + 6 ledger rows), session_18-review.md, the
+  plan's execution record, this worklog
+- T-7: commit on main + push via docs/ssh_git_wrapper_v3.py to
+  git@github.com:nordeim/flow-schedule.git (dry-run → real push →
+  remote ref verified == HEAD → operator key shredded)
+
+Stage Summary:
+- Session 18 delivered: the timed-interaction pass closed — the Focus
+  Timer's W1e contract measured at sub-second precision on both apps
+  (13/14 byte-identical), the ONE divergence fixed (FT-1: the 00:00
+  terminal completion display — the display is the remaining STATE,
+  the snap lives in the toggle), and the whole timed family pinned
+  (5 e2e pins incl. the page.clock completion path — the ~65 s
+  session-3 one-off is now a <2 s suite pin). Unit 143, e2e 76 → 81
+  (×2 consecutive)
+- Key new knowledge: FS-30 (the display-flip timeline is a parity
+  surface — an in-page MutationObserver + performance.now() measures
+  pause/resume/completion semantics the static diffs cannot see; the
+  decompile is a hypothesis, the live measurement is the contract) +
+  the page.clock ruling (install before goto; runFor not fastForward
+  for interval-driven countdowns) + the spawn-pipe/process-group
+  harness lessons
