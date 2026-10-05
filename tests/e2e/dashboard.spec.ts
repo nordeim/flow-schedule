@@ -740,6 +740,67 @@ test.describe("dashboard", () => {
     await expect(dialog).toBeHidden();
   });
 
+  test("task dialog create-flow submits the client-computed end_time + verbatim description (W-3/W-4)", async ({ page }) => {
+    // Session 21: this pin RELOCATED from planning.spec (the "Add Task
+    // dialog creates a scheduled task" spec retired there when the
+    // Planning button became the reference's no-op — S21-F1). The
+    // calendar-cell entry below is the reference's ONE true dialog mount
+    // (Xne lives inside lre, the Dashboard calendar); the request
+    // contract it pins is unchanged:
+    //   W-3 (session 12): the dialog submits end_time CLIENT-COMPUTED (the
+    //     reference's decompiled f function: end = start + duration*60000);
+    //   W-4 (session 12): the description ships VERBATIM ("" stays "").
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const isoLocal = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T15:00`;
+
+    const posts: Record<string, unknown>[] = [];
+    await page.route("/api/tasks", async (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON() as Record<string, unknown>);
+      }
+      await route.continue();
+    });
+
+    // Converging cleanup: a crashed earlier run can leave residue with the
+    // same title (the suite's FS-9 discipline).
+    const residue0 = await (await page.request.get("/api/tasks")).json();
+    for (const t of (residue0?.data?.tasks ?? []) as { id: string; title: string }[]) {
+      if (t.title === "E2E dialog create task") await page.request.delete(`/api/tasks/${t.id}`);
+    }
+
+    await page
+      .getByRole("button", { name: /^Add task on Tue .* at 10:00$/ })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Task Title").fill("E2E dialog create task");
+    // Description left EMPTY on purpose — the W-4 pin: it must ship "".
+    await dialog.locator("#start_time").fill(isoLocal);
+    await dialog.locator("#duration").fill("45");
+    const submit = dialog.getByRole("button", { name: "Create Task", exact: true });
+    await submit.click();
+    await expect(dialog).toBeHidden();
+
+    // W-3/W-4: the intercepted request ships end_time (start + 45 min) and
+    // the description verbatim as "".
+    expect(posts.length).toBeGreaterThanOrEqual(1);
+    const body = posts[posts.length - 1];
+    expect(body.description).toBe("");
+    expect(typeof body.end_time).toBe("string");
+    expect(new Date(body.end_time as string).getTime()).toBe(
+      new Date(isoLocal).getTime() + 45 * 60_000,
+    );
+
+    // Cleanup: delete EVERY match — crashed-run residue converges.
+    const list = await (await page.request.get("/api/tasks")).json();
+    const residue = (list?.data?.tasks ?? []).filter(
+      (t: { title: string }) => t.title === "E2E dialog create task",
+    );
+    for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
+  });
+
   test("Refresh Calendar button is content-sized (icon_sm dead variant, P-7)", async ({ page }) => {
     // The reference passes size:"icon_sm" — a variant ABSENT from its size
     // map — so cva emits no size class and the button sizes from its

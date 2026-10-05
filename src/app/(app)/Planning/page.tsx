@@ -2,13 +2,17 @@
 
 // /Planning — the reference app's Weekly Planning page, decompiled from the
 // reference bundle (session 2, P-1…P-7):
-//   - header row (title + DECORATIVE Filter button + Add Task);
+//   - header row (title + DECORATIVE Filter button + DECORATIVE Add Task —
+//     S21-F1, session 21: the reference's eSe has NO dialog state and NO
+//     onClick on either button; the TaskDialog (Xne) mounts ONLY inside
+//     lre, the Dashboard calendar — live trusted-click verified on the
+//     reference: no dialog, no DOM change, no navigation);
 //   - week card with 7 day columns — chips are display-only, a click
 //     anywhere on a card (chips included) selects the day; the highlight
 //     follows the selected day (there is no today-highlight);
-//   - the selected-day section (task list accordion + Day Statistics
-//     accordion) renders ONLY after a day card is clicked — selectedDay
-//     starts null, exactly like the reference's useState(null);
+//   - the selected-day section (task list card + Day Statistics card)
+//     renders ONLY after a day card is clicked — selectedDay starts null,
+//     exactly like the reference's useState(null);
 //   - Day Statistics is the reference's static placeholder (no data
 //     branch exists in the reference bundle);
 //   - task items are display-only — task editing happens exclusively from
@@ -20,21 +24,19 @@ import { BarChart3, Calendar, Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TaskDialog, emptyTaskForm } from "@/components/planning/TaskDialog";
 import { CATEGORY_BADGES, PRIORITY_TEXT, type Category } from "@/lib/domain";
 import { useFlowStore } from "@/store/useFlowStore";
 
 export default function PlanningPage() {
   const tasks = useFlowStore((s) => s.tasks);
+  // Reference (eSe): state is [tasks, weekStart, selectedDay, loading] —
+  // NO dialog state on this page (S21-F1).
   const [weekStart, setWeekStart] = React.useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 }),
   );
   // Reference: const [selectedDay, setSelectedDay] = useState(null) — the
   // selected-day section is guarded on this being non-null (P-1).
   const [selectedDay, setSelectedDay] = React.useState<Date | null>(null);
-
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [initialForm, setInitialForm] = React.useState(emptyTaskForm());
 
   const days = React.useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -47,11 +49,6 @@ export default function PlanningPage() {
     [tasks],
   );
 
-  const openCreate = () => {
-    setInitialForm(emptyTaskForm());
-    setDialogOpen(true);
-  };
-
   const selectedDayTasks = selectedDay ? tasksForDay(selectedDay) : [];
 
   return (
@@ -62,11 +59,12 @@ export default function PlanningPage() {
           <p className="text-slate-600">Organize and review your upcoming week</p>
         </div>
         <div className="flex gap-3">
-          {/* Decorative, like the reference's Filter button (no handler). */}
+          {/* Decorative, like the reference's Filter button — eSe ships NO
+              handler on either button (S21-F1, live trusted-click verified). */}
           <Button variant="outline" className="rounded-2xl border-slate-200">
             <Filter className="w-4 h-4 mr-2" /> Filter
           </Button>
-          <Button onClick={openCreate} className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600">
+          <Button className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600">
             <Plus className="w-4 h-4 mr-2" /> Add Task
           </Button>
         </div>
@@ -225,14 +223,6 @@ export default function PlanningPage() {
           </Card>
         </div>
       )}
-
-      <TaskDialog
-        key="new-task"
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editing={null}
-        initial={initialForm}
-      />
     </div>
   );
 }

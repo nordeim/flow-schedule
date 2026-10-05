@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–19, 2026-10-05).
-version: 2.9.0
+  codebase-verified (sessions 1–20, 2026-10-05).
+version: 2.10.0
 last_updated: 2026-10-05
-project_state: 159/159 unit tests, 89/89 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 159/159 unit tests, 90/90 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), the Planning Add Task no-op closed (S21-F1: the reference's eSe ships NO dialog state and NO onClick — the button is decorative like the Filter button; the dialog lives ONLY on the Dashboard calendar, where its W-3/W-4 request-contract pin now lives), the matched-data raster diff closed at noise level (/Planning 0.057% — /Dashboard 0.737% ALL inside the Daily Focus LLM region), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -138,10 +138,10 @@ Demo credentials (seed): `demo@flowschedule.app` / `demo1234`.
 | `bun run build` | Production build + assembles `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit — 44 tests |
-| `bun run test:e2e` | Playwright — 34 specs; **requires prior `bun run build`** |
+| `bun run test` | Vitest unit — 159 tests |
+| `bun run test:e2e` | Playwright — 90 specs; **requires prior `bun run build`** |
 | `bun run db:push` / `bun run db:seed` | Schema sync / idempotent seed |
-| `scripts/smoke-test.sh` | 25-check curl suite over the standalone server |
+| `scripts/smoke-test.sh` | 30-check curl suite over the standalone server |
 
 **Configuration files:**
 
@@ -1078,6 +1078,41 @@ minor bump drifts it. e2e pins: `tests/e2e/theme-palette.spec.ts`
 (4 tests — the font stack, the mood ramp, the chips, the planning
 badges). Mutations M-1..M-4 all RED surgical.
 
+### FS-33: The bundle's MISSING handler is the contract — and a pin on divergent behavior is worse than no pin (High — interaction parity)
+
+**Symptom (session 21, S21-F1):** the clone's Planning "Add Task"
+button opened a full create-task dialog for 19 sessions, pinned green
+by its own e2e spec — while the reference's button does NOTHING. Three
+evidence levels: the decompile (the reference's `eSe` Planning
+component has NO dialog state; the button's props carry NO onClick;
+its TaskDialog `Xne` mounts ONLY inside `lre`, the Dashboard
+calendar), the live trusted click on the reference (no dialog, no DOM
+change, no navigation), and the live trusted click on the clone (the
+full dialog). Root cause: session-2's remediation plan asserted "the
+reference opens it from the Add Task button" — an INFERENCE never
+live-verified, and the e2e spec then pinned the DIVERGENCE.
+**Why it matters more than a visual miss:** a pin on divergent
+behavior makes the divergence regression-proof — every future session
+re-verified the bug. When a live probe contradicts an old spec, the
+spec is the bug (the ET-1/FT-1 pattern, applied to a handler).
+**Fix + rules (session 21):** mirror the reference exactly — remove
+the dialog mount + handler; the dialog stays ONLY where the reference
+mounts it (the Dashboard calendar). Pin the no-op (click →
+`[role=dialog]` count 0, no POST fires, the page survives) and
+RELOCATE any request-contract pins that lived at the divergent entry
+point to the reference's true entry path (the W-3/W-4 dialog body pin
+moved from planning.spec to dashboard.spec's calendar-cell flow).
+**Generalized:** when auditing a handler-shaped contract, the
+decompile's ABSENT prop IS evidence (no onClick = no handler — React
+does not delegate arbitrary buttons), and the probe must be a trusted
+CLICK on the live reference, not an inference from the dialog's
+existence elsewhere in the bundle. Harness note: main-thread
+framer loops (the blobs) cannot be phase-aligned via getAnimations
+and reduced-motion does NOT freeze them on either app — for
+matched-data raster diffs hide the layer identically on both apps
+and phase-align the WAAPI indicators via `currentTime % duration`
+windows.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1155,7 +1190,7 @@ bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
 bun run test          # 159/159
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 89/89 on the production standalone :3100
+bun run test:e2e      # 90/90 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -1490,6 +1525,27 @@ parity remediation):
 
 ## Appendix C: Session History
 
+- **Session 21 (2026-10-05, this skill revision):** the Planning
+  handler-parity pass (the session-20 §5 suggested targets (a)+(b)
+  executed: the matched-data raster diff and the Planning multi-week
+  depth). **S21-F1 (fixed)**: the clone's Planning "Add Task" button
+  opened a create-task dialog; the reference's is a NO-OP — no dialog
+  state in `eSe`, no onClick on the button (the dialog `Xne` mounts
+  only inside `lre`, the Dashboard calendar), live trusted-click
+  verified on both apps. The session-2 "the reference opens it from
+  the Add Task button" inference retired; the divergent-behavior e2e
+  spec replaced by a no-op pin; the dialog's W-3/W-4 request-contract
+  pin RELOCATED to dashboard.spec's calendar-cell flow (the
+  reference's true entry path). Non-findings closed: the multi-week
+  navigation byte-identical across the month boundary; the raster
+  diff at matched data (/Planning 0.057%; /Dashboard 0.737% ALL
+  inside the Daily Focus LLM region — the reference rendered a live
+  InvokeLLM quote, the clone its Mark Twain fallback after a 429);
+  the mobile menu byte-identical live on both apps (the standing
+  priority — no Tailwind v4 regression). Mutations M-1..M-3 all RED
+  surgical (the fix revert, the end_time drop, the description-null
+  swap). Unit 159 (unchanged), e2e 89 → 90 (×2 consecutive). See
+  `docs/session_21-review.md` + `docs/remediation-plan-session21.md`.
 - **Session 20 (2026-10-05, this skill revision):** the Tailwind
   default-theme drift pass (the session-19 §5 suggested targets (a)+(b)
   executed: the Settings/Profile deep-diff — structure byte-identical —

@@ -1440,3 +1440,26 @@ Work Log:
 Stage Summary:
 - Session 20 delivered: the Tailwind default-theme drift closed (F-1 the font stack, C-1 the 13 palette tokens — the "Tailwind v4 bug" the operator flagged), the completeness invariant (PIN-1) making the pin set CLOSED, the Settings/Profile + AI-card surfaces verified at structure parity, the glyph-metric closure verified live. Unit 153 → 159, e2e 85 → 89 (×2). Pushed to main.
 - Harness scripts persisted in /home/z/my-project/scripts/ (the pages probe, the font probe, the color-rule extractors, the injected-class probe, the live color diff, the AI-card + mobile-menu probe, the mutation harness, the capture script)
+
+---
+Task ID: S21 (flow-schedule session 21)
+Agent: Z (main)
+Task: flow-schedule session-21 — refresh workspace, review docs, audit the session-20 state, execute the Planning handler-parity pass + the matched-data raster diff (the session-20 §5 targets (a)+(b)), remediate S21-F1 via TDD, docs + screenshots + commit + SSH push to main.
+
+Work Log:
+- Workspace carried forward (no reset); git pull a19516a → 9258cde (docs/session_21.md only); base gate green: lint ✓ · tsc ✓ · 159/159 unit · build (19 routes) · 89/89 e2e (2.9 m); audited session-20 commit a19516a at source level (the @theme pins + both pin families) — clean
+- Reference hygiene re-list at START: 9 parity tasks + 3 notes, 0 leftovers (full bodies captured this session for the raster diff)
+- The multi-week Planning probe (target (b)) LIVE on BOTH apps across the Sep→Oct month boundary: week labels, day cards, chips, selected-day persistence — byte-identical. The Add Task click DIVERGED: the reference is a NO-OP, the clone opened the full TaskDialog
+- S21-F1 established at three levels: the eSe decompile (no dialog state, no onClick; Xne mounts only inside lre — the Dashboard calendar), the live trusted click on the reference (no dialog, no DOM change, no navigation), the live trusted click on the clone (the full dialog). The session-2 "the reference opens it from the Add Task button" inference retired; the e2e spec had pinned the divergence since session 2
+- The matched-data raster diff (target (a)): the reference's 9 task bodies recreated on a scratch clone user (same email → same avatar initial), blobs hidden identically (their parity is owned by the session-19 motion family — main-thread framer loops can't be phase-aligned; reduced-motion does NOT freeze them on either app, measured), pulse indicators phase-aligned via currentTime % 2000 windows: /Planning 0.057% (noise, no hot cells); /Dashboard 0.737% ALL inside the Daily Focus card (the reference's live InvokeLLM quote vs the clone's Mark Twain fallback after a 429 — the documented never-hard-fail contract). Zero residual sub-visual divergence
+- The mobile menu re-measured live on BOTH apps at 390×844 (the standing priority): trigger 338/14/36×36 right 374, menu 182/54/192×164 right 374, items [Profile, Settings, Logout], animation-name enter — byte-identical, no Tailwind v4 regression
+- TDD: T-1 RED (the planning no-op pin — dialog count 0 expected, 1 received; the W-3/W-4 request-contract pin RELOCATED to dashboard.spec's calendar-cell entry, green at base); the fix (Planning/page.tsx: the dialog mount + handler + state + imports removed — mirrors eSe); GREEN: planning 16/16, dashboard 31/31
+- T-2 mutations M-1..M-3 all RED surgical (the fix revert, the end_time drop, the description-null swap); restore checksum-verified
+- T-3: 159/159 unit (unchanged) · 90/90 e2e ×2 consecutive (89 → 90); T-4 LIVE: the clone's Add Task click now byte-matches the reference (dialogs [], no POST, no navigation); hygiene re-list at END: 9 tasks + 3 notes, 0 leftovers; the raster scratch user's tasks deleted from db/e2e.db
+- T-5: 22 screenshots re-captured (the task-dialog capture now documents the calendar-cell entry); T-6: SKILL v2.10.0 (FS-33 + the changelog + the counts + the stale §3 table counts fixed) + README/CLAUDE/AGENTS/PAD + review + plan docs + this worklog
+- T-7: commit on main + push via docs/ssh_git_wrapper_v3.py to git@github.com:nordeim/flow-schedule.git
+
+Stage Summary:
+- Session 21 delivered: the Planning handler parity closed (S21-F1 — the Add Task button is the reference's no-op; the divergent-behavior spec replaced by a no-op pin; the W-3/W-4 dialog contract pin relocated to the reference's true entry path), the matched-data raster diff closed at noise level (the catch-all — zero residual sub-visual divergence outside the documented LLM region), the multi-week navigation closed byte-identical, the mobile menu re-verified byte-identical live. Unit 159 (unchanged), e2e 89 → 90 (×2). Pushed to main.
+- Key new knowledge: FS-33 (the bundle's MISSING handler is the contract — a decompile-level hypothesis about a handler must be confirmed by a trusted CLICK on the live reference; a pin on divergent behavior is worse than no pin) + the raster-diff harness lessons (hide the main-thread framer loops identically; phase-align WAAPI indicators via currentTime windows; matched-data raster diffs are cheap and decisive)
+- Harness scripts persisted in /home/z/my-project/scripts/ (the planning multi-week probes ref+clone, the task dump, the raster capture + diff, the mobile-menu probes, the mutation harness)

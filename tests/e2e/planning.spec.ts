@@ -14,11 +14,15 @@ import { expect, test } from "@playwright/test";
 //     branch exists in the reference bundle);
 //   - the Filter button is decorative (label "Filter", no handler) and its
 //     icon carries mr-2 like the reference's (session 6, P-5);
+//   - the Add Task button is decorative TOO (session 21, S21-F1: the
+//     reference's eSe has no dialog state and no onClick on it — live
+//     trusted-click verified; the TaskDialog lives ONLY on the Dashboard
+//     calendar, where the W-3/W-4 request-contract pin now lives);
 //   - there is NO Unscheduled section anywhere in the reference;
 //   - selected-day task items are display-only (edit happens exclusively
 //     from the Dashboard calendar task blocks);
-//   - the dialog submit reads "Create Task"/"Update Task" (session 6, P-2).
-// The Add Task dialog flow (create → chip renders) is unchanged.
+//   - the dialog submit reads "Create Task"/"Update Task" (session 6, P-2;
+//     pinned in dashboard.spec at the calendar-cell entry path).
 
 const LONG_DATE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), /;
 // The reference's CardTitle (a DIV, no heading role) — tracking-tight is the
@@ -86,62 +90,49 @@ test.describe("planning page", () => {
     await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
   });
 
-  test("Add Task dialog creates a scheduled task", async ({ page }) => {
-    // Schedule for TODAY at 15:00 — today is inside the displayed week.
-    const today = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const isoLocal = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T15:00`;
+  test("Add Task button is decorative (the reference's no-op, S21-F1)", async ({ page }) => {
+    // Session 21, S21-F1: the reference's Planning Add Task button is a
+    // NO-OP — three evidence levels:
+    //   1. Decompile (eSe in the reference bundle): the Planning page has
+    //      NO dialog state (its state is [tasks, weekStart, selectedDay,
+    //      loading]); the Add Task button's props are
+    //      {className:"rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600"}
+    //      with NO onClick; the TaskDialog (Xne) mounts ONLY inside lre —
+    //      the Dashboard calendar component.
+    //   2. Live trusted click on the reference (2026-10-05): [role=dialog]
+    //      count 0, body children unchanged, no navigation — the same
+    //      evidence class as the decorative Filter button.
+    //   3. The clone (pre-fix): the click opened the full TaskDialog —
+    //      the session-2 "the reference opens it from the Add Task button"
+    //      inference, never live-verified.
+    // This spec REPLACES "Add Task dialog creates a scheduled task"
+    // (which pinned the divergent behavior since session 2); the dialog's
+    // request-contract pin (W-3/W-4) moved to dashboard.spec at the
+    // calendar-cell entry path — the reference's one true dialog mount.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
 
-    // Session 12 (W-3/W-4) request-contract interception: the reference's
-    // dialog submits end_time CLIENT-COMPUTED (its decompiled f function:
-    // end = start + duration*60000) and description VERBATIM ("" stays "",
-    // captured on the live wire). The POST body is pinned here.
-    const posts: Record<string, unknown>[] = [];
-    await page.route("/api/tasks", async (route) => {
-      if (route.request().method() === "POST") {
-        posts.push(route.request().postDataJSON() as Record<string, unknown>);
+    // No POST may fire while the button is clicked (a rogue submit-on-click
+    // would mutate the seeded data).
+    const posts: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().includes("/api/tasks")) {
+        posts.push(req.url());
       }
-      await route.continue();
     });
 
-    await page.getByRole("button", { name: "Add Task" }).click();
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
-    await dialog.getByLabel("Task Title").fill("E2E planned task");
-    // Description left EMPTY on purpose — the W-4 pin: it must ship "".
-    await dialog.locator("#start_time").fill(isoLocal);
-    await dialog.locator("#duration").fill("45");
-    // The reference's submit label is "Create Task" (decompiled r?"Update":
-    // "Create" + " Task" — session 6, P-2), with a Save icon (P-3).
-    const submit = dialog.getByRole("button", { name: "Create Task", exact: true });
-    await expect(submit).toBeVisible();
-    await expect(submit.locator("svg")).toHaveClass(/mr-2/);
-    await submit.click();
-    await expect(dialog).toBeHidden();
+    const add = page.getByRole("button", { name: "Add Task", exact: true });
+    await expect(add).toBeVisible();
+    await add.click();
+    await page.waitForTimeout(1000);
 
-    // W-3/W-4: the intercepted request ships end_time (start + 45 min) and
-    // the description verbatim as "".
-    expect(posts.length).toBeGreaterThanOrEqual(1);
-    const body = posts[posts.length - 1];
-    expect(body.description).toBe("");
-    expect(typeof body.end_time).toBe("string");
-    expect(new Date(body.end_time as string).getTime()).toBe(
-      new Date(isoLocal).getTime() + 45 * 60_000,
-    );
-
-    // The chip appears on today's day column.
-    await expect(page.locator("div", { hasText: "E2E planned task" }).first()).toBeVisible();
-
-    // Cleanup: delete the task(s) via the API so repeated runs don't drift
-    // the seeded day totals (global-setup deliberately does NOT reset the db
-    // file — see its header comment). GET /api/tasks → { ok, data: { tasks } }.
-    // Delete EVERY match — a crashed earlier run can leave residue that a
-    // single `.find()`-then-delete would never converge on.
-    const list = await (await page.request.get("/api/tasks")).json();
-    const residue = (list?.data?.tasks ?? []).filter(
-      (t: { title: string }) => t.title === "E2E planned task",
-    );
-    for (const t of residue) await page.request.delete(`/api/tasks/${t.id}`);
+    // The no-op contract: NO dialog renders (closed Radix emits no
+    // [role=dialog] — the same assertion shape as the chip-clicks spec).
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // No task was created behind the click.
+    expect(posts).toEqual([]);
+    // The page did not reset — the seeded chips survive.
+    await expect(page.locator("div", { hasText: "Team standup" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Weekly Planning" })).toBeVisible();
   });
 
   test("day-card click selects the day and its section updates", async ({ page }) => {

@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (159 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, **the key-ORDER wire (session 16, KO-1/FS-28): the exact captured emission order — Task start_time-first, Note title-first, all six response surfaces — pinned by `tests/wire-order.test.ts` + the raw-text e2e order pins**, and the seed's sample-week re-anchoring (E-1), **the panel-motion config source pins (session 19, FS-31: the decompiled G1e/W1e/A_e motion contract — durations, eases, delays, keyframes — byte-pinned in QuickActions.tsx + BackgroundBlobs.tsx, incl. the BL-1 0×0 blob mirror)**, and **the theme-palette source pins + the completeness invariant (session 20, FS-32: the --font-sans/--font-mono stacks and the 13 used-but-unpinned color tokens pinned to the reference's MEASURED hexes — incl. pink-700 #be185d, one unit off the v3 hex — plus the used ⊆ pinned invariant scanning src/ for color-class tokens)) |
-| `bun run test:e2e` | Playwright (89 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (90 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -413,6 +413,14 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   bubble to select the day); task items have no action buttons (editing
   happens ONLY from the Dashboard calendar task blocks); and there is no
   Unscheduled section (the string is absent from the reference bundle).
+  **The Add Task button is decorative TOO (session 21, S21-F1)**: the
+  reference's `eSe` carries NO dialog state and the button's props carry
+  NO onClick (its `Xne` TaskDialog mounts ONLY inside `lre`, the
+  Dashboard calendar) — live trusted-click verified on the reference
+  (no dialog, no DOM change, no navigation). The clone's Planning page
+  mounts NO dialog and NO handler (the W-3/W-4 dialog request-contract
+  pin lives at the dashboard's calendar-cell entry — the reference's
+  true path). Do NOT re-add a "convenient" dialog on this page.
   **The day cards are plain clickable DIVs** (session 9, F-2 — live-measured:
   `p-4 rounded-2xl border cursor-pointer transition-all duration-200 …`
   with onclick and NO role/tabindex/aria, NOT buttons, NO `text-left`):
@@ -425,7 +433,8 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   `div` (the date title has NO heading role; the e2e pins text-based
   locators + `div.tracking-tight`). The header's Filter/Add-Task icons
   carry `mr-2` ON TOP of the Button's gap-2 (measured 100.7px vs 89.1px
-  without). `tests/e2e/planning.spec.ts` pins all of it.
+  without). `tests/e2e/planning.spec.ts` pins all of it (incl. the
+  Add Task no-op pin).
 - **The Quick Actions OPEN-PANEL state is decompiled reference behavior,
   not inferred design** (session 3, `G1e`/`z1e`/`W1e`/`H1e`/`K1e` in the
   reference bundle): opening a tile morphs the whole card container into
@@ -670,6 +679,12 @@ the standing state is 9 parity tasks + 3 notes.
   matching the pins exactly).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
+- `docs/session_21-review.md` + `docs/remediation-plan-session21.md` —
+  the session-21 record (the Planning handler-parity pass — S21-F1: the
+  Add Task button is the reference's no-op, the divergent-behavior spec
+  replaced + the W-3/W-4 pin relocated to the calendar-cell entry; the
+  matched-data raster diff at noise level; the multi-week navigation
+  closed byte-identical; FS-33).
 - `docs/session_19-review.md` + `docs/remediation-plan-session19.md` —
   the session-19 record (the framer-motion animation-timing pass at
   four evidence levels; BL-1 — the dead `w-100` blob mirrored by its
