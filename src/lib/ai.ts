@@ -28,12 +28,21 @@ import {
 export { DEFAULT_FOCUS, EMPTY_DAY_SUMMARY, FALLBACK_SUMMARY };
 export type { AiSummary, DailyFocus } from "@/lib/ai-defaults";
 
-function asStringArray(v: unknown, limit: number): string[] | null {
-  if (!Array.isArray(v)) return null;
-  const out = v
-    .filter((x): x is string => typeof x === "string" && x.length > 0)
-    .slice(0, limit);
-  return out.length > 0 ? out : null;
+// The schema-shape checks (session 14, FS-26): the reference's contract
+// is schema-INVALID → the catch/fallback, schema-VALID-but-empty →
+// rendered VERBATIM (the platform's response_json_schema has no
+// minLength/minItems — probed live on the reference's own cards with
+// the XHR response-override harness). The clone's defensive parse is
+// the self-hosted validation seam (ADR-005), so it checks SHAPE, not
+// truthiness: empty strings, empty arrays and empty-string items are
+// VALID and pass through; non-strings / non-arrays / missing fields
+// are INVALID and fall to the deterministic fallbacks.
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
 export async function generateDailyFocus(): Promise<DailyFocus> {
@@ -57,10 +66,15 @@ export async function generateDailyFocus(): Promise<DailyFocus> {
     const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
     const parsed = JSON.parse(json) as Record<string, unknown>;
     const quote = typeof parsed.quote === "string" ? parsed.quote : "";
-    const author = typeof parsed.author === "string" ? parsed.author : "";
-    const affirmation =
-      typeof parsed.affirmation === "string" ? parsed.affirmation : "";
-    if (quote && author && affirmation) {
+    // RS-4 (session 14): the guard is quote ONLY — the reference's
+    // decompiled `a && a.quote ? n(a) : n(j1)` renders empty author/
+    // affirmation verbatim ("- " + ""). Non-string author/affirmation
+    // coerce to "" (the platform schema would have rejected the
+    // response server-side; the parse's coercion only affects the
+    // render-equivalent "").
+    const author = isString(parsed.author) ? parsed.author : "";
+    const affirmation = isString(parsed.affirmation) ? parsed.affirmation : "";
+    if (quote) {
       return { quote, author, affirmation };
     }
     return DEFAULT_FOCUS;
@@ -94,12 +108,25 @@ export async function generateAiSummary(
     const raw = res.choices[0]?.message?.content ?? "";
     const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
     const parsed = JSON.parse(json) as Record<string, unknown>;
-    const mood = typeof parsed.mood === "string" ? parsed.mood : "";
-    const focusAreas = asStringArray(parsed.focus_areas, 3);
-    const activities = asStringArray(parsed.activities, 3);
-    const insights = typeof parsed.insights === "string" ? parsed.insights : "";
-    if (mood && focusAreas && activities && insights) {
-      return { mood, focus_areas: focusAreas, activities, insights };
+    // RS-1/2/3 (session 14): the SHAPE check, not truthiness — empty
+    // mood/insights, empty arrays and empty-string items are
+    // schema-VALID and pass through VERBATIM (the reference renders
+    // zero chips / empty <p>s for them; probed live). The arrays are
+    // NOT sliced or filtered here — the card's render owns the 3-slice
+    // (fre's decompile: .slice(0,3) at render, matching probe 2's
+    // 5-item → 3-chip behavior).
+    if (
+      isString(parsed.mood) &&
+      isStringArray(parsed.focus_areas) &&
+      isStringArray(parsed.activities) &&
+      isString(parsed.insights)
+    ) {
+      return {
+        mood: parsed.mood,
+        focus_areas: parsed.focus_areas,
+        activities: parsed.activities,
+        insights: parsed.insights,
+      };
     }
     return FALLBACK_SUMMARY;
   } catch (err) {

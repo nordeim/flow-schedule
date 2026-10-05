@@ -1,7 +1,7 @@
 // /api/tasks/[id] — PATCH (update, incl. status toggle) + DELETE.
 // Session 12 (W-3/W-4): a caller-supplied end_time wins over derivation;
 // description is stored verbatim ("" stays "", null when absent).
-import { fail, ok, readJson, requireUser } from "@/lib/api";
+import { fail, ok, okWire, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
 import { serializeTask } from "@/lib/serialize";
@@ -85,7 +85,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const task = await db.task.update({ where: { id }, data });
-  return ok({ task: serializeTask(task, author) });
+  return okWire({ task: serializeTask(task, author) });
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

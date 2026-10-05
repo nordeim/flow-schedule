@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (102 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order, and the seed's sample-week re-anchoring (E-1)**) |
+| `bun run test` | Vitest unit suites (121 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, and the seed's sample-week re-anchoring (E-1)) |
 | `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -331,6 +331,29 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   (`src/lib/sample-week.ts`, unit-pinned; user rows never touched;
   within-week reruns stay no-ops). Any new "seed-relative" assertion
   must be week-rollover-aware (the FS-16 family, week granularity).
+- **The response is the wire too (FS-26, session 14)**: the LLM
+  response-parse seam checks SHAPE, not truthiness — the reference's
+  contract (probed live with the XHR response-override harness) is
+  schema-INVALID → the catch/fallback, schema-VALID-but-empty →
+  rendered VERBATIM: empty mood/insights render empty `<p>`s, empty
+  focus_areas/activities arrays render ZERO chips, empty-string items
+  render empty chips, and the daily-focus guard is quote-ONLY
+  (`a && a.quote` — empty author renders "- "). `tests/ai-response.test.ts`
+  pins all five probed classes with the mocked-SDK pattern. Do NOT
+  re-tighten the parse with truthiness or `length > 0` filters —
+  that conflates "empty" (valid, renders) with "invalid" (falls
+  back).
+- **The duration wire is float-formatted (session 14, session-12
+  P-1 closed)**: the reference's Python backend emits
+  `"duration_minutes":60.0` as raw JSON float text (token-extracted
+  from its own Task list). The task routes' responses serialize via
+  `okWire` (`src/lib/api.ts`) — `floatFormatDurations`
+  (`src/lib/serialize.ts`) post-processes the envelope text; null and
+  already-fractional tokens pass through; escaped string content is
+  regex-safe (the `"` escaping differs from the property token).
+  Parsed JSON reads 60.0 and 60 identically — the e2e pins the RAW
+  text form. Do NOT switch other routes to `okWire` (the Note wire
+  has no number fields).
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -545,6 +568,12 @@ deliberately if the reference re-measures differently.
   header capture unlocking direct entity round-trips; the seed's
   stale-week re-anchor E-1 found by the gate at the Sunday→Monday UTC
   rollover; FS-24).
+- `docs/session_14-review.md` + `docs/remediation-plan-session14.md` —
+  the session-14 record (the InvokeLLM RESPONSE-side paired-probe
+  audit via the XHR response-override harness: the five probes, the
+  RS-1..RS-4 schema-shape parse fixes, the quote-only focus guard;
+  session-12 P-1 closed — the float-formatted duration wire via
+  `okWire`; FS-26).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

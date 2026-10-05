@@ -1042,6 +1042,19 @@ test.describe("dashboard", () => {
     expect(listed?.is_sample).toBe(false);
     expect(listed?.created_by).toBe("demo@flowschedule.app");
 
+    // Session 14 (session-12 P-1 closed): the RAW response text carries
+    // the duration as a float token — "duration_minutes":45.0 — matching
+    // the reference's Python-backed entity wire byte for byte (the raw
+    // tokens extracted from the reference's own Task list this session:
+    // 60.0 / 30.0 / null). Parsed JSON reads both as 45; the assertion
+    // pins the byte-level form.
+    const rawList = await (await page.request.get("/api/tasks")).text();
+    expect(rawList).toMatch(/"duration_minutes":45\.0/);
+    // The integer form never appears on the wire, and no token
+    // double-formats.
+    expect(rawList).not.toMatch(/"duration_minutes":45[,}\]]/);
+    expect(rawList).not.toMatch(/"duration_minutes":45\.0\.0/);
+
     await page.request.delete(`/api/tasks/${task.id}`);
   });
 });

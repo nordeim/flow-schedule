@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–13, 2026-10-05).
-version: 2.2.0
+  codebase-verified (sessions 1–14, 2026-10-05).
+version: 2.3.0
 last_updated: 2026-10-05
-project_state: 102/102 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the seed re-anchors its sample week across week boundaries
+project_state: 121/121 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -823,6 +823,41 @@ no-ops). The whole suite then self-heals on the next global-setup — no
 db-file deletion (the FS-8 SQLITE_READONLY_RECOVERY constraint stays
 respected).
 
+### FS-26: The response is the wire too (High — LLM parity process)
+
+**Symptom:** both AI cards' e2e specs were green and the natural LLM
+round-trips matched, but the clone's response PARSE fell to the
+deterministic fallbacks for schema-VALID-but-empty responses: an LLM
+returning `focus_areas: []` rendered the clone's "Work tasks" fallback
+chips while the reference rendered ZERO chips; empty mood/insights
+fell to the fallback while the reference rendered empty `<p>`s; a
+quote-only-valid daily-focus response (`author: ""`,
+`affirmation: ""`) fell to Mark Twain while the reference rendered
+`"- "` + an empty affirmation.
+**Root cause:** the clone's defensive parse (the self-hosted
+replacement for the platform's `response_json_schema` validation)
+used TRUTHINESS where the platform checks SHAPE — the schema has no
+minLength/minItems, so empty strings/arrays/items are VALID and the
+reference renders them verbatim; only schema-INVALID shapes trigger
+the reference's own catch/fallback. The parse conflated "empty"
+(valid, renders) with "invalid" (falls back).
+**Fix + rules (session 14):** probe the response side directly — the
+XHR response-OVERRIDE harness (`Object.defineProperty` on the XHR
+instance's `responseText`/`response`/`status`; the SDK's onload reads
+the overridden values) feeds the reference's own card components
+arbitrary post-validation JSON, probe by probe. Then pin the parse's
+contract with the mocked-SDK pattern (`tests/ai-response.test.ts`):
+SHAPE checks only (`isString`/`isStringArray`), NO truthiness, NO
+`length > 0` filters, NO parse-level slicing (the render owns the
+3-slice), and the daily-focus guard is quote-ONLY (`a && a.quote` —
+the Y1e decompile). Same session closed session-12 P-1 the same way:
+raw-text token extraction on the reference's entity wire proved the
+Python backend emits `"duration_minutes":60.0` (float text) — the
+task routes now ship float-formatted duration tokens via `okWire`
+(`floatFormatDurations` in `serialize.ts`; regex-safe against
+escaped string content because `\"` differs from `"`), pinned by
+unit + a raw-response-text e2e assertion.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1477,6 +1512,27 @@ parity remediation):
   suite self-heals on the next global-setup). Unit 89 → 102, e2e 67
   (×2 consecutive). See `docs/session_13-review.md` +
   `docs/remediation-plan-session13.md`.
+- **Session 14 (2026-10-05, v2.3.0):** session 13's suggested target —
+  the InvokeLLM RESPONSE side — probed with the XHR response-OVERRIDE
+  harness (Object.defineProperty on the instance's responseText/
+  response/status — the reference's own cards fed arbitrary
+  post-validation JSON, five edge-case probes). Four response-parse
+  divergences (RS-1..RS-4): the reference renders schema-VALID-but-empty
+  VERBATIM (empty arrays → zero chips; empty-string items → empty
+  chips; empty mood/insights → empty `<p>`s; the focus guard is
+  quote-only `a && a.quote`) while the clone's truthiness guards fell
+  to the fallbacks. Fixed pin-first: `tests/ai-response.test.ts` (11
+  pins, the mocked-SDK pattern) + the schema-SHAPE parse in
+  `src/lib/ai.ts`; mutations M-1/M-2/M-4 all RED. PLUS session-12 P-1
+  closed: raw-text token extraction on the reference's entity wire
+  proved the Python backend emits `"duration_minutes":60.0` (float
+  text) — `okWire` (`src/lib/api.ts` + `floatFormatDurations` in
+  `serialize.ts`) float-formats the task routes' response tokens
+  (verified live; pinned by unit + the raw-text e2e assertion);
+  mutations M-3/M-5 RED (the M-3 lesson: a source pin must match the
+  CALL, not the import). Unit 102 → 121, e2e 67 (×2 consecutive).
+  See `docs/session_14-review.md` +
+  `docs/remediation-plan-session14.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

@@ -84,6 +84,25 @@ export type WireNote = {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
+// Session 14 (session-12 P-1 closed): the reference's Python backend
+// serializes duration_minutes as a JSON FLOAT — the raw token on its
+// captured entity wire reads "duration_minutes":60.0 (token-extracted
+// from the reference's own Task list this session). JS
+// JSON.stringify(60) emits 60; every parser reads both as 60, but the
+// byte-level wire is a documented parity surface (FS-23/FS-24), so the
+// task routes' response text float-formats the INTEGER duration
+// tokens. Safety: escaped string content (a description quoting the
+// token) serializes as \"duration_minutes\": — backslash-separated,
+// which the property-token regex cannot match; null and
+// already-fractional values pass through untouched (both probed on
+// the reference's live wire).
+export function floatFormatDurations(json: string): string {
+  return json.replace(
+    /("duration_minutes":)(-?\d+)([,}\]])/g,
+    "$1$2.0$3",
+  );
+}
+
 export function serializeTask(task: TaskRow, author: WireAuthor): WireTask {
   return {
     id: task.id,

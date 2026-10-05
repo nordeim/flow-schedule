@@ -7,7 +7,7 @@
 // description verbatim (W-4 — "" stays ""); both are accepted here.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fail, ok, readJson, requireUser } from "@/lib/api";
+import { fail, okWire, readJson, requireUser } from "@/lib/api";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
 import { serializeTask, type WireAuthor } from "@/lib/serialize";
 
@@ -25,7 +25,7 @@ export async function GET() {
     // order decides which chips are visible behind "+N more".
     orderBy: { createdAt: "desc" },
   });
-  return ok({ tasks: tasks.map((t) => serializeTask(t, author)) });
+  return okWire({ tasks: tasks.map((t) => serializeTask(t, author)) });
 }
 
 export async function POST(req: Request) {
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     },
   });
 
-  return ok(
+  return okWire(
     { task: serializeTask(task, { id: auth.user.id, email: auth.user.email }) },
     201,
   );

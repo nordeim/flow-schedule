@@ -985,3 +985,77 @@ Stage Summary:
   seeds rot at week boundaries — re-anchor in the seed, not the
   specs), and the base44 SDK-auth unlock (Authorization Bearer +
   X-App-Id + X-Origin-URL for direct entity round-trips)
+
+---
+Task ID: 30
+Agent: session-14 remediation agent
+Task: Session 14 — audit the session-13 suggested target (the
+InvokeLLM RESPONSE side: the parse/render contract for both cards'
+success paths), re-pin the mobile/desktop menus, close session-12 P-1
+(the duration_minutes float formatting), remediate TDD-first, re-align
+docs, push to main.
+
+Work Log:
+- git pull (main 55904a1 → 5d1b32c, adds docs/session_14.md); base
+  gate green (lint · tsc · 102/102 unit · build 19 routes · 67/67 e2e
+  in 1.9 m) — the codebase matched its documented state exactly
+- Built the XHR response-OVERRIDE harness (Object.defineProperty on
+  the instance's responseText/response/status — the reference's own
+  card components read the overridden values) and ran FIVE edge-case
+  probes: empty arrays → ZERO chips (RS-1); ["", "real area"] → an
+  empty chip + "real area" (RS-2); empty mood/insights → empty <p>s
+  (RS-3); {quote, author:"", affirmation:""} → the quote + "- " +
+  empty affirmation (RS-4 — the guard is a && a.quote ONLY, the Y1e
+  decompile); 5-item arrays → 3 chips (the render owns the slice)
+- Natural captures: 3 InvokeLLM round-trips (Walt Disney ×2, the
+  "Focused" summary) — the normal path parses identically on both
+  apps; the card DOM (probe-extracted) matches class-for-class
+- Session-12 P-1 CONFIRMED via raw-text token extraction on the
+  reference's entity wire: "duration_minutes":60.0 / 30.0 / null —
+  the Python backend serializes floats; the clone's JS emitted 60
+- Remediated (TDD): tests/ai-response.test.ts (11 pins, the
+  mocked-SDK pattern) RED 7/11 → the schema-SHAPE parse in
+  src/lib/ai.ts (isString/isStringArray; quote-only focus guard; no
+  truthiness, no length filters, no parse-level slicing) GREEN;
+  tests/wire-float.test.ts (8 pins) RED → okWire (api.ts) +
+  floatFormatDurations (serialize.ts) + the 3 task-route call sites
+  + the raw-text e2e assertion GREEN; the live dev-server wire now
+  ships 30.0/120.0/60.0/90.0/45.0/null
+- MUTATION (RED) evidence M-1..M-5 (the harness outside the repo):
+  M-1 truthiness revert → 2 pins; M-2 three-field-guard revert → 2
+  pins; M-3 okWire drops the float call → 1 pin (after the pin was
+  STRENGTHENED to match the CALL, not the import — the first run
+  survived on the import line alone; the pin-strength lesson); M-4
+  slice/filter revert → 2 pins; M-5 route ok revert → 1 pin. All
+  reverted, tree verified
+- Gate: lint ✓ · tsc ✓ · 121/121 unit (102 → 121) · build ✓ ·
+  67/67 e2e ×2 consecutive (2.0 m + 2.0 m) · the dev server's routes
+  round-tripped live (the raw wire float-formatted; the AI routes on
+  the documented 429 fallback class)
+- Mobile + desktop menu pins green inside every full e2e run — no
+  Tailwind v4 regression (the parse/wire changes touch no CSS)
+- All 20 screenshots re-captured; reference-account hygiene: the 8
+  S14 probe tasks deleted via the captured auth headers (verified 0
+  leftovers; the 9 parity tasks untouched)
+- Docs realigned: README (response-parse + float wire + counts),
+  AGENTS.md (FS-26 + the float-wire + duration conventions + the
+  Reference section), CLAUDE.md (the response-parse contract +
+  okWire), PAD (§7 + §8 counts + §12 ledger rows),
+  flow-schedule_SKILL.md v2.3.0 (FS-26 + the M-3 pin-strength
+  lesson + session-14 history), remediation-plan-session14 execution
+  record, docs/session_14-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 14 delivered: the InvokeLLM RESPONSE side brought to full
+  parity — the four parse divergences (RS-1..RS-4) closed with the
+  probed schema-shape contract (empty-but-valid renders verbatim;
+  schema-invalid falls back), and session-12 P-1 closed with the
+  float-formatted duration wire (okWire, byte-matching the
+  reference's Python backend). Unit 102 → 121, e2e 67 (×2
+  consecutive)
+- Key new knowledge: FS-26 (the response is the wire too — the
+  response-OVERRIDE harness probes the reference's own cards; shape
+  checks, not truthiness), the M-3 pin-strength lesson (a source pin
+  must match the CALL, not the import), and the raw-text token
+  extraction as the byte-diff tool that closes P-class observations
