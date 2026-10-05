@@ -117,6 +117,21 @@ equivalents at identical URLs and JSON shapes.
 - Production: set the absolute path in the repo's `.env`, or remove the
   `DATABASE_URL` line there and use the environment variable.
 
+### The AI prompt wire (session 13, FS-24)
+
+- `src/lib/ai-prompt.ts` holds both prompts pinned BYTE-FOR-BYTE to the
+  reference's CAPTURED InvokeLLM request bodies (the 8-space "blank"
+  lines, the per-task template + `\n` join, the trailing space on
+  item 3, the 6-space final line). `tests/ai-prompt.test.ts` pins the
+  bytes + the SDK wiring (vi.mock) + the summary route's
+  createdAt-desc task order (fn.Task.list()'s default —
+  capture-proven, NOT startTime order). Do not reformat the
+  whitespace; do not sort the tasks.
+- The seed re-anchors its sample week across week boundaries
+  (`src/lib/sample-week.ts`, E-1): the calendar always renders the
+  current week, so stale sample rows are deleted and re-created on
+  the current week; user rows are never touched.
+
 ## Development Workflow
 
 ### Environment Setup
@@ -137,7 +152,7 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (89 tests) |
+| `bun run test` | Vitest unit (102 tests) |
 | `bun run test:e2e` | Playwright e2e (67 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 

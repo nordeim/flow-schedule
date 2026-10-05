@@ -19,9 +19,16 @@ export async function GET(req: Request) {
     if (!Number.isNaN(parsed.getTime())) day = parsed;
   }
 
+  // fn.Task.list()'s default order = createdAt DESC (session 7, G-1) —
+  // the reference's fre filters that list AS RETURNED (no re-sort), and
+  // the session-13 two-task InvokeLLM capture confirms it: the
+  // newest-created task is listed FIRST in the prompt despite a later
+  // start_time (L-5 — the clone's old startTime-asc query produced a
+  // different task order in the prompt). Pinned by
+  // tests/ai-prompt.test.ts's route-contract source read.
   const tasks = await db.task.findMany({
     where: { userId: auth.user.id, startTime: { not: null } },
-    orderBy: { startTime: "asc" },
+    orderBy: { createdAt: "desc" },
   });
   const dayTasks = tasks
     .filter((t) => t.startTime && isSameDay(t.startTime, day))

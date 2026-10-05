@@ -876,3 +876,112 @@ Stage Summary:
   server RETURNS; prove zero consumers before renaming; pin exact
   key sets), and the zero-consumer rename discipline (the cheapest
   parity win there is)
+
+---
+Task ID: 29
+Agent: session-13 remediation agent
+Task: Session 13 — audit the session-12 suggested target (the two
+InvokeLLM request bodies: the Daily Focus + AI Summary prompts and
+their response_json_schema), re-pin the mobile/desktop menus, and
+remediate whatever the audit finds (TDD, docs, screenshots, push to
+main).
+
+Work Log:
+- git pull (main 0a7f7f6 → 9485de5, adds docs/session_13.md);
+  re-read the five root docs + session_12-review +
+  remediation-plan-session12 + worklog + session_13.md; full base
+  gate re-executed: lint ✓ · tsc ✓ · 89/89 unit · build ✓ (19 routes)
+  · 67/67 e2e in 3.2 m — the codebase matched its documented state
+  exactly
+- Audit target (the InvokeLLM bodies): XHR-patched the logged-in
+  reference (session 12's method) UPGRADED with request-HEADER
+  capture — the base44 SDK sends Authorization: Bearer … + X-App-Id
+  + X-Origin-URL (plain fetch from the page CORS-fails without
+  them), enabling direct entity round-trips (probe creation +
+  cleanup). Triggered both LLM re-fetches with client-side quick-add
+  mutations (direct API POSTs do NOT bump the reference's
+  refreshTrigger); captured 4 InvokeLLM bodies (1-task + 2-task
+  summary variants after an API-created second today-scheduled
+  task); decompiled fre/Y1e from the live bundle
+- FINDINGS: the Daily Focus prompt is byte-identical to the clone's
+  (all three fallback constants also match); the AI Summary prompt
+  has FOUR formatting divergences (L-1..L-4: the reference's 8-space
+  "blank" lines, the blank line between date and first task, the
+  per-task template + \n join with its blank-line pair between
+  tasks, the trailing space on item 3) and ONE order divergence
+  (L-5: fn.Task.list()'s createdAt-desc — the 2-task capture lists
+  the newest-created task FIRST despite a later start_time,
+  disproving the clone's startTime-asc query)
+- Wrote docs/remediation-plan-session13.md (L-1..L-5 + P-3
+  response_json_schema as platform validation + P-4 sampling params
+  + P-5 the date param, TDD steps, mutation plan); plan validated
+  against the code (insertion points, the file-read precedent)
+  before execution
+- R-1/R-2 RED-first: tests/ai-prompt.test.ts — the two captured
+  prompts pinned BYTE-FOR-BYTE (whitespace-safe line-join
+  construction), order preservation, the route-source contract
+  (createdAt desc, the next-config/db-cli file-read precedent), and
+  NEW evidence class: mocked-SDK wiring pins (vi.mock
+  "z-ai-web-dev-sdk") asserting the exact prompt bytes reach
+  chat.completions.create — the first unit-level evidence for a
+  server-side call the e2e can never intercept. Granular RED:
+  builder pins green after the module, the route pin + wiring pin
+  RED against pre-change code
+- R-1 GREEN: src/lib/ai-prompt.ts (pure, the ai-defaults pattern)
+  — DAILY_FOCUS_PROMPT + buildAiSummaryPrompt (the decompiled fre
+  template, source-for-source); ai.ts wired to both; R-2 GREEN:
+  /api/ai/summary orderBy createdAt desc
+- E-1 FOUND BY THE GATE: the post-change e2e failed 12 seeded-task
+  specs at 00:15 UTC Monday after a 67/67 baseline at 23:40 UTC
+  Sunday — the seed anchors its scheduled samples to the week the
+  DB was FIRST seeded, the idempotency guard never re-anchors, and
+  the calendar always renders the current week (the FS-16 family at
+  WEEK granularity; pre-existing, not caused by the LLM changes)
+- E-1 RED-first: tests/sample-week.test.ts (weekMonday identity,
+  the staleness decision ×4, the seed source contract); GREEN:
+  src/lib/sample-week.ts (pure) + the seed's re-anchor (stale →
+  deleteMany is_sample rows → re-create on the current week; user
+  rows never touched) — the dev seed re-anchored live ("Sample
+  tasks re-anchored… Seeded 9 sample tasks"), within-week reruns
+  stay no-ops ("already present (9) — skipped")
+- MUTATION (RED) evidence: M-1 (builder reverted to the old format)
+  → 3 pins FAIL; M-2 (route startTime flip) → the route pin FAILS;
+  M-3 (item template loses its leading newline) → 3 pins FAIL; M-4
+  (ai.ts inline prompt) → the wiring pin FAILS; M-5 (seed re-anchor
+  removed) → the seed pin FAILS. All reverted, tree verified
+- Gate: lint ✓ · tsc ✓ · 102/102 unit (89 → 96 ai-prompt → 102
+  sample-week) · build ✓ (19 routes) · 67/67 e2e ×2 consecutive
+  (3.3 m + 3.1 m, through live SDK 429s — the fallbacks by design)
+  · the dev server's /api/ai/summary round-tripped live (the 429
+  fallback class) in the ambient-polluted shell (the repo's own
+  db/custom.db served)
+- Mobile + desktop menu pins green inside every full e2e run — no
+  Tailwind v4 regression (the prompt/seed changes touch no CSS)
+- All 20 screenshots re-captured (the re-anchored seed week
+  visible); reference-account hygiene: the 3 session-13 probe tasks
+  deleted via the captured auth headers
+- Docs realigned: README, AGENTS.md (FS-24 + E-1 conventions + the
+  Reference section + counts), CLAUDE.md (the AI prompt wire
+  section), PAD (§7 byte-pinned prompts + §8 counts + §12 ledger
+  rows), flow-schedule_SKILL.md v2.2.0 (FS-24 + FS-25 + session-13
+  history + counts), remediation-plan-session13 execution record,
+  docs/session_13-review.md, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 13 delivered: the session-12 suggested target audited with
+  the interception method extended to the LLM wire (header capture +
+  decompile) — the Daily Focus route at FULL byte parity; the AI
+  Summary route's prompt brought to BYTE parity (L-1..L-4) with its
+  task order corrected to the captured createdAt-desc (L-5), all
+  pinned with a new evidence class (the mocked-SDK wiring pin);
+  PLUS the gate itself surfaced the week-rollover seed flake (E-1),
+  fixed in the seed layer so the suite self-heals. Unit 89 → 102,
+  e2e 67 (×2 consecutive)
+- Key new knowledge: FS-24 (the prompt IS the wire — pin LLM request
+  bodies byte-for-byte incl. source-indentation artifacts; the
+  mocked-SDK spy is the seam evidence for server-side calls; the
+  task ORDER is the caller's input contract), FS-25 ("today"-anchored
+  seeds rot at week boundaries — re-anchor in the seed, not the
+  specs), and the base44 SDK-auth unlock (Authorization Bearer +
+  X-App-Id + X-Origin-URL for direct entity round-trips)

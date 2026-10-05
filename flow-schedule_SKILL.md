@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–12, 2026-10-05).
-version: 2.1.0
+  codebase-verified (sessions 1–13, 2026-10-05).
+version: 2.2.0
 last_updated: 2026-10-05
-project_state: 89/89 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description)
+project_state: 102/102 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -771,6 +771,58 @@ order is the save flow's `refreshNotes()` re-fetch, not the store
 prepend) — that is not a weak pin, it is the pin correctly guarding the
 BEHAVIOR surface while documenting which seam actually enforces it.
 
+### FS-24: The prompt IS the wire (High — LLM parity process)
+
+**Symptom:** the AI Summary card rendered fine and its e2e specs were
+green, but the PROMPT the clone sent to the LLM was a different byte
+stream than the reference's: truly-empty blank lines vs the reference's
+8-space "blank" lines, no blank line between the date and the first
+task, a plain `\n` join (no indent on subsequent tasks) vs the
+reference's per-task template + blank-line structure, a missing
+trailing space on item 3 — and, invisibly, a different task ORDER
+(startTime asc vs the reference's createdAt-desc list feed). No test
+could notice: both sides' consumers (the LLM + the defensive parser)
+absorb formatting differences.
+**Root cause:** an LLM-backed feature's parity surface is not just the
+rendered card — it is the REQUEST BODY. Decompile gives you the
+template (the reference's `fre` is a template literal whose source
+indentation IS the wire); the capture gives you the bytes; the task
+ORDER is an input contract decided by the caller (the 2-task capture
+lists the NEWEST-created task first — disproving start-time ordering).
+**Fix + rules (session 13):** pin the prompt in a PURE module
+(`src/lib/ai-prompt.ts`) with byte-for-byte unit pins derived from the
+captured InvokeLLM body — the whitespace artifacts (8-space blanks,
+per-item templates, the trailing space) are CONTRACT, not noise; wire
+it with a mocked-SDK spy pin (`vi.mock("z-ai-web-dev-sdk")`) proving
+the exact bytes reach `chat.completions.create` — the only unit-level
+evidence for a server-side call the e2e can never intercept; pin the
+caller's order at the route source (the file-read precedent) when the
+e2e can't see it. Related unlock: the base44 SDK's auth is HEADER-based
+(`Authorization: Bearer …` + `X-App-Id` + `X-Origin-URL`) — capturing
+`setRequestHeader` enables direct entity round-trips from the logged-in
+reference page (probe creation + hygiene cleanup).
+
+### FS-25: "Today"-anchored seeds rot at week boundaries (Medium — e2e determinism)
+
+**Symptom:** the e2e suite passed 67/67 at 23:40 UTC Sunday and failed
+12 seeded-task specs 35 minutes later (Monday 00:15 UTC) with zero code
+changes: "Team standup" et al. simply vanished from the calendar. The
+seed anchors its scheduled samples to the week the DB was FIRST seeded
+(`at(dayOffset, …)` from that week's Monday) and the idempotency guard
+never revisits them — while the calendar always renders the CURRENT
+week.
+**Root cause:** the FS-16 hour-of-day flake family, at WEEK granularity:
+any seed-relative assertion is calendar-week-dependent, and a guarded
+idempotent seed silently freezes "today" at first-seed time.
+**Fix + rules (session 13, E-1):** the re-anchor belongs in the SEED —
+the layer that owns the anchoring — not in the specs. A pure staleness
+seam (`src/lib/sample-week.ts`: `weekMonday` identity comparison)
+decides; the seed deletes ONLY `is_sample` rows and re-creates them on
+the current week (user rows are never touched; within-week reruns stay
+no-ops). The whole suite then self-heals on the next global-setup — no
+db-file deletion (the FS-8 SQLITE_READONLY_RECOVERY constraint stays
+respected).
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -846,9 +898,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 88/88
+bun run test          # 102/102
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 64/64 on the production standalone :3100
+bun run test:e2e      # 67/67 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -1169,9 +1221,9 @@ parity remediation):
 |---|---|
 | `bun run lint` | clean |
 | `bun run typecheck` | clean |
-| `bun run test` (Vitest) | **88/88** — auth ×8, db-path ×32 (v3: the repo-.env authority rule, the e2e-isolation + provider overrides), domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6, wire-format ×7, db-cli-scripts ×5 |
+| `bun run test` (Vitest) | **102/102** — auth ×8, db-path ×32 (v3: the repo-.env authority rule, the e2e-isolation + provider overrides), domain ×16 (incl. skills colors + name transform), ai-defaults ×3, env-example ×4, site ×4, next-config ×3, rate-limit ×6, wire-format ×7, db-cli-scripts ×5, **ai-prompt ×7 (session 13: the captured InvokeLLM bodies byte-for-byte + the mocked-SDK wiring pins + the route order source contract)**, **sample-week ×6 (session 13, E-1: the stale-week re-anchor decision + the seed source contract)** |
 | `bun run build` | green; 19 routes incl. `/robots.txt`, `/sitemap.xml`; **type-checked by the build itself** (`ignoreBuildErrors` removed, session 3) |
-| `bun run test:e2e` (Playwright) | **64/64** × 2 consecutive full runs (+5 session-8 pins — the enter animation, the classic DialogTitle/SelectTrigger classes, the single lucide class, the snake_case response shape; +1 session-9 pin — the plain-DIV day cards) |
+| `bun run test:e2e` (Playwright) | **67/67** × 2 consecutive full runs (+5 session-8 pins — the enter animation, the classic DialogTitle/SelectTrigger classes, the single lucide class, the snake_case response shape; +1 session-9 pin — the plain-DIV day cards; +1 session-12 interception pin — the dialog's end_time + verbatim description) |
 | `scripts/smoke-test.sh` | 30/30 (incl. authed page renders + unauth guard redirects) |
 | Reference parity (mobile menu) | re-measured live on BOTH apps every session; session 8: 182/54/192×164 at 390×844, trigger 338/14/36×36 — identical, now ANIMATED like the reference's |
 | Reference parity (sidebar cards) | bundle decompile (ure/Y1e/fre/g0e) + live DOM on both apps: the Next Up state machine (skeleton, priority badge, format-string-bug time row, 75% progress + Ready, FUNCTIONAL Mark Complete round-tripped on both, decorative ArrowRight), Mark Twain fallback, Brain + Sparkles header, Award indicator, m0e hexes, percentage-only legend — all matched |
@@ -1402,6 +1454,29 @@ parity remediation):
   (×2 consecutive, one unrelated timer flake in run 1). See
   `docs/session_12-review.md` +
   `docs/remediation-plan-session12.md`.
+- **Session 13 (2026-10-05, v2.2.0):** session 12's suggested target —
+  the two InvokeLLM request bodies — diffed via the XHR interception
+  UPGRADED with request-HEADER capture (the base44 SDK's auth is
+  `Authorization: Bearer …` + `X-App-Id` + `X-Origin-URL`; plain fetch
+  CORS-fails without them) + the `fre`/`Y1e` decompile. The Daily Focus
+  prompt: byte-identical (and all three fallback constants match). The
+  AI Summary: FIVE divergences — L-1..L-4 the prompt bytes (the
+  reference's 8-space "blank" lines, the per-task template + `\n` join
+  with its blank-line pair between tasks, the trailing space on item
+  3) and L-5 the task ORDER (fn.Task.list()'s createdAt-desc,
+  capture-proven: the newest-created task listed first — disproving
+  startTime ordering). Fixed pin-first: `src/lib/ai-prompt.ts` (pure)
+  with byte-for-byte pins + a **mocked-SDK wiring pin (vi.mock — the
+  first unit-level evidence for a server-side call the e2e can never
+  intercept)** + the route-source order contract; mutations M-1..M-4
+  all RED. The gate then found E-1 at the Sunday→Monday UTC rollover
+  (the FS-16 family at WEEK granularity): the seed's sample week never
+  re-anchored, so 12 seeded-task specs failed 35 minutes after a green
+  baseline — fixed in the seed itself (`src/lib/sample-week.ts` +
+  delete-and-recreate stale `is_sample` rows; mutation M-5 RED; the
+  suite self-heals on the next global-setup). Unit 89 → 102, e2e 67
+  (×2 consecutive). See `docs/session_13-review.md` +
+  `docs/remediation-plan-session13.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

@@ -10,7 +10,10 @@
 
 import ZAI from "z-ai-web-dev-sdk";
 import type { Category, Priority } from "@/lib/domain";
-import { format } from "date-fns";
+import {
+  DAILY_FOCUS_PROMPT,
+  buildAiSummaryPrompt,
+} from "@/lib/ai-prompt";
 import {
   DEFAULT_FOCUS,
   EMPTY_DAY_SUMMARY,
@@ -40,8 +43,9 @@ export async function generateDailyFocus(): Promise<DailyFocus> {
       messages: [
         {
           role: "user",
-          content:
-            "Generate a short inspirational quote for productivity, its author, and a positive affirmation for the day. Return as JSON.",
+          // The captured InvokeLLM prompt, byte-for-byte (session 13;
+          // src/lib/ai-prompt.ts — unit-pinned against the capture).
+          content: DAILY_FOCUS_PROMPT,
           // The reference passes response_json_schema; the SDK models this
           // via response_format, which the chat completions path accepts.
         },
@@ -74,21 +78,12 @@ export async function generateAiSummary(
   tasks: { title: string; category: Category; priority: Priority }[],
 ): Promise<AiSummary> {
   if (tasks.length === 0) return EMPTY_DAY_SUMMARY;
-  const taskLines = tasks
-    .map((t) => `- ${t.title} (${t.category}, ${t.priority} priority)`)
-    .join("\n");
-  const prompt = `
-        Analyze this daily schedule briefly:
-
-        Tasks for ${format(day, "MMMM d, yyyy")}:
-        ${taskLines}
-
-        Provide a concise analysis with:
-        1. Overall mood/theme (1-2 words)
-        2. Key focus areas (max 3 items)
-        3. Activity types (max 3 items)
-        4. Brief insight (max 2 sentences)
-      `;
+  // The captured InvokeLLM prompt, byte-for-byte (session 13, L-1..L-4:
+  // the 8-space "blank" lines, the per-task template + join, the
+  // trailing space on item 3 — src/lib/ai-prompt.ts, unit-pinned
+  // against the capture). The task ORDER is this caller's contract:
+  // /api/ai/summary feeds fn.Task.list()'s default (createdAt desc).
+  const prompt = buildAiSummaryPrompt(day, tasks);
   try {
     const zai = await ZAI.create();
     const res = await zai.chat.completions.create({

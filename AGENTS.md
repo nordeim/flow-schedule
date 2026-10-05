@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (89 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes**, the prisma-CLI wrapper contract) |
+| `bun run test` | Vitest unit suites (102 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order, and the seed's sample-week re-anchoring (E-1)**) |
 | `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -310,6 +310,27 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   you what the code SENDS; only the wire tells you what the server
   RETURNS. The proof of zero consumers (bundle + repo searched) is
   what makes a field rename safe.
+- **The prompt IS the wire (FS-24, session 13)**: the two InvokeLLM
+  request bodies are parity surfaces pinned BYTE-FOR-BYTE in
+  `src/lib/ai-prompt.ts` (`DAILY_FOCUS_PROMPT` +
+  `buildAiSummaryPrompt`) — the reference's template literals are
+  indented inside their functions, so the "blank" lines carry 8
+  spaces, every task line is indented, consecutive tasks are joined
+  `\n        - …\n        `-style (an 8-space line AND an empty line
+  between), item 3 carries a trailing space, and the prompt ends with
+  a 6-space line. Do NOT "clean up" the whitespace —
+  `tests/ai-prompt.test.ts` pins the exact captured bytes and a
+  mocked-SDK wiring pin verifies the bytes reach
+  `chat.completions.create`. The summary route feeds the builder
+  fn.Task.list()'s default order (createdAt desc — capture-proven:
+  the newest-created task is listed first, NOT the earliest start).
+- **The seed re-anchors its sample week (E-1, session 13)**: the
+  calendar always renders the CURRENT week, so a database seeded last
+  week has invisible sample tasks — the seed deletes and re-creates
+  the `is_sample` rows when their week went stale
+  (`src/lib/sample-week.ts`, unit-pinned; user rows never touched;
+  within-week reruns stay no-ops). Any new "seed-relative" assertion
+  must be week-rollover-aware (the FS-16 family, week granularity).
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -414,9 +435,14 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   only itself). `loadingTasks` starts `true` so the sidebar cards
   skeleton from the first paint (bootstrap drops it when
   unauthenticated).
-- The seed is idempotent via `is_sample: true` guards + user upsert;
-  re-running never duplicates. Sample data belongs to the seed, never to
-  the runtime.
+- The seed is idempotent via `is_sample: true` guards + user upsert
+  WITHIN a week; across a week boundary it RE-ANCHORS (session 13,
+  E-1): the scheduled sample rows are deleted and re-created on the
+  current week (the calendar always renders the current week — a
+  stale sample week means invisible seeds and 12 failing e2e specs;
+  `src/lib/sample-week.ts` decides, unit-pinned). User rows
+  (is_sample: false) are never touched. Sample data belongs to the
+  seed, never to the runtime.
 - Screenshots for docs live in `docs/screenshots/` and are captured from
   the dev server at 1440×900 (desktop) and 390×844 (mobile) — interactive
   Radix/dialog states need `scripts/capture-screenshots.mjs` (Playwright
@@ -512,6 +538,13 @@ deliberately if the reference re-measures differently.
   from the live XHR interception: created_date/updated_date,
   is_sample/created_by/created_by_id, the dialog's client-computed
   end_time, the verbatim description; FS-23).
+- `docs/session_13-review.md` + `docs/remediation-plan-session13.md` —
+  the session-13 record (the InvokeLLM prompt/schema diff: the
+  daily-focus prompt byte-identical, the AI-summary prompt + order
+  fixed from the captured request bodies — L-1..L-5; the SDK-auth
+  header capture unlocking direct entity round-trips; the seed's
+  stale-week re-anchor E-1 found by the gate at the Sunday→Monday UTC
+  rollover; FS-24).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/DEPLOYMENT.md` — production deployment (absolute DB path, env

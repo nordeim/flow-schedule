@@ -1,11 +1,16 @@
 // FlowSchedule — idempotent seed.
 // Creates the demo user (demo@flowschedule.app / demo1234) plus a week of
-// sample tasks and two starter notes. Re-running is a no-op: the user is
-// upserted by unique email, and sample tasks/notes are guarded by
-// is_sample = true.
+// sample tasks and two starter notes. Re-running within the same week is
+// a no-op: the user is upserted by unique email, and sample tasks/notes
+// are guarded by is_sample = true. When the seeded sample week has gone
+// STALE (the database was seeded last week — E-1, session 13), the
+// is_sample task rows are deleted and re-created on the CURRENT week so
+// the calendar (always the current week) keeps rendering them; the
+// user's own rows are never touched.
 
 import { PrismaClient } from "@prisma/client";
 import { resolveProcessDatabaseUrl } from "../src/lib/db-path";
+import { isSampleWeekStale } from "../src/lib/sample-week";
 
 process.env.DATABASE_URL = resolveProcessDatabaseUrl();
 
@@ -34,9 +39,30 @@ async function main() {
     },
   });
 
-  const existingSamples = await prisma.task.count({
+  // E-1 (session 13): re-anchor the sample week when it has gone stale.
+  // The seed anchors its scheduled samples to the week the database was
+  // FIRST seeded; after a week rollover the calendar (always the current
+  // week) renders none of them — reproduced live at the Sunday→Monday UTC
+  // boundary (67/67 at 23:40, seeded-task spec failures 35 minutes
+  // later). The staleness decision lives in src/lib/sample-week.ts
+  // (unit-pinned); only is_sample rows are ever deleted.
+  const sampleCount = await prisma.task.count({
     where: { userId: user.id, isSample: true },
   });
+  const earliestSample =
+    sampleCount > 0
+      ? await prisma.task.findFirst({
+          where: { userId: user.id, isSample: true, startTime: { not: null } },
+          orderBy: { startTime: "asc" },
+        })
+      : null;
+  const stale = isSampleWeekStale(earliestSample?.startTime ?? null, new Date());
+  if (sampleCount > 0 && stale) {
+    await prisma.task.deleteMany({ where: { userId: user.id, isSample: true } });
+    console.log("Sample tasks re-anchored to the current week");
+  }
+
+  const existingSamples = stale ? 0 : sampleCount;
   if (existingSamples === 0) {
     await prisma.task.createMany({
       data: [
