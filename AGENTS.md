@@ -16,7 +16,7 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (133 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, and the seed's sample-week re-anchoring (E-1)) |
+| `bun run test` | Vitest unit suites (143 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, **the key-ORDER wire (session 16, KO-1/FS-28): the exact captured emission order — Task start_time-first, Note title-first, all six response surfaces — pinned by `tests/wire-order.test.ts` + the raw-text e2e order pins**, and the seed's sample-week re-anchoring (E-1)) |
 | `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
@@ -375,6 +375,32 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   `git diff --stat` is NOT enough (the first harness's per-mutation
   backup corrupted api.ts when two mutations touched the same file;
   the build compiled the corrupted tree and the e2e caught it).
+- **The KEY ORDER is part of the wire contract (FS-28, session 16)**: the
+  reference's platform emits a CONSISTENT captured order on every entity
+  response surface (GET/POST/PUT, both entities — probed live):
+  Task `start_time, duration_minutes, end_time, description, title,
+  priority, category, status, id, created_date, updated_date,
+  created_by_id, created_by, is_sample`; Note `title, content, tags, id,
+  created_date, updated_date, created_by_id, created_by, is_sample`.
+  `serializeTask`/`serializeNote` emit in that order (JSON.stringify
+  preserves string-key insertion order; the okWire transforms are
+  order-agnostic substitutions). Consumers read by name — the order is
+  a byte-parity surface, not a behavioral one; the existing sorted-set
+  pins stay green, the exact-order pins live in
+  `tests/wire-order.test.ts`, and the e2e pins the raw text
+  (`"tasks":[{"start_time":` …). Do NOT "helpfully" re-sort or
+  re-serialize the literals.
+- **end_time is stored AS SUBMITTED (session 16, ET-1)**: the reference
+  does NOT derive it server-side — a POST with start_time + duration
+  but no end_time stores `end_time: null` (probed live; the task is
+  EXCLUDED from Log Activity by the H1e null guard, exactly like a
+  quick-added task), and its PUT is PARTIAL (Mark Complete probed:
+  `PUT {"status":"completed"}` — nothing else changes; a start/duration
+  change without end_time does NOT recompute it). The clone's POST/PATCH
+  routes match: an omitted end_time stays null (create) / unchanged
+  (update); a supplied one still validates. The dialog ALWAYS sends
+  end_time client-computed (the W-3 pin) — no app flow changes; do NOT
+  re-add a "convenient" server-side derivation.
 - Task `status: "in_progress"` (snake), but priorities/categories are bare
   words — mirror the reference enums exactly; no synonyms, no casing games.
 - **The /Planning page is decompiled reference behavior, not inferred
@@ -595,6 +621,15 @@ deliberately if the reference re-measures differently.
   RS-1..RS-4 schema-shape parse fixes, the quote-only focus guard;
   session-12 P-1 closed — the float-formatted duration wire via
   `okWire`; FS-26).
+- `docs/session_16-review.md` + `docs/remediation-plan-session16.md` —
+  the session-16 record (the entity wire KEY ORDER closed — KO-1/FS-28:
+  the captured emission order on every response surface, the exact-order
+  serializer pins + the raw-text e2e order pins; the end_time derivation
+  removed — ET-1: the reference stores it as submitted, the partial-PUT
+  semantics probed via Mark Complete; the mobile menu re-measured live
+  again — identical; the transport-layer ruling: the envelope/status/
+  method names are the documented self-hosted design, the update
+  SEMANTICS are identical).
 - `docs/session_15-review.md` + `docs/remediation-plan-session15.md` —
   the session-15 record (the failure-path paired probe closing the
   last AI surface — the reference's 429 catch renders the same Mark

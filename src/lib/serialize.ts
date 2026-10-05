@@ -136,22 +136,37 @@ export function formatWireDates(
   );
 }
 
+// Session 16 (KO-1 / FS-28): the KEY ORDER is part of the wire
+// contract — the reference's platform emits the captured order on
+// EVERY response surface (GET list + POST create + PUT update, Task
+// AND Note — probed live on its own traffic; the REQUEST side — the
+// dialog save — was probed byte-identical to the clone's TaskDialog
+// payload). The literals below emit in the captured order:
+//   Task: start_time, duration_minutes, end_time, description, title,
+//         priority, category, status, id, created_date, updated_date,
+//         created_by_id, created_by, is_sample
+//   Note: title, content, tags, id, created_date, updated_date,
+//         created_by_id, created_by, is_sample
+// JSON.stringify preserves string-key insertion order; the okWire
+// text transforms are order-agnostic substitutions. Consumers read
+// by name (mapTask/mapNote) — the order is a byte-parity surface,
+// not a behavioral one (tests/wire-order.test.ts pins it).
 export function serializeTask(task: TaskRow, author: WireAuthor): WireTask {
   return {
-    id: task.id,
-    title: task.title,
+    start_time: iso(task.startTime),
+    duration_minutes: task.durationMinutes,
+    end_time: iso(task.endTime),
     description: task.description,
+    title: task.title,
     priority: task.priority,
     category: task.category,
     status: task.status,
-    start_time: iso(task.startTime),
-    end_time: iso(task.endTime),
-    duration_minutes: task.durationMinutes,
+    id: task.id,
     created_date: task.createdAt.toISOString(),
     updated_date: task.updatedAt.toISOString(),
-    is_sample: task.isSample,
-    created_by: author.email,
     created_by_id: author.id,
+    created_by: author.email,
+    is_sample: task.isSample,
   };
 }
 
@@ -166,14 +181,14 @@ export function serializeNote(note: NoteRow, author: WireAuthor): WireNote {
     tags = [];
   }
   return {
-    id: note.id,
     title: note.title,
     content: note.content,
     tags,
+    id: note.id,
     created_date: note.createdAt.toISOString(),
     updated_date: note.updatedAt.toISOString(),
-    is_sample: note.isSample,
-    created_by: author.email,
     created_by_id: author.id,
+    created_by: author.email,
+    is_sample: note.isSample,
   };
 }

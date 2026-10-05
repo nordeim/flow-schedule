@@ -71,9 +71,14 @@ export async function POST(req: Request) {
 
   // W-3 (session 12): the reference's dialog submits end_time
   // client-computed (start + duration — its decompiled f function). A
-  // caller-supplied end_time wins (validated); otherwise the API derives
-  // it from start+duration (the pre-session-12 behavior — every other
-  // caller, incl. the quick-add panel, relies on it).
+  // caller-supplied end_time wins (validated). Session 16 (ET-1): the
+  // reference's platform does NOT derive one server-side — a POST with
+  // start_time + duration but NO end_time stores end_time:null (probed
+  // live on its own API; the task is then EXCLUDED from Log Activity
+  // by the H1e null guard, exactly like a quick-added task). The
+  // clone's former start+duration fallback is removed to match; the
+  // dialog still sends end_time on every save (e2e-pinned), so no app
+  // flow changes.
   let endTime: Date | null = null;
   if (body.end_time !== undefined && body.end_time !== null && body.end_time !== "") {
     const parsed = new Date(String(body.end_time));
@@ -81,11 +86,6 @@ export async function POST(req: Request) {
       return fail("VALIDATION", "end_time is not a valid date.");
     }
     endTime = parsed;
-  } else {
-    endTime =
-      startTime && durationMinutes
-        ? new Date(startTime.getTime() + durationMinutes * 60_000)
-        : null;
   }
 
   const task = await db.task.create({

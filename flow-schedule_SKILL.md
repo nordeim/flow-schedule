@@ -7,9 +7,9 @@ description: >
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
   codebase-verified (sessions 1–15, 2026-10-05).
-version: 2.4.0
+version: 2.5.0
 last_updated: 2026-10-05
-project_state: 133/133 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 143/143 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -888,6 +888,37 @@ match — the same mechanism as the duration float). The digits beyond
 ms are `.000` — form parity, storage-precision residual (the `60.0`
 class: SQLite and the JS clock store milliseconds). The client keeps
 the strings opaque — verify ZERO consumers parse them before shipping
+
+### FS-28: The key ORDER is part of the wire contract (Medium — wire parity)
+
+**Symptom:** the key SETS, the value forms (floats, µs dates), and the
+request side all matched — but the raw response TEXT still differed:
+the reference emitted Task objects start_time-first and Note objects
+title-first, while the clone's serializers emitted id-first (its own
+construction order).
+**Root cause:** the sessions-12 pins asserted the sorted KEY SET (the
+inference-era choice — the order had not been captured); the platform's
+Python dict serialization preserves its own field order, and the
+full-body probes (session 16) revealed it is CONSISTENT across every
+response surface (GET/POST/PUT, both entities).
+**Fix + rules (session 16):** reorder the `serializeTask`/
+`serializeNote` object literals to the captured order —
+`JSON.stringify` preserves string-key insertion order for string keys,
+and the okWire text transforms are order-agnostic substitutions, so
+the literal order IS the wire order. Consumers read by name
+(mapTask/mapNote, the sorted-set pins) — the change is
+pin-compatible. Pin BOTH layers: the exact-order unit pins
+(`tests/wire-order.test.ts`) and the raw-text e2e pins
+(`"tasks":[{"start_time":` …). Never add a key-sorting shim or
+re-serialize at the route layer.
+**Companion ruling (ET-1):** the reference stores end_time AS
+SUBMITTED — no server-side derivation (a POST with start+duration but
+no end_time stores null; its PUT is partial — Mark Complete sends only
+status). A self-hosted affordance is fine while it is INVISIBLE (the
+envelope, status codes, method names); when the same input produces a
+different observable output than the reference (Log Activity
+membership), it is a parity defect. The dialog always sends end_time
+client-computed — removing the derivation changes no app flow.
 (grep mapTask/mapNote + the components). **Mutation-harness lesson
 (the same session): a harness must take ONE canonical backup per file
 BEFORE the first mutation — a per-mutation backup lets a second
@@ -1593,6 +1624,25 @@ parity remediation):
   both live dashboards: match (data-driven diffs only). Unit
   121 → 133, e2e 67 (×2 consecutive). See
   `docs/session_15-review.md` + `docs/remediation-plan-session15.md`.
+- **Session 16 (2026-10-05, v2.5.0):** the session-15 §5a suggested
+  target — the entity wire's KEY ORDER — probed on ALL SIX response
+  surfaces + both request flows and RULED (FS-28: match the captured
+  order; Task start_time-first, Note title-first; the request side was
+  already byte-identical). The same probes surfaced ET-1: the
+  reference stores end_time AS SUBMITTED (no server-side derivation;
+  its PUT is PARTIAL — Mark Complete captured sending only
+  `{"status":"completed"}`) — the clone's POST/PATCH derivations
+  removed (the direct-API-caller Log Activity membership now matches).
+  Fixed pin-first: `tests/wire-order.test.ts` (10 pins: the exact
+  emission orders, the null-form slots, the text-seam order
+  preservation, the no-derivation source pins) + the raw-text e2e
+  order pins + the end_time-null flip; mutations M-1..M-4 all RED
+  (the canonical-backup harness + the post-run pin re-run). The
+  mobile menu re-measured LIVE on the reference again (identical to
+  the pins — no drift, no Tailwind v4 regression); a structural DOM
+  diff of both live dashboards + planning pages: match. Unit
+  133 → 143, e2e 67 (×2 consecutive). See
+  `docs/session_16-review.md` + `docs/remediation-plan-session16.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

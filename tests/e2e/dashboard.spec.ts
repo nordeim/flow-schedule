@@ -219,12 +219,17 @@ test.describe("dashboard", () => {
     // F-2) which renders "3 hours ago" — the non-strict formatDistanceToNow
     // renders "about 3 hours ago". The 3h distance is drift-stable for both
     // formatters (±seconds of test time cannot leave either band).
+    // Session 16 (ET-1): the seed sends end_time EXPLICITLY (start + 2 min —
+    // the instant the former server-side derivation used to compute); the
+    // API no longer derives it (the reference stores what is submitted).
     const start = new Date(Date.now() - 182 * 60_000).toISOString();
+    const end = new Date(Date.now() - 180 * 60_000).toISOString();
     const created = await (
       await page.request.post("/api/tasks", {
         data: {
           title: "E2E strict time task",
           start_time: start,
+          end_time: end,
           duration_minutes: 2,
           status: "todo",
         },
@@ -276,12 +281,18 @@ test.describe("dashboard", () => {
     ];
     const createdIds: string[] = [];
     for (const o of offsets) {
+      // Session 16 (ET-1): end_time is sent EXPLICITLY (start + 30 min —
+      // the instant the former server-side derivation used to compute);
+      // the API no longer derives it (the reference stores what is
+      // submitted — the H1e filter's end_time branch needs the value).
       const start = new Date(Date.now() + (o.min - 30) * 60_000).toISOString();
+      const end = new Date(Date.now() + o.min * 60_000).toISOString();
       const res = await (
         await page.request.post("/api/tasks", {
           data: {
             title: `${FAMILY} ${o.n}`,
             start_time: start,
+            end_time: end,
             duration_minutes: 30,
             status: "todo",
           },
@@ -1000,7 +1011,13 @@ test.describe("dashboard", () => {
     const task = created?.data?.task ?? {};
     expect(task.start_time).toBeTruthy();
     expect(task.duration_minutes).toBe(45);
-    expect(task.end_time).toBeTruthy();
+    // Session 16 (ET-1): the reference stores end_time AS SUBMITTED —
+    // a POST with start_time + duration but NO end_time stores
+    // end_time:null (probed live on the reference's own API; the task
+    // is EXCLUDED from Log Activity by the H1e null guard). The
+    // clone's server-side derivation is removed to match; the dialog
+    // still sends end_time client-computed (the W-3 pin below).
+    expect(task.end_time).toBeNull();
     expect(task.created_date).toBeTruthy();
     expect(task.updated_date).toBeTruthy();
     expect(task.is_sample).toBe(false);
@@ -1097,8 +1114,40 @@ test.describe("dashboard", () => {
     expect(rawCreated).toMatch(/"duration_minutes":15\.0/);
     const rawCreatedTask = JSON.parse(rawCreated)?.data?.task as { id: string };
 
+    // Session 16 (KO-1): the entity wire KEY ORDER — the reference's
+    // platform emits the captured order on EVERY response surface
+    // (GET/POST/PUT, both entities, probed live):
+    //   Task: start_time, duration_minutes, end_time, description,
+    //         title, priority, category, status, id, created_date,
+    //         updated_date, created_by_id, created_by, is_sample
+    // The clone's serializer emits the same set in the same order; the
+    // raw response text carries it to the wire (JSON.stringify
+    // preserves string-key insertion order; the okWire transforms are
+    // order-agnostic substitutions). The CREATE wire (the POST response
+    // text) starts its task object with the start_time token.
+    expect(rawCreated).toMatch(/"task":\{"start_time":/);
+    expect(rawCreated).not.toMatch(/"task":\{"id":/);
+    // The GET list wire likewise (every task object, start_time-first).
+    expect(rawList).toMatch(/"tasks":\[\{"start_time":/);
+    expect(rawList).not.toMatch(/"tasks":\[\{"id":/);
+
+    // The Note wire carries the same captured order (title-first,
+    // probed on the reference's GET/POST/PUT Note surfaces).
+    const rawNoteCreated = await (
+      await page.request.post("/api/notes", {
+        data: { content: "E2E wire order note", tags: [] },
+      })
+    ).text();
+    expect(rawNoteCreated).toMatch(/"note":\{"title":/);
+    expect(rawNoteCreated).not.toMatch(/"note":\{"id":/);
+    const rawNoteList = await (await page.request.get("/api/notes")).text();
+    expect(rawNoteList).toMatch(/"notes":\[\{"title":/);
+    expect(rawNoteList).not.toMatch(/"notes":\[\{"id":/);
+    const createdNote = JSON.parse(rawNoteCreated)?.data?.note as { id: string };
+
     await page.request.delete(`/api/tasks/${task.id}`);
     await page.request.delete(`/api/tasks/${rawCreatedTask?.id}`);
+    if (createdNote?.id) await page.request.delete(`/api/notes/${createdNote.id}`);
   });
 });
 

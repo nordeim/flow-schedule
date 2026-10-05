@@ -1161,3 +1161,89 @@ Stage Summary:
   seam, document the .000 storage-precision residual), and the
   mutation-harness backup lesson (one canonical per-file backup; a
   git diff --stat is NOT restore-verification — re-run the pins)
+
+---
+Task ID: 32
+Agent: Z (session 16)
+Task: Audit the session-15 remediation state, close the entity-wire key-order ruling (the session-15 §5a target), remove the end_time derivation divergence, re-verify the mobile menu + structural parity live, and deliver the session-16 remediation (review + plan + TDD fixes + docs + screenshots + push).
+
+Work Log:
+- git pull (main 74c8eb4 -> 2ea6c34, adds docs/session_16.md); .env
+  re-verified (DATABASE_URL="file:../db/custom.db", db/ at the repo
+  root, .env.example contract green); full base gate re-executed:
+  lint clean, tsc clean, 133/133 unit, build 19 routes, 67/67 e2e
+  (2.0 m) — the codebase matched its documented state exactly
+- Audited the session-15 remediation commit (74c8eb4) at source level:
+  formatWireDates, okWire/okWireCreate, the route switches, the 12
+  pins — all clean; the wire forms re-verified live on the clone
+- Live reference audit (agent-browser login + XHR/fetch capture with
+  request-body + request-header capture): the entity KEY ORDER
+  extracted from ALL SIX response surfaces (GET/POST/PUT x Task/Note)
+  — a CONSISTENT captured order (Task start_time-first, Note
+  title-first) vs the clone's id-first emission (KO-1); the dialog
+  save REQUEST captured byte-identical to the clone's TaskDialog
+  payload (order included); the Mark Complete REQUEST captured:
+  PUT {"status":"completed"} — partial semantics
+- Direct API probes with the captured auth (all probe entities
+  deleted — account back to 9 parity tasks + 3 notes, 0 S16
+  leftovers): the reference's POST with start_time + duration but NO
+  end_time stores end_time:null (no server-side derivation) — the
+  clone derived it (ET-1); the POST status is 200 vs the clone's 201
+  (transport-layer, documented self-hosted design — no action)
+- Mobile menu re-measured LIVE on the reference at 390x844 (Playwright
+  trusted clicks, animation-settled): trigger 338/14/36x36 right 374,
+  menu 182/54/192x164 right 374, items [Profile, Settings, Logout],
+  animation enter — identical to the clone's e2e pins, no drift, no
+  Tailwind v4 regression; structural DOM diffs of both live
+  dashboards + planning pages: match (only data-driven diffs)
+- Wrote docs/session_16-review.md + docs/remediation-plan-session16.md
+  (validated against the codebase before execution — every seam,
+  seed site, and pin location verified)
+- RED: tests/wire-order.test.ts (10 pins — the exact captured
+  emission orders, the null-form slots, the text-seam order
+  preservation, the no-derivation route source pins) 9/10 failed
+- GREEN: the serializer literal reorders (serializeTask/
+  serializeNote — the captured orders, same key sets/values/types)
+  + the derivation removals (POST: omitted end_time stays null;
+  PATCH: the recompute block removed, partial semantics kept) + the
+  e2e fixture updates (the strict-time + top-5 seeds send explicit
+  end_time; the wire pin flipped to end_time:null) + the raw-text
+  order pins folded into the existing wire spec (task/note orders on
+  GET and POST)
+- MUTATION (RED) evidence M-1..M-4 (the harness outside the repo,
+  ONE canonical per-file backup): serializeTask revert -> 4 pins;
+  serializeNote revert -> 3; POST derivation restored -> 1; PATCH
+  recompute restored -> 1. Post-run pin re-run 10/10 green — tree
+  verified restored
+- Gate: lint clean, tsc clean, 143/143 unit (133 -> 143: +10
+  wire-order), build 19 routes, 67/67 e2e x2 consecutive (3.1 m +
+  3.1 m); live dev-server wire verified: GET starts
+  {"tasks":[{"start_time":null, duration null, end_time null, ...
+  (start_time-first + mu-s no-Z); POST without end_time ->
+  end_time:null + 30.0 float + mu-s+Z create dates; PATCH full-form
+  round-trips; PATCH without end_time leaves it unchanged; notes
+  title-first on GET/POST
+- All 20 screenshots re-captured (scripts/capture-screenshots.mjs,
+  dev server, 1440x900 + 390x844); .env.example re-verified unchanged
+- Docs realigned: README (the key-order + no-derivation notes +
+  counts), AGENTS.md (FS-28 + the end_time ruling + the Reference
+  section), CLAUDE.md (the wire contract), PAD (S4.1 wire + S8 counts
+  + 8 ledger rows), flow-schedule_SKILL.md v2.5.0 (FS-28 + the
+  session-16 history), docs/session_16-review.md, the plan's
+  execution record, this worklog
+- Commit on main + push via docs/ssh_git_wrapper_v3.py
+
+Stage Summary:
+- Session 16 delivered: the entity wire's last byte class closed —
+  the KEY ORDER now matches the reference's captured emission order
+  on every response surface (KO-1/FS-28), and the end_time
+  server-side derivation removed (ET-1: the reference stores it as
+  submitted; its partial-PUT semantics probed via Mark Complete).
+  The mobile menu re-measured live again — identical, no Tailwind v4
+  regression. Unit 133 -> 143, e2e 67 (x2 consecutive)
+- Key new knowledge: FS-28 (the key order is part of the wire
+  contract — pin it at the serializer literal + the raw-text e2e
+  seam; JSON.stringify preserves string-key insertion order), and
+  the ET-1 ruling principle (a self-hosted affordance is fine while
+  invisible; when the same input produces different observable
+  output than the reference, it is a parity defect)

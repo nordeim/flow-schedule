@@ -1,6 +1,9 @@
 // /api/tasks/[id] — PATCH (update, incl. status toggle) + DELETE.
-// Session 12 (W-3/W-4): a caller-supplied end_time wins over derivation;
-// description is stored verbatim ("" stays "", null when absent).
+// Session 12 (W-3/W-4): a caller-supplied end_time wins; description
+// is stored verbatim ("" stays "", null when absent). Session 16
+// (ET-1): no server-side end_time derivation — an omitted end_time
+// leaves the stored value unchanged (the reference's partial-PUT
+// semantics, probed live).
 import { fail, ok, okWire, readJson, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { isCategory, isPriority, isTaskStatus } from "@/lib/domain";
@@ -39,7 +42,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (isCategory(body.category)) data.category = body.category;
   if (isTaskStatus(body.status)) data.status = body.status;
 
-  let recomputeEnd = false;
   if (body.start_time !== undefined) {
     if (body.start_time === null || body.start_time === "") {
       data.startTime = null;
@@ -51,7 +53,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
         return fail("VALIDATION", "start_time is not a valid date.");
       }
       data.startTime = parsed;
-      recomputeEnd = true;
     }
   }
   if (body.duration_minutes !== undefined && body.duration_minutes !== null) {
@@ -60,14 +61,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
       return fail("VALIDATION", "duration_minutes must be an integer between 1 and 1440.");
     }
     data.durationMinutes = n;
-    recomputeEnd = true;
   }
 
   // W-3: a caller-supplied end_time WINS (the reference's dialog always
-  // sends it, client-computed); derivation from start+duration only
-  // applies when the caller did not send one.
-  const hasExplicitEnd = body.end_time !== undefined;
-  if (hasExplicitEnd) {
+  // sends it, client-computed). Session 16 (ET-1): the reference's PUT
+  // is PARTIAL (probed: Mark Complete sends {"status":"completed"} and
+  // nothing else changes) — an omitted end_time leaves the stored value
+  // UNCHANGED, and a start/duration change without end_time does NOT
+  // recompute it server-side. The clone's former recompute block is
+  // removed to match; the dialog still sends end_time on every save
+  // (e2e-pinned), so no app flow changes.
+  if (body.end_time !== undefined) {
     if (body.end_time === null || body.end_time === "") {
       data.endTime = null;
     } else {
@@ -77,11 +81,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
       data.endTime = parsed;
     }
-  } else if (recomputeEnd) {
-    const start = (data.startTime as Date | null | undefined) ?? existing.startTime;
-    const duration =
-      (data.durationMinutes as number | null | undefined) ?? existing.durationMinutes;
-    data.endTime = start && duration ? new Date(start.getTime() + duration * 60_000) : null;
   }
 
   const task = await db.task.update({ where: { id }, data });
