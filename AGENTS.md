@@ -17,7 +17,7 @@ everything else.
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
 | `bun run test` | Vitest unit suites (143 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, **the key-ORDER wire (session 16, KO-1/FS-28): the exact captured emission order — Task start_time-first, Note title-first, all six response surfaces — pinned by `tests/wire-order.test.ts` + the raw-text e2e order pins**, and the seed's sample-week re-anchoring (E-1)) |
-| `bun run test:e2e` | Playwright (67 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test:e2e` | Playwright (76 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -544,6 +544,22 @@ sideOffset below the 50px trigger bottom), width 192. Any change to the
 header layout, the menu classes, or the trigger padding will fail
 `tests/e2e/mobile-navigation.spec.ts` — that spec is the pin, update it
 deliberately if the reference re-measures differently.
+
+**Viewport bands (session 17, VP-1/FS-29):** the band flip itself is
+pinned by `tests/e2e/viewport-breakpoints.spec.ts` — at the EXACT md
+edge (768×900) and at 1024×900 the desktop nav must be visible and the
+mobile trigger container `display:none` (asserted via computed style,
+NOT toBeHidden — display is the Tailwind contract under test), and
+`documentElement.scrollWidth === clientWidth` must hold at
+390/768/1024/1440 (the no-horizontal-overflow invariant — the Tailwind
+v4 responsive-class regression guard). The body-class pin in the same
+file locks the reference's classless `<body>` (BD-1: no rendering-hint
+utilities like `antialiased` on the RootLayout body).
+
+**Reference-account hygiene (the verify-don't-trust rule):** re-list
+the reference account's entities at every session START (a prior
+session's cleanup claim is not evidence) and re-verify after probes;
+the standing state is 9 parity tasks + 3 notes.
 
 ## Reference
 

@@ -1247,3 +1247,20 @@ Stage Summary:
   the ET-1 ruling principle (a self-hosted affordance is fine while
   invisible; when the same input produces different observable
   output than the reference, it is a parity defect)
+
+---
+Task ID: 33 (flow-schedule session 17)
+Agent: Z (main)
+Task: flow-schedule session-17 — execute the session-16 §5 suggested target (the multi-viewport diff pass), pin the unpinned tablet band, verify the mobile menu + structural parity live, remediate via TDD, docs + screenshots + push to main.
+
+Work Log:
+- git pull (8bd3a48 → c86d0e4, adds docs/session_17.md); base gate fully green (lint · tsc · 133→143/143 unit · build 19 routes · 67/67 e2e)
+- The multi-viewport pass on BOTH apps live (390/768/1024/1440): classes/headings/overflow/breakpoint state + PNG pixel diffs (5.9–11.2, data-driven only); the mobile menu re-measured on the reference — identical to the pins (no drift, no Tailwind v4 regression); the reference-account hygiene re-list found + deleted the "S16 MarkComplete Probe" leftover (back to 9 parity tasks + 3 notes — the verify-don't-trust rule)
+- VP-1 remediated TDD-style: tests/e2e/viewport-breakpoints.spec.ts (8 pins: the md edge 768×900 + 1024×900 band state via computed display; the no-horizontal-overflow invariant on documentElement at 390/768/1024/1440) — green first run; mutation harness: M-1 md:hidden→sm:hidden RED 4; M-2 REDESIGNED (the injection-into-DashboardView design SURVIVED — the AppShell root's overflow-hidden clips inner overflow; the honest mutation is w-[2000px] ON THE ROOT) → RED 4 surgical; restore verified green + git diff empty
+- T-4's live field-diff surfaced BD-1: the clone's body shipped antialiased; the reference's body is CLASSLESS — pinned RED → layout.tsx body classless → GREEN → live-verified on both surfaces
+- Gate after: 143/143 unit · 76/76 e2e ×2 consecutive (67 → 76); 22 screenshots (20 re-captured + 21-dashboard-768.png + 22-dashboard-1024.png, the capture script extended); docs realigned (SKILL v2.6.0 FS-29 + BD-1, README/AGENTS/CLAUDE/PAD + ledger rows, session_17-review, the plan's execution record, this worklog)
+- Committed on main + pushed to git@github.com:nordeim/flow-schedule.git main via docs/ssh_git_wrapper_v3.py (dry-run → real push → remote ref verified == HEAD → operator key shredded)
+
+Stage Summary:
+- Session 17 delivered: the layout-band pin family (the tablet band + the overflow invariant at every band — the Tailwind v4 responsive-class regression guard) + the classless body (BD-1). Zero functional regressions; the audit frontier stays closed. Unit 143, e2e 67 → 76 (×2)
+- Key new knowledge: FS-29 (pin the layout BANDS — the md edge via computed display, the overflow metric on documentElement; and the mutation-design lesson: an overflow mutation inside the clipping layer SURVIVES — mutate the ROOT's width) + the BD-1 ruling (diff the BODY class: a rendering-hint class is a parity defect, an aria-label the reference lacks is a sanctioned a11y affordance)

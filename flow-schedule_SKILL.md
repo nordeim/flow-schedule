@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–15, 2026-10-05).
-version: 2.5.0
+  codebase-verified (sessions 1–17, 2026-10-05).
+version: 2.6.0
 last_updated: 2026-10-05
-project_state: 143/143 unit tests, 67/67 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 143/143 unit tests, 76/76 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -928,6 +928,43 @@ tree was restored (a `git diff --stat` is NOT enough — the corrupted
 first run's source pins still passed because they read the corrupted
 text, and only the e2e caught the compiled divergence).**
 
+### FS-29: Pin the layout BANDS, not just the mobile breakpoint (Medium — viewport parity)
+
+**Symptom:** the e2e suite pinned 390×844, 1280×800, 1440×900 and the
+default 1280×720 — but nothing pinned the 768/1024 TABLET band, and
+NOTHING measured horizontal overflow at ANY band. A future edit that
+moves the header's `md:` breakpoint (e.g. to `sm:`) or adds a
+responsive width class that overflows would pass every existing spec.
+**Fix (session 17):** a `viewport-breakpoints.spec.ts` family — at
+768×900 (the EXACT md edge — Tailwind md is min-width:768, so 768 pins
+the boundary; one pixel below is the mobile band) and 1024×900: the
+desktop nav visible + the mobile trigger hidden; at 390/768/1024/1440:
+`documentElement.scrollWidth === clientWidth`. **Visibility via
+`getComputedStyle().display === "none"`, not `toBeHidden()`** — display
+is the exact Tailwind contract under test (a toBeHidden pass has other
+causes — zero size, visibility collapse). **The overflow metric sits
+on documentElement, NOT body**: the AppShell root is `overflow-hidden`
+(the reference's own design — it clips the fixed blob layer), so the
+body never scrolls; the document element's scrollWidth is the honest
+metric.
+**Mutation-design lesson (M-2, the same session): an overflow mutation
+that injects a wide element INSIDE the AppShell root SURVIVES — the
+root's overflow-hidden clips it, so documentElement never grows. The
+honest mutation is a WIDTH EDIT ON THE ROOT ITSELF (`w-[2000px]` on
+the top-level container → body's child overflows → the pins go RED at
+every band). This also documents the guard's true contract: the
+documentElement metric pins TOP-LEVEL width discipline — inner
+overflow is invisible by design (verified live on BOTH apps at every
+band).
+**Companion ruling (BD-1, the same session): the live field-diff must
+compare the BODY class too — the reference renders `<body>` with NO
+class; the clone had shipped `className="antialiased"` (a macOS-only
+font-smoothing hint the reference does not use). RootLayout body stays
+classless (pinned: `document.body.className === ""`). An aria-label the
+reference lacks (e.g. the clone's "Open account menu" trigger label) is
+a sanctioned a11y affordance — zero visual/behavioral footprint — but
+a body-level RENDERING-HINT class is a parity defect.**
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1643,6 +1680,27 @@ parity remediation):
   diff of both live dashboards + planning pages: match. Unit
   133 → 143, e2e 67 (×2 consecutive). See
   `docs/session_16-review.md` + `docs/remediation-plan-session16.md`.
+- **Session 17 (2026-10-05, v2.6.0):** the session-16 §5 suggested
+  target — the fresh multi-viewport diff pass at 390/768/1024/1440 —
+  executed on BOTH apps live (structure classes, heading inventories,
+  overflow metric, PNG pixel diffs, the mobile-menu geometry
+  re-measured): full parity, ZERO code defects, ONE pin-coverage gap
+  (VP-1: the tablet band unpinned + no overflow invariant anywhere).
+  Fixed pin-first: `tests/e2e/viewport-breakpoints.spec.ts` (the
+  band family — the exact md edge at 768, the 1024 tablet band, the
+  390/1440 overflow bookends; computed-display visibility, the
+  documentElement scrollWidth metric). Mutation phase: M-1
+  (`md:hidden`→`sm:hidden`) RED 4; M-2 REDESIGNED after the first
+  design survived — an injected wide element inside the AppShell root
+  is clipped by its `overflow-hidden` (the lesson: the honest overflow
+  mutation is a WIDTH EDIT ON THE ROOT, `w-[2000px]`) — RED 4,
+  surgical (band-state pins unaffected). The live T-4 field-diff then
+  surfaced BD-1: the reference's `<body>` renders classless; the
+  clone shipped `antialiased` — removed and pinned (the body-class
+  pin). Reference-account hygiene: the session-16 "S16 MarkComplete
+  Probe" leftover found + deleted (the verify-don't-trust rule). Unit
+  143 (unchanged), e2e 67 → 76 (×2 consecutive). See
+  `docs/session_17-review.md` + `docs/remediation-plan-session17.md`.
 
 ## Appendix D: Post-Deploy Live-Site Validation
 

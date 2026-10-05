@@ -187,6 +187,17 @@ await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
 await page.waitForTimeout(800);
 await page.screenshot({ path: `${OUT}/07-mobile-dashboard.png` });
 
+// ---- 21/22: tablet band captures (session 17, VP-1 — the newly pinned
+// 768/1024 band: the md breakpoint flips to the desktop nav with no
+// horizontal overflow; the 2-col grid holds with the sidebar below). ----
+await page.setViewportSize({ width: 768, height: 900 });
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${OUT}/21-dashboard-768.png` });
+
+await page.setViewportSize({ width: 1024, height: 900 });
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${OUT}/22-dashboard-1024.png` });
+
 await browser.close();
 const files = fs.readdirSync(OUT).filter((f) => /^\d+/.test(f));
 console.log("screenshots now:", files.join(", "));
