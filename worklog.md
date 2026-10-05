@@ -1342,3 +1342,81 @@ Stage Summary:
   the page.clock ruling (install before goto; runFor not fastForward
   for interval-driven countdowns) + the spawn-pipe/process-group
   harness lessons
+
+---
+
+## Session 19 (2026-10-05)
+
+**Task**: flow-schedule session-19 — refresh workspace, review docs, audit
+the session-18 state, execute the framer-motion animation-timing pass
+(the session-18 §5 target (a)), remediate via TDD, docs + screenshots +
+commit + SSH push to main.
+
+- Workspace reset again — fresh `git clone` + bootstrap (`.env` from
+  `.env.example`, `bun install`, `db:push`/`db:seed`); base gate green:
+  lint ✓ · tsc ✓ · 143/143 unit · build (19 routes) · 81/81 e2e (2.8 m)
+- Audited session-18 commit `0d39f09` (the FT-1 seam: the remaining-state
+  display, the two-direction toggle reset) — clean; the operator's
+  9c1272b adds docs/session_19.md only
+- Reference hygiene re-list at session START: 9 parity tasks + 3 notes
+  (direct entity probe with the captured auth), 0 leftovers
+- **The animation-timing pass at FOUR evidence levels on BOTH apps**:
+  (1) the decompile — the reference's G1e/W1e/A_e motion configs
+  byte-identical to the clone's source (panelMotion, the container
+  layout morph, the overlay transitions, the form/buttons fades, the
+  tiles' gestures, the three blob loops); (2) the engine — the
+  reference's WAAPI-hybrid `motion` runtime carries the IDENTICAL
+  supportedWaapiEasing table as framer-motion@14.0.0 (circOut =
+  cubic-bezier(0.55, 0, 1, 0.45) in both); (3) the rAF timelines
+  measured live on both apps — every semantic matches (the overlay's
+  geometry/opacity split curves, the panel-body y-vs-opacity lag, the
+  exit sequencing with the last-rendered 0.15 delay, the buttons-view
+  re-entrance, the INSTANT container-height jump); (4) the WAAPI
+  metadata — the overlay's native animation byte-identical
+  (350/0/the circOut bezier/fill both)
+- **BL-1 found & fixed (TDD)**: the reference's SECOND background blob
+  renders 0×0 — its `w-100 h-100` is a DEAD class in the reference's
+  v3-scale stylesheet (no .w-100 rule; .w-96 exists); the clone's
+  `w-[400px]` rendered a live 400 px blob. Fixed by mirroring the
+  RENDERED effect (no width/height utilities — the div collapses);
+  the class string is NOT copied (v4's dynamic spacing would generate
+  w-100 as 400 px). The icon_sm dead-variant ruling, generalized
+- The mobile menu re-measured LIVE on BOTH apps at 390×844 (the
+  standing priority): trigger 338/14/36×36 right 374, menu
+  182/54/192×164 right 374, items [Profile, Settings, Logout],
+  `animation-name: enter` — byte-identical, no Tailwind v4 regression
+- Pins: `tests/e2e/panel-animation.spec.ts` (4 — the WAAPI metadata
+  via getAnimations().getComputedTiming(), the translateY(20px)+
+  opacity-0 entrance held through the 0.2 s delay read at the
+  detection frame + at +100 ms, the form-view exit's last-rendered
+  0.15 s delay measured as an in-page differential, the blob-layer
+  contract) + `tests/panel-motion.test.ts` (10 source pins, the
+  ai-prompt pattern)
+- T-2 MUTATION: M-1..M-4 all RED surgical (each mutation fails
+  exactly its own e2e pin + the unit pins); restore verified
+  (checksums + rebuild + 10/10 + 5/5). Lesson: the mount-frame read
+  is delay-INSENSITIVE (framer applies the initial transform
+  synchronously) — the delay needs the +100 ms read
+- T-3: 153/153 unit · 85/85 e2e ×2 consecutive (81 → 85). T-4: the
+  blob layer re-verified live (the second blob at 0×0). T-5: all 22
+  screenshots re-captured (the purple blob gone)
+- T-6: SKILL v2.8.0 (FS-31 + the changelog + the §11 counts fixed),
+  README, CLAUDE (the motion contract section), AGENTS, PAD (§4.2's
+  stale end_time-derivation bullet fixed — DOC-1, a session-16
+  realignment miss; the seed bullet's E-1 clause — DOC-2; §8 + 6
+  ledger rows), the review + plan docs, this worklog
+- T-7: commit on main + push via docs/ssh_git_wrapper_v3.py (dry-run →
+  real push → remote ref verified == HEAD → operator key shredded)
+
+**Stage Summary:**
+- Session 19 delivered: the framer-motion animation family closed at
+  four evidence levels (config/engine/timeline/metadata — FULL PARITY),
+  the ONE rendered divergence fixed (BL-1: the second blob's 0×0
+  mirror), and the motion contract pinned (4 e2e + 10 source pins;
+  mutations M-1..M-4 surgical). The mobile menu re-verified
+  byte-identical live. Unit 143 → 153, e2e 81 → 85 (×2 consecutive)
+- Key new knowledge: FS-31 (the four-level motion-parity method; the
+  WAAPI metadata is the deterministic pin surface; the dead-class-in-v4
+  ruling) + the pin-engineering lessons (the rAF waitForFunction
+  capture vs the ~0.5 s locator latency; the +100 ms delay read; the
+  in-page differential for exit timing)

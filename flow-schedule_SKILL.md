@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–18, 2026-10-05).
-version: 2.7.0
+  codebase-verified (sessions 1–19, 2026-10-05).
+version: 2.8.0
 last_updated: 2026-10-05
-project_state: 143/143 unit tests, 81/81 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 153/153 unit tests, 85/85 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -996,6 +996,48 @@ REPEATEDLY, so use runFor). The 60-second interaction path becomes a
 <2 s pin; the blocking `window.alert` is dismissed via the dialog
 handler. The one-off-real-time-verification era is over.
 
+### FS-31: Motion parity needs FOUR evidence levels — and the WAAPI metadata is the deterministic pin surface (High — animation parity)
+
+**Symptom (session 19, BL-1):** the framer-motion family passed 16
+sessions of static diffs and config review — yet the reference's SECOND
+background blob had been rendering 0×0 the whole time (its `w-100
+h-100` is a DEAD class in the reference's v3-scale build — no `.w-100`
+rule in its 863 KB stylesheet — so the content-less absolute div
+collapses and never paints), while the clone's `w-[400px]` rendered a
+live 400 px blob. The class strings "looked equivalent"; the rendered
+states were opposite.
+**Method (the four levels, all required):** (1) the CONFIG decompile
+(the reference's G1e/W1e/A_e motion configs, byte-extracted from its
+bundle); (2) the RUNTIME engine comparison (the reference's
+WAAPI-hybrid `motion` easing table vs the clone's framer-motion —
+`circOut` is `cubic-bezier(0.55, 0, 1, 0.45)` in BOTH, not the
+mathematical circular ease; a version mismatch here silently changes
+every curve); (3) the rAF timeline measurement on BOTH apps (the
+curves, delays, and sequencing — including engine quirks like the
+panel-body opacity lagging its y-offset, which a config read would
+never predict); (4) the **WAAPI animation METADATA** —
+`el.getAnimations()[0].effect.getComputedTiming()` returns the
+animation's DECLARED duration/delay/easing as deterministic data
+(no timing race, no jitter) — the overlay's entrance reads exactly
+`350 / 0 / cubic-bezier(0.55, 0, 1, 0.45)` on BOTH apps.
+**The dead-class-in-v4 ruling (BL-1):** a class that is DEAD in the
+reference's v3 scale can be LIVE in the clone's v4 dynamic-spacing
+scale (`w-100` → 400 px). Mirroring a dead variant means mirroring
+the RENDERED effect (0×0 — no width/height utilities, let the div
+collapse), NEVER copying the class string. The icon_sm ruling
+(session 6, P-7), generalized.
+**The pin tooling:** the metadata surface makes the overlay's timing
+byte-pinnable (`tests/e2e/panel-animation.spec.ts`); the initial-state
++ delay-hold pins use an in-page rAF-polled `waitForFunction` that
+CAPTURES the state at the detection frame (a locator.waitFor +
+evaluate pair lands ~0.5 s late — past the whole 0.2 s delay window);
+the exit-delay pin measures the differential on the PAGE's clock
+(the overlay's first change marks the handler time; the form-view's
+first drop minus that is the delay — zero CDP latency); and the
+configs themselves are source-pinned (`tests/panel-motion.test.ts`,
+the ai-prompt pattern) so a numeric "cleanup" fails before the e2e
+family is the last line of defense.
+
 ### FS-23: A captured wire beats an inferred wire (High — parity process)
 
 **Symptom:** session 8 named the response fields from repo documentation
@@ -1071,9 +1113,9 @@ a pinning test if the class of bug can recur.
 ```bash
 bun run lint          # ESLint 9 — must be silent
 bun run typecheck     # tsc --noEmit — must be silent (build ignores errors!)
-bun run test          # 102/102
+bun run test          # 153/153
 bun run build         # green; .next/standalone assembled
-bun run test:e2e      # 67/67 on the production standalone :3100
+bun run test:e2e      # 85/85 on the production standalone :3100
 scripts/smoke-test.sh # 30/30 curl checks (auth, CRUD, AI envelopes, guarded pages)
 ```
 
@@ -1408,7 +1450,38 @@ parity remediation):
 
 ## Appendix C: Session History
 
-- **Session 8 (2026-10-04, this skill revision):** audit of the
+- **Session 19 (2026-10-05, this skill revision):** the framer-motion
+  animation-timing pass (the session-18 §5 suggested target (a)) —
+  the Quick Actions panel entrance/exit family + the background blobs
+  measured at FOUR evidence levels on BOTH apps: the config decompile
+  (the reference's G1e/W1e/A_e motion configs byte-identical to the
+  clone's source), the runtime engine (the reference's WAAPI-hybrid
+  `motion` easing table identical to framer-motion@14.0.0's — circOut
+  IS cubic-bezier(0.55, 0, 1, 0.45)), the rAF timelines (every
+  semantic matches, including the engine's opacity-lags-y quirk and
+  the instant container-height jump), and the WAAPI animation METADATA
+  (the overlay's native entrance: 350 ms / delay 0 / the circOut
+  bezier — byte-identical). **ONE divergence — BL-1 (fixed)**: the
+  reference's second background blob renders 0×0 (its `w-100 h-100`
+  is dead in the v3 scale — no .w-100 rule in its stylesheet); the
+  clone's `w-[400px]` rendered a live 400 px blob. Fixed by mirroring
+  the RENDERED effect (no width/height utilities — the div collapses
+  like the reference's dead-class div; the class string is NOT copied
+  because v4's dynamic spacing would generate w-100 as 400 px). The
+  motion contract pinned: `tests/e2e/panel-animation.spec.ts` (4
+  pins — the WAAPI metadata, the translateY(20px)+opacity-0 entrance
+  held through the 0.2 s delay, the form-view exit's last-rendered
+  0.15 s delay, the blob layer contract) + `tests/panel-motion.test.ts`
+  (10 source pins, the ai-prompt pattern). Mutations M-1..M-4 all RED
+  surgical (each mutation fails exactly its own pin). Also: the
+  mobile menu re-measured live on BOTH apps (byte-identical — the
+  standing priority, no Tailwind v4 regression); the PAD §4.2 stale
+  end_time-derivation bullet fixed (DOC-1 — the session-16 ET-1
+  realignment miss) + the seed bullet's E-1 re-anchor clause (DOC-2);
+  the reference hygiene re-list: 9 tasks + 3 notes, 0 leftovers. Unit
+  143 → 153, e2e 81 → 85 (×2 consecutive). See
+  `docs/session_19-review.md` + `docs/remediation-plan-session19.md`.
+- **Session 8 (2026-10-04):** audit of the
   never-diffed surfaces — the NEXT-week calendar view (populated,
   state-matched: **0 diffs across the entire calendar + Quick Actions
   region**) and the EDIT-MODE TaskDialog (populated-only; 0/62 after the
