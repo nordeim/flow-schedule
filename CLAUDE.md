@@ -124,6 +124,24 @@ equivalents at identical URLs and JSON shapes.
   not class strings, when auditing field layouts.
 - Quick Action gradients stay as inline-style hex gradients (Trap 3 —
   sidesteps in-oklab interpolation drift and matches the reference).
+- **The shadcn SEMANTIC theme is the reference's DEFAULT (neutral)
+  variant, not the scaffold's slate (session 23, S23-F2/FS-35)**: the
+  whole `:root` family is pinned to the reference's app stylesheet
+  (`--foreground: hsl(0 0% 3.9%)`, `--muted-foreground: hsl(0 0% 45.1%)`,
+  `--radius: 0.5rem`, …). `--border`/`--input` keep the slate forms by
+  the rendered-match ruling (the reference's nominal neutral-200 never
+  renders — its bare borders take the v3 preflight `#e5e7eb`). Pinned
+  by `tests/tailwind-theme-pins.test.ts` (source) + the theme-palette
+  spec's semantic computed pins; do NOT "restore" the slate family or
+  adopt the reference's nominal `--border` values.
+- **The v3 LENGTH line-heights are pinned over v4's unitless ratios
+  (session 23, S23-F3)**: `--text-xs--line-height: 1rem` (… through
+  `--text-2xl--line-height: 2rem`) in `@theme`. v4's
+  `--text-xs--line-height: calc(1/.75)` is a RATIO that re-scales on
+  inheritance — a `text-[10px]` child of a `text-xs` parent renders
+  13.33px where v3's `1rem` length inherits fixed at 16px. Element-
+  local pixels are identical either way; only inheritance semantics
+  differ. Pinned by the source pins + the day-label computed pin.
 
 ### The motion contract (session 19, FS-31)
 
@@ -142,6 +160,14 @@ equivalents at identical URLs and JSON shapes.
   the form-view's exit runs with `delay: 0.15` because its final render
   had `activeId` set; the `activeId ? 0.15 : 0` ternary is dead on the
   exit path.
+- **Pin animation contracts on METADATA, never on live transient
+  computed reads (session 23, S23-F1)**: the panel-body entrance spec
+  asserts the WAAPI timing (`duration 300 / delay 200 / circOut / fill
+  both`) + the native keyframes (opacity 0→1). A live computed read of
+  the mount/delay window is unfixably racy — the mode="wait" mount
+  churn can starve the rAF poll ~200 ms (measured mid-tween at
+  y=18.37); the single-evaluate variant only removed the CDP round-trip
+  class, not the stall class.
 - The second background blob renders 0×0 by design (BL-1): the
   reference's `w-100 h-100` is dead in its v3 scale; the clone mirrors
   the RENDERED effect (no width/height utilities). NEVER "fix" it back
@@ -222,8 +248,8 @@ Demo login: `demo@flowschedule.app` / `demo1234`.
 | `bun run dev` | Dev server :3000 (Turbopack) |
 | `bun run build` | Production build → `.next/standalone` |
 | `bun run start` | Standalone prod server :3000 |
-| `bun run test` | Vitest unit (165 tests) |
-| `bun run test:e2e` | Playwright e2e (94 specs, needs prior build) |
+| `bun run test` | Vitest unit (170 tests) |
+| `bun run test:e2e` | Playwright e2e (104 specs, needs prior build) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / tsc --noEmit |
 
 Single test: `bunx vitest run tests/auth.test.ts`.

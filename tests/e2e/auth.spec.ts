@@ -301,4 +301,170 @@ test.describe("login field geometry (the reference's measured spacing, S22-F1/S2
     expect(offset).not.toBeNull();
     expect(Math.abs(offset! - 16)).toBeLessThanOrEqual(1);
   });
+
+  test("sign-up ERROR state: the alert's geometry matches the reference (S23-P1)", async ({ page }) => {
+    // Session 23: the session-22 §5 target (a), live-verified
+    // byte-identical on both apps and pinned here. The mismatch
+    // validation is CLIENT-SIDE (no network call, no account created —
+    // the reference's own flow). Reference values (1440×900 probe,
+    // viewport-independent padding sums): the fields-wrap bottom → the
+    // alert top = 16; the alert bottom → the submit top = 16; the card
+    // grows to 540 with the alert at h 54; the field gaps stay 10.
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await page.getByRole("heading", { name: "Create your account" }).waitFor();
+    await page.getByLabel("Email", { exact: true }).fill("probe@parity.local");
+    await page.getByLabel("Password", { exact: true }).fill("Passw0rd!xyz");
+    await page.getByLabel("Confirm Password", { exact: true }).fill("Different!123");
+    await page.getByRole("button", { name: "Create account" }).click();
+    await page.getByRole("alert").first().waitFor();
+    await page.waitForTimeout(300);
+
+    const data = await page.evaluate(() => {
+      const card = [...document.querySelectorAll("div")].find((d) =>
+        d.className.toString().includes("rounded-2xl") &&
+        d.className.toString().includes("backdrop"),
+      );
+      const alert = document.querySelector('[role="alert"]');
+      const inputs = [...document.querySelectorAll("input:not([type=hidden])")];
+      const submit = [...document.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Create account"),
+      );
+      if (!card || !alert || !submit) return null;
+      const cardR = card.getBoundingClientRect();
+      const alertR = alert.getBoundingClientRect();
+      const submitR = submit.getBoundingClientRect();
+      const wrap = inputs[0]?.closest("div.space-y-3");
+      const wrapR = wrap?.getBoundingClientRect();
+      return {
+        cardH: Math.round(cardR.height),
+        alertH: Math.round(alertR.height),
+        wrapToAlert: wrapR ? Math.round(alertR.y - wrapR.bottom) : null,
+        alertToSubmit: Math.round(submitR.y - alertR.bottom),
+        alertText: (alert.textContent ?? "").trim(),
+        gaps: inputs.map((input) => {
+          const field = input.closest("div.space-y-1\\.5");
+          const label = field ? (field.querySelector("label") ?? null) : null;
+          if (!label) return null;
+          const lb = label.getBoundingClientRect();
+          const ib = input.getBoundingClientRect();
+          return Math.round(ib.y - (lb.y + lb.height));
+        }),
+      };
+    });
+    expect(data).not.toBeNull();
+    // "Passwords do not match" — the reference's own client-side
+    // message (live-measured, byte-identical classes on the alert).
+    expect(data!.alertText).toBe("Passwords do not match");
+    expect(Math.abs(data!.cardH - 540)).toBeLessThanOrEqual(1);
+    expect(Math.abs(data!.alertH - 54)).toBeLessThanOrEqual(1);
+    expect(Math.abs(data!.wrapToAlert! - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(data!.alertToSubmit - 16)).toBeLessThanOrEqual(1);
+    for (const gap of data!.gaps) {
+      if (gap !== null) expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+test.describe("login field geometry at the mobile band (390×844, S23-P1)", () => {
+  // Session 23: the session-22 §5 target (b), live-verified
+  // byte-identical on both apps at 390×844 and pinned here. The
+  // viewport band matters twice: the input-height band flips (h-11 →
+  // h-10 on the sign-up/forgot smaller inputs) and the forgot view's
+  // h2 offset is 8 at <sm (space-y-4 only — NOT the ≥sm 16 that the
+  // desktop spec pins). Reference values (390×844 probe, both apps):
+  // sign-in card y57 h682 gaps [10,10] inputH 44; sign-up y187 h422
+  // gaps [10,10,10] inputH 40 h2+8; forgot y243 h310 gaps [10] inputH
+  // 40 h2+8.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const cardGeometry = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const card = [...document.querySelectorAll("div")].find((d) =>
+        d.className.toString().includes("rounded-2xl") &&
+        d.className.toString().includes("backdrop"),
+      );
+      if (!card) return null;
+      const r = card.getBoundingClientRect();
+      const labels = [...card.querySelectorAll("label")];
+      const inputs = [...card.querySelectorAll("input")];
+      const gaps = labels.map((l) => {
+        const next = l.nextElementSibling;
+        if (!next) return null;
+        const lb = l.getBoundingClientRect();
+        const nb = next.getBoundingClientRect();
+        return Math.round(nb.y - (lb.y + lb.height));
+      });
+      const inputH = inputs.length
+        ? Math.round(inputs[0].getBoundingClientRect().height)
+        : null;
+      return {
+        y: Math.round(r.y),
+        h: Math.round(r.height),
+        w: Math.round(r.width),
+        gaps,
+        inputH,
+      };
+    });
+
+  const h2Offset = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const back = [...document.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Back to sign in"),
+      );
+      const h2 = document.querySelector("h2");
+      if (!back || !h2) return null;
+      const bb = back.getBoundingClientRect();
+      const hb = h2.getBoundingClientRect();
+      return Math.round(hb.y - bb.bottom);
+    });
+
+  test("sign-in view at 390: card y/h, gaps, the 44px input band", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("heading", { name: "Welcome to FlowSchedule" }).waitFor();
+    const g = await cardGeometry(page);
+    expect(g).not.toBeNull();
+    expect(Math.abs(g!.y - 57)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g!.h - 682)).toBeLessThanOrEqual(1);
+    expect(g!.w).toBe(358);
+    expect(g!.inputH).toBe(44);
+    for (const gap of g!.gaps) {
+      if (gap !== null) expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("sign-up view at 390: the smaller 40px inputs, the h2 at the <sm 8px offset", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Need an account? Sign up" }).click();
+    await page.getByRole("heading", { name: "Create your account" }).waitFor();
+    const g = await cardGeometry(page);
+    expect(g).not.toBeNull();
+    expect(Math.abs(g!.y - 187)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g!.h - 422)).toBeLessThanOrEqual(1);
+    expect(g!.inputH).toBe(40);
+    for (const gap of g!.gaps) {
+      if (gap !== null) expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+    // <sm: the container is space-y-4 only → the collapsed sum is 8.
+    const offset = await h2Offset(page);
+    expect(offset).not.toBeNull();
+    expect(Math.abs(offset! - 8)).toBeLessThanOrEqual(1);
+  });
+
+  test("forgot view at 390: the card geometry + the <sm h2 offset 8 (not 16)", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Forgot password?" }).click();
+    await page.getByRole("heading", { name: "Reset your password" }).waitFor();
+    const g = await cardGeometry(page);
+    expect(g).not.toBeNull();
+    expect(Math.abs(g!.y - 243)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g!.h - 310)).toBeLessThanOrEqual(1);
+    expect(g!.inputH).toBe(40);
+    for (const gap of g!.gaps) {
+      if (gap !== null) expect(Math.abs(gap - 10)).toBeLessThanOrEqual(1);
+    }
+    const offset = await h2Offset(page);
+    expect(offset).not.toBeNull();
+    expect(Math.abs(offset! - 8)).toBeLessThanOrEqual(1);
+  });
 });

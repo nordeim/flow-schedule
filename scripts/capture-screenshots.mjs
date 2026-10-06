@@ -4,7 +4,7 @@
 // does not — see AGENTS.md Radix quirk).
 // Session 5: the login lands at "/" now (the reference's root dashboard),
 // and the new auth view states + the 404 page get their own captures.
-import { chromium } from "@playwright/test";
+import { chromium } from "/home/z/my-project/flow-schedule/node_modules/@playwright/test/index.mjs";
 import fs from "node:fs";
 
 const BASE = "http://127.0.0.1:3000";

@@ -16,8 +16,8 @@ everything else.
 | `bun run build` | Production build + assembles `.next/standalone` (static assets copied in) |
 | `bun run start` | Standalone prod server on :3000 (`bun .next/standalone/server.js`) |
 | `bun run lint` / `bun run typecheck` | ESLint 9 flat / `tsc --noEmit` |
-| `bun run test` | Vitest unit suites (165 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, **the key-ORDER wire (session 16, KO-1/FS-28): the exact captured emission order — Task start_time-first, Note title-first, all six response surfaces — pinned by `tests/wire-order.test.ts` + the raw-text e2e order pins**, and the seed's sample-week re-anchoring (E-1), **the panel-motion config source pins (session 19, FS-31: the decompiled G1e/W1e/A_e motion contract — durations, eases, delays, keyframes — byte-pinned in QuickActions.tsx + BackgroundBlobs.tsx, incl. the BL-1 0×0 blob mirror)**, and **the theme-palette source pins + the completeness invariant (session 20, FS-32: the --font-sans/--font-mono stacks and the 13 used-but-unpinned color tokens pinned to the reference's MEASURED hexes — incl. pink-700 #be185d, one unit off the v3 hex — plus the used ⊆ pinned invariant scanning src/ for color-class tokens), and **the space-y v3-compat source pins (session 22, S22-F1/S22-F2/FS-34: the inline-label margin-collapse + the -mb-2 back-link specificity-flip + the Select trigger's hidden-native-select mb — the four globals.css rules restore v3's margin side, keeping the DOM byte-identical)**)) |
-| `bun run test:e2e` | Playwright (94 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
+| `bun run test` | Vitest unit suites (170 tests: auth crypto, domain constants incl. the skills color map, AI fallback content, db-path v3 — the repo-.env authority rule, .env.example contract, site URL helper, next.config contract, rate-limit window/eviction, wire-format serializers — **pinned to the CAPTURED live reference wire (session 12): created_date/updated_date/is_sample/created_by, 14-key Task / 9-key Note shapes** — and **the duration float-format wire (session 14): integer duration tokens ship as `60.0`, byte-matching the reference's Python-backed entity wire (session-12 P-1 closed)** — **and the date-token wire (session 15, DW-1): server-generated date tokens ship as 6-digit µs — no Z on reads (okWire), Z on creates (okWireCreate) — with start_time/end_time untouched**, the prisma-CLI wrapper contract, **the AI prompt wire (session 13): both InvokeLLM prompts pinned byte-for-byte against the captured request bodies + mocked-SDK wiring pins + the summary route's createdAt-desc order**, **the AI response-parse contract (session 14): the probed schema-shape checks — empty arrays/strings render verbatim, non-string shapes fall back, the quote-only focus guard (RS-1..RS-4)**, **the key-ORDER wire (session 16, KO-1/FS-28): the exact captured emission order — Task start_time-first, Note title-first, all six response surfaces — pinned by `tests/wire-order.test.ts` + the raw-text e2e order pins**, and the seed's sample-week re-anchoring (E-1), **the panel-motion config source pins (session 19, FS-31: the decompiled G1e/W1e/A_e motion contract — durations, eases, delays, keyframes — byte-pinned in QuickActions.tsx + BackgroundBlobs.tsx, incl. the BL-1 0×0 blob mirror)**, and **the theme-palette source pins + the completeness invariant (session 20, FS-32: the --font-sans/--font-mono stacks and the 13 used-but-unpinned color tokens pinned to the reference's MEASURED hexes — incl. pink-700 #be185d, one unit off the v3 hex — plus the used ⊆ pinned invariant scanning src/ for color-class tokens), and **the space-y v3-compat source pins (session 22, S22-F1/S22-F2/FS-34: the inline-label margin-collapse + the -mb-2 back-link specificity-flip + the Select trigger's hidden-native-select mb — the four globals.css rules restore v3's margin side, keeping the DOM byte-identical)**)) |
+| `bun run test:e2e` | Playwright (104 specs): boots the **production standalone** on :3100 with its own `db/e2e.db` — requires a prior `bun run build` |
 | `bun run db:push` | Prisma `db push` via `scripts/prisma-cli.ts` (the v3 URL resolution applied; dev schema sync, `--accept-data-loss`) |
 | `bun run db:seed` | Idempotent seed: demo user `demo@flowschedule.app` / `demo1234`, 9 tasks, 2 notes |
 | `bunx prisma generate` | Regenerate the Prisma client after schema edits |
@@ -130,6 +130,44 @@ never page-element COUNTs, for data that legitimately persists elsewhere
   computed-geometry specs — measure COMPUTED GEOMETRY (settled
   animations), never class strings, when auditing field layouts
   (FS-34: class parity is not geometry parity).
+- **The shadcn SEMANTIC theme is the reference's DEFAULT (neutral)
+  variant (session 23, S23-F2 — FS-35)**: the whole `:root` family in
+  globals.css is pinned to the reference's OWN app stylesheet (the CSS
+  its AUTHENTICATED shell loads — its login screen is a different
+  platform build carrying the zinc family): `--foreground: hsl(0 0%
+  3.9%)` (rgb(10,10,10) — the body default, dialog labels, CardTitles),
+  `--muted-foreground: hsl(0 0% 45.1%)` (the dialog placeholder),
+  `--radius: 0.5rem` (every var-based corner: the week-nav buttons and
+  the dialog's sm:rounded-lg are 8px, the dropdowns 12px), the whole
+  primary/secondary/muted/accent/ring family. `--border`/`--input` KEEP
+  the slate forms (the rendered-match ruling: the reference's nominal
+  neutral-200 never renders — its bare borders take the v3 preflight
+  #e5e7eb, and its explicitly-colored border surfaces match the
+  clone's slate-200 byte-for-byte). Pinned by
+  `tests/tailwind-theme-pins.test.ts` + the theme-palette spec's
+  semantic computed pins. The v4 alpha-modifier classes
+  (`border-sky-200/90`) serialize as `lab(...)` on the clone vs
+  `rgba(...)` on the reference — the SAME rendered color (v4 uses
+  color-mix in oklab; the pinned hex round-trips exactly); a
+  serialization divergence, not a rendering one.
+- **v4's named text-* utilities emit UNIT-LESS line-heights that
+  RE-SCALE on inheritance (session 23, S23-F3)**:
+  `--text-xs--line-height: calc(1/.75)` is a ratio — a `text-[10px]`
+  child of a text-xs parent renders 13.33px where v3's `.text-xs
+  { line-height: 1rem }` (a LENGTH — byte-extracted from the
+  reference's stylesheet) inherits fixed at 16px. The @theme pins
+  (`--text-xs--line-height: 1rem` … `--text-2xl--line-height: 2rem`)
+  restore v3's length semantics; element-local pixels are identical
+  either way (only inheritance differs). Pinned by the source pins +
+  the day-label computed pin (the date line's 16px + the EEE offset).
+- **Animation contracts pin on METADATA, never live transient reads
+  (session 23, S23-F1)**: the panel-body entrance spec asserts the
+  WAAPI timing (300/200/circOut/both) + the native keyframes
+  (opacity 0→1) + the settle — a live computed read of the mount/delay
+  window is unfixably racy (the mode="wait" mount churn starves the
+  rAF poll ~200 ms; measured mid-tween at y=18.37 even with the
+  single-evaluate no-round-trip design). The initial y and the delay
+  are covered by the source pins + the WAAPI delay.
 - **Quick Action gradients are inline-style hex** (not
   `bg-gradient-to-r` utilities) — the reference's own form, which also
   sidesteps v4's in-oklab gradient interpolation drift (Trap 3).
@@ -696,6 +734,14 @@ the standing state is 9 parity tasks + 3 notes.
   route-keyed Z — closed via `formatWireDates`/`okWireCreate`; the
   mutation-harness backup lesson; the live mobile-menu re-measure
   matching the pins exactly).
+- `docs/session_23-review.md` + `docs/remediation-plan-session23.md` —
+  the session-23 record (the semantic-theme pass: S23-F2 — the shadcn
+  default/neutral :root family + --radius .5rem, the --border/--input
+  rendered-match ruling; S23-F3 — the v3 LENGTH line-heights over v4's
+  unitless ratios; S23-F1 — the panel-animation metadata pinning + the
+  timing-flake class; S23-P1 — the sign-up error-state + the 390×844
+  login/dialog geometry lock-ins; the raster closure at BOTH viewport
+  bands — every non-LLM pixel byte-identical; FS-35).
 - `docs/Tailwind-V4-Validation-Report.md` — the source for the trap
   taxonomy; read it before touching `globals.css`.
 - `docs/session_22-review.md` + `docs/remediation-plan-session22.md` —

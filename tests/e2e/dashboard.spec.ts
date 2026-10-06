@@ -1292,3 +1292,70 @@ test.describe("dashboard layout (wide viewport)", () => {
     expect(pageDiv.w).toBeGreaterThanOrEqual(1440);
   });
 });
+
+test.describe("task dialog geometry at the mobile band (390×844, S23-P1)", () => {
+  // Session 23: the session-22 §5 target (b), live-verified
+  // byte-identical on both apps at 390×844 and pinned here. The
+  // reference's dialog at the mobile band: the panel spans the full
+  // 390px width at y 159 (the vertical centering of the 526px create-
+  // mode body), all six label→field gaps 12 (the same compat-rule
+  // contract as the desktop spec). The calendar at 390 is horizontally
+  // scrolled (the 1040px min-width) — the FIRST day row's 07:00 cell
+  // is the visible entry (Monday's row is the first `grid.items-center`
+  // row; its 07:00 cell button is in the viewport at x≈113-173).
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("the dialog's panel box + all six field gaps at 390 match the reference", async ({ page }) => {
+    await page.goto("/Dashboard");
+    await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+    // The visible empty cell: the first day row's first hours (the
+    // calendar scroller sits at scrollLeft 0 → Mon 07:00 is on-screen).
+    await page
+      .getByRole("button", { name: /^Add task on Mon .* at 07:00$/ })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // Settle the enter animation (session 8, E-C).
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[role="dialog"]');
+      if (!el) return false;
+      const anims = el.getAnimations();
+      return anims.length === 0 || anims.every((a) => a.playState === "finished");
+    });
+    const data = await page.evaluate(() => {
+      const dlg = document.querySelector('[role="dialog"]');
+      if (!dlg) return null;
+      const r = dlg.getBoundingClientRect();
+      const labels = [...dlg.querySelectorAll("label")];
+      return {
+        box: {
+          x: Math.round(r.x),
+          y: Math.round(r.y),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        },
+        gaps: labels.map((label) => {
+          const next = label.nextElementSibling;
+          if (!next) return null;
+          const lb = label.getBoundingClientRect();
+          const nb = next.getBoundingClientRect();
+          return Math.round(nb.y - (lb.y + lb.height));
+        }),
+      };
+    });
+    expect(data).not.toBeNull();
+    // The reference's mobile dialog panel (390×844 probe): x 0, y 159,
+    // w 390 (full-bleed at <sm), h 526 (the create-mode body).
+    expect(data!.box.x).toBe(0);
+    expect(Math.abs(data!.box.y - 159)).toBeLessThanOrEqual(1);
+    expect(data!.box.w).toBe(390);
+    expect(Math.abs(data!.box.h - 526)).toBeLessThanOrEqual(2);
+    expect(data!.gaps.filter((g) => g !== null).length).toBe(6);
+    for (const gap of data!.gaps) {
+      if (gap === null) continue;
+      expect(Math.abs(gap - 12)).toBeLessThanOrEqual(1);
+    }
+    await page.keyboard.press("Escape");
+  });
+});

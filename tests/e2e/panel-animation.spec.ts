@@ -85,50 +85,84 @@ test.describe("Quick Actions panel animation (the G1e/W1e motion contract, sessi
 
   test("the panel body enters from translateY(20px) at opacity 0 and holds through the 0.2 s delay", async ({ page }) => {
     await openDashboard(page);
+    // S23-F1 (rewritten): the original design read the mount state via
+    // waitForFunction, then scheduled the +100 ms delay-hold read as a
+    // SECOND page.evaluate — the CDP round-trip between them is
+    // load-dependent and ate into the 200 ms delay window on cold-start
+    // full-suite runs (the observed flake). The rewrite:
+    //   (a) the DETERMINISTIC pin — the panel body's native WAAPI
+    //       animation carries the timing contract itself (duration 300,
+    //       delay 200, circOut, fill both — live-measured; the same
+    //       metadata class spec #1 pins for the overlay);
+    //   (b) the entrance's opacity keyframes (native metadata, 0 → 1)
+    //       — the initial y and the delay-hold are covered by the WAAPI
+    //       delay + the panel-motion SOURCE pins instead of a live
+    //       transient read (retired: racy under ~200 ms mount churn).
     await page.getByRole("button", { name: "Start Focus Timer", exact: true }).click();
-    // the body mounts after the buttons-view exit (mode="wait", ~0.4 s);
-    // its entrance holds the INITIAL state for the 0.2 s delay. The read
-    // must land in the FIRST frames of the mount: an in-page rAF-polled
-    // waitForFunction CAPTURES the computed state at the detection frame
-    // (no CDP round-trip per poll — a locator.waitFor + evaluate pair
-    // lands ~0.5 s late, past the whole delay window).
-    const state = await page.waitForFunction(
-      () => {
+    // (a) the WAAPI timing metadata — poll in-page for the animation to
+    // register (framer creates it a frame after the mount; the timing
+    // metadata is readable after completion too: fill "both" keeps the
+    // animation listed).
+    const anims = await page.evaluate(async () => {
+      for (let i = 0; i < 50; i++) {
         const el = document.querySelector('.min-h-\\[280px\\] .space-y-4');
-        if (!el) return false;
-        const cs = getComputedStyle(el);
-        return { transform: cs.transform, opacity: cs.opacity };
-      },
-      null,
-      { polling: "raf", timeout: 5_000 },
-    );
-    const snap = (await state.jsonValue()) as { transform: string; opacity: string };
-    expect(snap.transform).toContain("matrix(1, 0, 0, 1, 0, 20)");
-    expect(Number(snap.opacity)).toBeLessThanOrEqual(0.15);
-    // The DELAY hold: read again 100 ms after the mount (an in-page
-    // setTimeout — precise, no CDP latency). The mount frame itself
-    // always reads y=20 (framer applies the initial transform
-    // synchronously and starts the tween on LATER frames), so the
-    // delay is only observable at +100 ms: with the 0.2 s delay the
-    // transform STILL reads exactly 20; a delay-less build has already
-    // descended to ~8–10 px by then (circOut).
-    const late = await page.evaluate(
-      () =>
-        new Promise<{ transform: string; opacity: string } | null>((resolve) => {
-          setTimeout(() => {
-            const el = document.querySelector('.min-h-\\[280px\\] .space-y-4');
-            if (!el) {
-              resolve(null);
-              return;
-            }
-            const cs = getComputedStyle(el);
-            resolve({ transform: cs.transform, opacity: cs.opacity });
-          }, 100);
-        }),
-    );
-    expect(late).not.toBeNull();
-    expect(late!.transform).toContain("matrix(1, 0, 0, 1, 0, 20)");
-    expect(Number(late!.opacity)).toBeLessThanOrEqual(0.05);
+        if (el) {
+          const list = el
+            .getAnimations({ subtree: false })
+            .map((a) => {
+              const t = a.effect?.getComputedTiming?.() ?? {};
+              const g = a.effect?.getTiming?.() ?? {};
+              return { duration: t.duration, delay: t.delay, easing: g.easing, fill: g.fill };
+            })
+            .filter((a) => typeof a.duration === "number" && a.duration > 0);
+          if (list.length) return list;
+        }
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return [];
+    });
+    // exactly ONE native animation carries the body's entrance.
+    expect(anims.length).toBeGreaterThanOrEqual(1);
+    const entrance = anims.find((a) => a.duration === 300) ?? anims[0];
+    expect(entrance.duration).toBe(300);
+    expect(entrance.delay).toBe(200);
+    expect(entrance.easing).toBe("cubic-bezier(0.55, 0, 1, 0.45)");
+    expect(entrance.fill).toBe("both");
+    // (b) the keyframes metadata — the entrance's opacity keyframes are
+    // DETERMINISTIC native-animation metadata (0 → 1; live-probed). The
+    // initial transform y=20 and the delay-hold are covered WITHOUT a
+    // live computed read: the y-offset and the 0.2 delay are byte-pinned
+    // at the SOURCE (tests/panel-motion.test.ts pins the panelMotion
+    // config — initial { opacity: 0, y: 20 }, delay: 0.2) and the delay
+    // is additionally pinned by the WAAPI timing above. The live
+    // mount-frame read (the original design AND the single-evaluate
+    // variant tried mid-session) is inherently racy against ~200 ms
+    // main-thread stalls during the mode="wait" mount churn — measured
+    // mid-tween at y=18.37 on a loaded full-suite run; retired for the
+    // deterministic surfaces.
+    const keyframes = await page.evaluate(async () => {
+      for (let i = 0; i < 50; i++) {
+        const el = document.querySelector('.min-h-\\[280px\\] .space-y-4');
+        if (el) {
+          const anims = el
+            .getAnimations({ subtree: false })
+            .map((a) => {
+              const kf = (a as unknown as { effect?: { getKeyframes?: () => unknown[] } }).effect
+                ? (a.effect as unknown as KeyframeEffect).getKeyframes?.() ?? []
+                : [];
+              const dur = a.effect?.getComputedTiming?.()?.duration;
+              return { kf, dur: typeof dur === "number" ? dur : 0 };
+            })
+            .filter((a) => a.dur > 0);
+          if (anims.length) return anims[0].kf;
+        }
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return [];
+    });
+    expect(keyframes.length).toBe(2);
+    expect(String(keyframes[0].opacity)).toBe("0");
+    expect(String(keyframes[1].opacity)).toBe("1");
     // ...and it settles (the 0.3 s circOut completes).
     await expect
       .poll(async () => page.locator(`${QA_CARD} .space-y-4`).evaluate((el) => getComputedStyle(el).opacity), {

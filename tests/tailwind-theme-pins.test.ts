@@ -140,3 +140,100 @@ describe("the theme pins in globals.css (session 20, F-1/C-1)", () => {
     expect(missing).toEqual([]); // every used token is pinned
   });
 });
+
+describe("the shadcn semantic theme variant (session 23, S23-F2)", () => {
+  // The clone's :root shipped the shadcn SLATE variant (the scaffold's
+  // default for the new-york style); the reference's OWN app stylesheet
+  // (/assets/index-CcElM1Qx.css, byte-extracted) ships the shadcn
+  // DEFAULT (neutral) variant. Live-measured on both apps: the body
+  // default + the TaskDialog labels/inputs + the Planning CardTitles
+  // render rgb(10,10,10) = hsl(0 0% 3.9%) on the reference vs
+  // rgb(2,8,23) = the clone's slate value; the dialog title placeholder
+  // rgb(115,115,115) = hsl(0 0% 45.1%) vs slate-500; every var-based
+  // radius 2px off (--radius .5rem vs 0.625rem — the week-nav buttons,
+  // the dialog's sm:rounded-lg, the dropdown menus).
+  //
+  // The whole :root family is pinned here to the reference's app-CSS
+  // values. NOT pinned (documented acceptance): --border/--input — the
+  // reference's nominal neutral-200 never renders (its bare `border`
+  // surfaces take the v3 preflight #e5e7eb; the clone's slate-200
+  // --border is the closest rendered match at 1–3 units, and both apps'
+  // explicitly-colored border surfaces match byte-for-byte).
+
+  const SEMANTIC: Record<string, string> = {
+    "--foreground": "hsl(0 0% 3.9%)",
+    "--card-foreground": "hsl(0 0% 3.9%)",
+    "--popover-foreground": "hsl(0 0% 3.9%)",
+    "--primary": "hsl(0 0% 9%)",
+    "--primary-foreground": "hsl(0 0% 98%)",
+    "--secondary": "hsl(0 0% 96.1%)",
+    "--secondary-foreground": "hsl(0 0% 9%)",
+    "--muted": "hsl(0 0% 96.1%)",
+    "--muted-foreground": "hsl(0 0% 45.1%)",
+    "--accent": "hsl(0 0% 96.1%)",
+    "--accent-foreground": "hsl(0 0% 9%)",
+    "--destructive-foreground": "hsl(0 0% 98%)",
+    "--ring": "hsl(0 0% 3.9%)",
+  };
+
+  it("pins --radius to the reference's app-CSS .5rem (the var-based corner scale)", () => {
+    expect(globals).toContain("--radius: 0.5rem");
+    // the slate-era scaffold default must be gone
+    expect(globals).not.toContain("--radius: 0.625rem");
+  });
+
+  it("pins the neutral semantic foreground/secondary/muted/accent/ring family", () => {
+    for (const [token, value] of Object.entries(SEMANTIC)) {
+      expect(globals).toContain(`${token}: ${value}`);
+    }
+  });
+
+  it("the slate-era semantic values are gone", () => {
+    expect(globals).not.toContain("--foreground: hsl(222.2 84% 4.9%)");
+    expect(globals).not.toContain("--muted-foreground: hsl(215.4 16.3% 46.9%)");
+    expect(globals).not.toContain("--primary: hsl(222.2 47.4% 11.2%)");
+    // the reference's nominal --border/--input values are deliberately
+    // NOT adopted (the rendered-match ruling) — the neutral-200 forms
+    // must not sneak in either.
+    expect(globals).not.toContain("--border: hsl(0 0% 89.8%)");
+    expect(globals).not.toContain("--input: hsl(0 0% 89.8%)");
+  });
+
+  it("the shared tokens stay byte-identical (background/card/popover/destructive/border/input)", () => {
+    // --background/--card/--popover (0 0% 100%) and --destructive
+    // (0 84.2% 60.2%) match the reference's app CSS exactly; --border/
+    // --input keep the slate forms by the rendered-match ruling (see
+    // the describe comment).
+    expect(globals).toContain("--background: hsl(0 0% 100%)");
+    expect(globals).toContain("--card: hsl(0 0% 100%)");
+    expect(globals).toContain("--popover: hsl(0 0% 100%)");
+    expect(globals).toContain("--destructive: hsl(0 84.2% 60.2%)");
+    expect(globals).toContain("--border: hsl(214.3 31.8% 91.4%)");
+    expect(globals).toContain("--input: hsl(214.3 31.8% 91.4%)");
+  });
+
+  it("pins the text-scale line-heights to the reference's v3 LENGTH forms (S23-F3)", () => {
+    // Session 23 (found mid-T-4): v4's named text-* utilities emit
+    // UNIT-LESS line-heights (--text-xs--line-height: calc(1 / .75) =
+    // 1.3333), which smaller-font children re-scale on inheritance —
+    // the day-label date line (text-[10px] in a text-xs parent)
+    // rendered 13.33px where the reference's v3 .text-xs { line-height:
+    // 1rem } inherits as a fixed 16px (its stylesheet, byte-extracted:
+    // .text-xs{font-size:.75rem;line-height:1rem} etc.). For the
+    // element itself ratio×size === the v3 length (identical pixels);
+    // only the INHERITANCE semantics differ. The @theme pins below
+    // restore v3's length semantics for the whole used scale.
+    expect(globals).toContain("--text-xs: 0.75rem");
+    expect(globals).toContain("--text-xs--line-height: 1rem");
+    expect(globals).toContain("--text-sm: 0.875rem");
+    expect(globals).toContain("--text-sm--line-height: 1.25rem");
+    expect(globals).toContain("--text-base: 1rem");
+    expect(globals).toContain("--text-base--line-height: 1.5rem");
+    expect(globals).toContain("--text-lg: 1.125rem");
+    expect(globals).toContain("--text-lg--line-height: 1.75rem");
+    expect(globals).toContain("--text-xl: 1.25rem");
+    expect(globals).toContain("--text-xl--line-height: 1.75rem");
+    expect(globals).toContain("--text-2xl: 1.5rem");
+    expect(globals).toContain("--text-2xl--line-height: 2rem");
+  });
+});

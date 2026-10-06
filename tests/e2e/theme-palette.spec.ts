@@ -136,3 +136,137 @@ test.describe("theme palette (the default-theme drift family, session 20)", () =
     expect(badges.planning).toBe("rgb(67, 56, 202)");
   });
 });
+
+test.describe("the semantic token family (S23-F2 — the shadcn theme variant)", () => {
+  // Session 23: the clone's :root shipped the shadcn SLATE variant; the
+  // reference's OWN app stylesheet (/assets/index-CcElM1Qx.css — the CSS
+  // the AUTHENTICATED shell loads; its login screen is a different
+  // platform build) ships the shadcn DEFAULT (neutral) variant:
+  //   --foreground: 0 0% 3.9% (rgb(10,10,10)) vs the clone's slate
+  //   222.2 84% 4.9% (rgb(2,8,23)) — live-measured on BOTH apps (the
+  //   body default, the TaskDialog field labels/inputs/select-triggers,
+  //   the Planning CardTitles);
+  //   --muted-foreground: 0 0% 45.1% (rgb(115,115,115)) vs the clone's
+  //   slate-500 rgb(100,116,139) — measured on the dialog title
+  //   placeholder;
+  //   --radius: .5rem vs the clone's 0.625rem — the var-based corners
+  //   drift 2px everywhere (the week-nav rounded-lg 8 vs 10 px, the
+  //   dialog sm:rounded-lg 8 vs 10, the dropdown rounded-xl 12 vs 14).
+  // 22 sessions of class-tree diffs missed it because every EXPLICIT
+  // utility color was pinned (session 20) — the semantic family never
+  // was; the glyph-edge/corner-arc raster residue at mobile (0.481%)
+  // is what surfaced it. These computed pins close the family.
+  //
+  // NOT pinned here (documented acceptance): --border/--input — the
+  // reference's nominal neutral-200 never renders (its bare `border`
+  // surfaces take the v3 preflight #e5e7eb; the clone's slate-200 is
+  // the closest rendered match at 1–3 units; its explicitly-colored
+  // border surfaces match byte-for-byte).
+
+  test("the body's default text color is the reference's neutral-950", async ({ page }) => {
+    await page.goto("/Dashboard");
+    await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+    const color = await page.evaluate(() => getComputedStyle(document.body).color);
+    expect(color).toBe("rgb(10, 10, 10)");
+  });
+
+  test("the week-nav buttons render the reference's 8px rounded-lg band", async ({ page }) => {
+    await page.goto("/Dashboard");
+    await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+    const radius = await page.evaluate(() => {
+      const card = [...document.querySelectorAll("main div.rounded-3xl")].find((c) =>
+        c.querySelector("h2")?.textContent?.includes("Weekly Schedule"),
+      );
+      const btn = [...(card?.querySelectorAll("button") ?? [])].find((b) =>
+        b.textContent?.includes("Previous"),
+      );
+      return btn ? getComputedStyle(btn).borderRadius : null;
+    });
+    expect(radius).toBe("8px");
+  });
+
+  test("the Planning CardTitles render the reference's neutral-950 card-foreground", async ({ page }) => {
+    await page.goto("/Planning");
+    await page.getByRole("heading", { name: "Weekly Planning" }).waitFor();
+    // click a day card to reveal the selected-day Card (its CardTitle
+    // inherits text-card-foreground — the classic Card form).
+    await page.locator("div.cursor-pointer").first().click();
+    const color = await page.evaluate(() => {
+      const title = [...document.querySelectorAll("main .font-semibold.tracking-tight")].find(
+        (t) => (t.textContent ?? "").match(/day|, Oct|, \w{3} \d+/i),
+      );
+      return title ? getComputedStyle(title).color : null;
+    });
+    expect(color).toBe("rgb(10, 10, 10)");
+  });
+
+  test("the TaskDialog's semantic surfaces: label color, placeholder, panel radius", async ({ page }) => {
+    await page.goto("/Dashboard");
+    await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+    await page
+      .getByRole("button", { name: /^Add task on Thu .* at 14:00$/ })
+      .first()
+      .click();
+    await page.getByRole("dialog").waitFor();
+    await page.waitForTimeout(400); // settle the enter animation
+    const data = await page.evaluate(() => {
+      const d = document.querySelector('[role="dialog"]');
+      const label = d?.querySelector("label");
+      const input = d?.querySelector("input");
+      // the dialog panel: the sm:rounded-lg element (DialogContent's
+      // own div — the dialog role sits on it)
+      const panel = d?.querySelector("div.sm\\:rounded-lg") ?? d;
+      return {
+        labelColor: label ? getComputedStyle(label).color : null,
+        placeholderColor: input ? getComputedStyle(input, "::placeholder").color : null,
+        panelRadius: panel ? getComputedStyle(panel).borderRadius : null,
+      };
+    });
+    // The reference: --foreground 0 0% 3.9% = rgb(10,10,10);
+    // --muted-foreground 0 0% 45.1% = rgb(115,115,115);
+    // sm:rounded-lg at --radius .5rem = 8px.
+    expect(data.labelColor).toBe("rgb(10, 10, 10)");
+    expect(data.placeholderColor).toBe("rgb(115, 115, 115)");
+    expect(data.panelRadius).toBe("8px");
+  });
+
+  test("the day-label date line inherits the reference's LENGTH line-height (S23-F3)", async ({ page }) => {
+    // Session 23 (found mid-T-4): v4's named text-* utilities emit
+    // UNIT-LESS line-heights (e.g. .text-xs → calc(1/.75) = 1.3333), so a
+    // smaller-font child re-scales it — the calendar's day-label date
+    // line (text-[10px] inside a text-xs parent) rendered 13.33px where
+    // the reference's v3 LENGTH (1rem) inherits as a fixed 16px. The
+    // 2.67px shorter line shifted the centered two-line label stack
+    // 1.33px down — the mobile raster's last residue (794 px, all in
+    // the day-label column). The @theme line-height pins restore v3's
+    // length semantics; this pin guards the rendered contract.
+    await page.goto("/Dashboard");
+    await page.getByRole("heading", { name: "Weekly Schedule" }).waitFor();
+    const data = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll("main div.rounded-3xl")];
+      const cal = cards.find((c) => c.querySelector("h2")?.textContent?.includes("Weekly Schedule"));
+      const rows = [...(cal?.querySelectorAll("div.grid.items-center") ?? [])].filter(
+        (g) => g.getBoundingClientRect().width > 900,
+      );
+      const label = rows[0]?.firstElementChild;
+      const eee = label?.querySelector("div.font-bold");
+      const date = label?.querySelector("div.text-\\[10px\\]");
+      if (!label || !eee || !date) return null;
+      const lr = label.getBoundingClientRect();
+      const er = eee.getBoundingClientRect();
+      const dr = date.getBoundingClientRect();
+      return {
+        eeeLineHeight: getComputedStyle(eee).lineHeight,
+        dateLineHeight: getComputedStyle(date).lineHeight,
+        // the centered stack: the EEE line's top sits 9px below the
+        // 50px label box's top on the reference (16+16 = 32 content,
+        // (50-32)/2 = 9).
+        eeeOffsetInLabel: +(er.y - lr.y).toFixed(2),
+      };
+    });
+    expect(data).not.toBeNull();
+    expect(data!.eeeLineHeight).toBe("16px");
+    expect(data!.dateLineHeight).toBe("16px");
+    expect(Math.abs(data!.eeeOffsetInLabel - 9)).toBeLessThanOrEqual(0.5);
+  });
+});

@@ -6,10 +6,10 @@ description: >
   calendar, AI insights, notes) built on Next.js 16 + React 19 + Prisma/
   SQLite + Tailwind CSS v4. Use this when extending, debugging, onboarding,
   or replicating the FlowSchedule architecture. Every claim is
-  codebase-verified (sessions 1–22, 2026-10-06).
-version: 2.11.0
+  codebase-verified (sessions 1–23, 2026-10-06).
+version: 2.12.0
 last_updated: 2026-10-06
-project_state: 165/165 unit tests, 94/94 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata byte-identical) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1), the Planning Add Task no-op closed (S21-F1: the reference's eSe ships NO dialog state and NO onClick — the button is decorative like the Filter button; the dialog lives ONLY on the Dashboard calendar, where its W-3/W-4 request-contract pin now lives), the space-y engine drift closed (S22-F1/S22-F2: the v3-compat rules in globals.css — the inline-label margin collapse on the login/dialog field gaps AND the -mb-2 back-link specificity flip — pinned by the computed-geometry e2e family + the source pins; the login + dialog geometry now byte-matches the reference), the matched-data raster diff closed at noise level (/Planning 0.057% — /Dashboard 0.715% ALL inside the Daily Focus LLM region — the login error state 0.098%), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
+project_state: 170/170 unit tests, 104/104 e2e tests, all gates green, build self-type-checks, db-path v3 (repo .env authoritative), zero-data-slot DOM, top-5 slice + Brainstorm no-op/order pinned, the Focus Timer W1e timed-interaction contract pinned to the live-measured reference timeline (pause snap-to-full, resume restart-from-full, the 00:00 terminal completion display, no close/reopen persistence — page.clock-pinned), the framer-motion animation family pinned at FOUR evidence levels (the decompiled G1e/W1e/A_e configs byte-identical; the same WAAPI-hybrid runtime — circOut IS cubic-bezier(0.55, 0, 1, 0.45); the rAF timelines matching; the WAAPI animation metadata + the native keyframes as the DETERMINISTIC pin surfaces — the panel-body entrance pin asserts timing/keyframe METADATA, never a live transient computed read, which is unfixably racy under ~200 ms mount churn) with the BL-1 blob mirror (the reference's dead w-100 renders 0×0 — the clone mirrors the RENDERED effect), the Tailwind default-theme drift closed (the reference's v4.0-era --font-sans stack pinned over v4.3.3's v3-compat default — F-1; the 13 used-but-unpinned palette tokens pinned to the reference's measured hexes — C-1, incl. pink-700 #be185d, ONE unit off the v3 hex; the used⊆pinned completeness invariant as a unit pin — PIN-1; the shadcn SEMANTIC theme closed — S23-F2: the reference's app stylesheet ships the DEFAULT (neutral) variant, the scaffold's slate family replaced with the neutral :root block incl. --radius .5rem, --muted-foreground 0 0% 45.1%; the --border/--input slate forms retained by the rendered-match ruling — its nominal neutral-200 never renders, the bare-border surfaces take the v3 preflight #e5e7eb; AND the v3 LENGTH line-heights pinned over v4's UNIT-LESS ratios — S23-F3: --text-xs--line-height 1rem etc., a ratio re-scales on inheritance (the day-label date line 13.33 vs 16px)), the Planning Add Task no-op closed (S21-F1: the reference's eSe ships NO dialog state and NO onClick — the button is decorative like the Filter button; the dialog lives ONLY on the Dashboard calendar, where its W-3/W-4 request-contract pin now lives), the space-y engine drift closed (S22-F1/S22-F2: the v3-compat rules in globals.css — the inline-label margin collapse on the login/dialog field gaps AND the -mb-2 back-link specificity flip — pinned by the computed-geometry e2e family + the source pins; the login + dialog geometry now byte-matches the reference at BOTH viewport bands — the S23-P1 lock-ins: the sign-up error-state + the 390×844 login/dialog geometry pin families), the matched-data raster diff closed at BYTE-IDENTITY (post-S23: mobile dashboard-top/planning/login-error 0.000%, desktop planning/profile/settings/login-error 0.000% — every non-LLM pixel on every rastered surface at both viewport bands matches the reference; the desktop dashboard's residual lives entirely inside the two LLM-content cards), wire contract pinned to the CAPTURED live reference wire (created_date/is_sample/created_by, 14/9-key shapes, client-computed end_time, verbatim description, FLOAT-formatted duration tokens, µs date tokens — route-keyed Z, start_time untouched, the CAPTURED key ORDER — Task start_time-first, Note title-first, every response surface — and end_time stored AS SUBMITTED, no server-side derivation), BOTH InvokeLLM prompts pinned byte-for-byte to the captured request bodies (incl. the createdAt-desc task order), the response-parse contract pinned to the PROBED reference render (schema-shape checks, quote-only focus guard), the failure-path (429) render parity confirmed on BOTH apps, the seed re-anchors its sample week across week boundaries
 ---
 
 # FlowSchedule — Engineering SKILL
@@ -1113,6 +1113,54 @@ matched-data raster diffs hide the layer identically on both apps
 and phase-align the WAAPI indicators via `currentTime % duration`
 windows.
 
+### FS-35: The scaffold's SEMANTIC theme is not the reference's theme — pin the whole `:root` family, and raster thresholds hide sub-threshold drift (Critical — theme parity)
+
+**Symptom (session 23, S23-F2):** the clone's `:root` shipped the
+shadcn **slate** variant (the scaffold's default); the reference's OWN
+app stylesheet (`/assets/index-CcElM1Qx.css` — the CSS the
+AUTHENTICATED shell loads; its login screen is a different platform
+build carrying the **zinc** family) ships the shadcn **default
+(neutral)** variant. Live-measured visible divergences: `--foreground`/
+`--card-foreground` (rgb(10,10,10) vs rgb(2,8,23) — the body default,
+the dialog labels/inputs/select-triggers, the CardTitles),
+`--muted-foreground` (rgb(115,115,115) vs rgb(100,116,139) — the
+dialog title placeholder, a 24-unit B-channel delta), and `--radius`
+(.5rem vs .625rem — every var-based corner 2px: the week-nav buttons
+8 vs 10 px, the dialog `sm:rounded-lg` 8 vs 10, the dropdown
+`rounded-xl` 12 vs 14). **Why 22 sessions missed it:** every EXPLICIT
+utility color was pinned (session 20) — the semantic family never was;
+the deltas sit BELOW the raster threshold on full-coverage glyph
+pixels and only aggregate at antialiased glyph edges + corner arcs
+(the mobile raster — no LLM region in view to dominate the ranking —
+is the surface that isolated it). Box-geometry pins are
+CURVATURE-BLIND (x/y/w/h cannot see an 8 vs 10px radius; the
+corner-arc antialiasing is a raster's only trace).
+**Fix + rules (session 23):** the whole `:root` family pinned to the
+reference's app-CSS values (byte-extracted — the same evidence class
+as session 20's utility hexes) + computed-color and computed-radius
+e2e pins + source pins. The `--border`/`--input` ruling: the
+reference's nominal neutral-200 NEVER renders (its app CSS ships no
+`border-border` utility and no shadcn universal rule — its bare
+`border` surfaces take the v3 preflight `#e5e7eb`); the clone's
+slate-200 universal rule is the CLOSEST rendered match (1–3 units) —
+keep the slate forms, document the ruling.
+**The S23-F3 corollary — line-height semantics:** v4's named `text-*`
+utilities emit UNIT-LESS line-heights (`--text-xs--line-height:
+calc(1/.75)` — a ratio) where v3 emitted LENGTHS (`.text-xs
+{ line-height: 1rem }`, byte-extracted from the reference). A ratio
+inherited by a smaller-font child RE-SCALES (the day-label date line
+`text-[10px]` in a text-xs parent: 13.33px vs 16px, shifting the
+centered label stack 1.33px); a length inherits fixed. For the
+element itself ratio×size === the v3 length (identical pixels) — only
+the INHERITANCE semantics differ. Pin the v3 LENGTH forms of the used
+text scale in `@theme`.
+**Generalized:** a scaffold's theme defaults are ENGINE artifacts,
+not reference facts — diff the reference's OWN stylesheet `:root`
+block (the AUTHENTICATED shell's CSS, not the login shell's build)
+BEFORE trusting any semantic token; and when a raster diff sits at
+0.1–0.5% with glyph-edge/corner-arc clustering, suspect sub-threshold
+token drift and go straight to computed-color probes.
+
 ### FS-34: Class parity is not geometry parity — the engine is part of the contract (Critical — Tailwind v4 parity)
 
 **Symptom (session 22, S22-F1/S22-F2):** the clone's login fields and
@@ -1593,6 +1641,46 @@ parity remediation):
   the reset-sent alert text = the documented session-5 ruling. Unit
   159 → 165, e2e 90 → 94 (×2 consecutive). See
   `docs/session_22-review.md` + `docs/remediation-plan-session22.md`.
+- **Session 23 (2026-10-06, this skill revision):** the semantic-theme
+  pass (the session-22 §5 suggested targets executed live on BOTH apps:
+  the sign-up error-state geometry + the mobile 390×844 login/dialog
+  geometry — both byte-identical, both then PINNED as the S23-P1
+  lock-in families; the raster diff extended to the mobile viewport).
+  **S23-F2 (fixed)**: the clone's `:root` shipped the shadcn SLATE
+  semantic theme; the reference's OWN app stylesheet
+  (/assets/index-CcElM1Qx.css — the authenticated shell's CSS; its
+  login screen is a different platform build carrying the zinc
+  family) ships the shadcn DEFAULT (neutral) variant — `--foreground
+  0 0% 3.9%` (rgb(10,10,10) vs the clone's slate rgb(2,8,23)) on the
+  body/dialog-labels/CardTitles; `--muted-foreground 0 0% 45.1%`
+  (rgb(115,115,115) vs slate-500) on the dialog placeholder;
+  `--radius .5rem` (every var-based corner 2px: the week-nav
+  rounded-lg 8 vs 10, the dialog sm:rounded-lg 8 vs 10). 22 sessions
+  missed it because every EXPLICIT utility color was pinned and the
+  deltas sit below the raster threshold except at antialiased glyph
+  edges + corner arcs — the mobile raster (no LLM region in view)
+  isolated it. The `--border`/`--input` slate forms RETAINED (the
+  rendered-match ruling: the reference's nominal neutral-200 never
+  renders — its bare borders take the v3 preflight #e5e7eb, the
+  slate-200 is the closest rendered match). **S23-F3 (fixed,
+  mid-T-4)**: v4's named text-* utilities emit UNIT-LESS
+  line-heights (--text-xs--line-height: calc(1/.75)) that RE-SCALE on
+  inheritance — the day-label date line (text-[10px] in a text-xs
+  parent) rendered 13.33px vs v3's LENGTH-inherited 16px, shifting
+  the centered label stack 1.33px; the v3 LENGTH forms pinned for
+  the whole used scale. **S23-F1 (fixed)**: two timing-spec flakes
+  at base — the panel-body entrance pin now asserts the DETERMINISTIC
+  WAAPI metadata (timing 300/200/circOut/both + the opacity 0→1
+  keyframes) instead of a live transient computed read (unfixably
+  racy under the mode="wait" mount churn). Mutations M-1..M-6 all
+  RED surgical. T-4 live: the raster closure at BOTH viewport bands
+  — mobile dashboard-top/planning/login-error 0.000%, desktop
+  planning/profile/settings/login-error 0.000% (every non-LLM pixel
+  byte-identical; the desktop dashboard's residual lives inside the
+  two LLM-content cards). The mobile menu re-measured byte-identical
+  (the standing priority). Unit 165 → 170, e2e 94 → 104 (×3
+  consecutive). See `docs/session_23-review.md` +
+  `docs/remediation-plan-session23.md`.
 - **Session 21 (2026-10-05, this skill revision):** the Planning
   handler-parity pass (the session-20 §5 suggested targets (a)+(b)
   executed: the matched-data raster diff and the Planning multi-week
